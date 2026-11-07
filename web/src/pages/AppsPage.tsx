@@ -10,6 +10,7 @@ import { EmptyState } from "./ServerParts";
 import { SiteStateBadge } from "./SitesPage";
 import { useTasks } from "../components/Tasks";
 import { useMe } from "../lib/session";
+import { CronCard } from "../components/CronCard";
 import { OwnerField } from "./CustomersPage";
 
 const textarea = "rounded-lg border border-line bg-surface px-3 py-2 font-mono text-sm text-ink";
@@ -677,6 +678,7 @@ export function AppDetailPage() {
           <Containers app={app} />
           <Logs app={app} />
         </div>
+        {app.state !== "deleting" && <CronCard appId={app.id} />}
 
         {form && (
           <Card className="p-6">

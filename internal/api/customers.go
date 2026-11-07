@@ -25,7 +25,8 @@ func (s *Server) validPackage(w http.ResponseWriter, r *http.Request, l *store.P
 	switch {
 	case l.Name == "" || utf8.RuneCountInString(l.Name) > 60:
 		return fail("invalid_name", "enter a name of up to 60 characters")
-	case l.MaxSites < 0 || l.MaxDatabases < 0 || l.MaxApps < 0 || l.MaxSites > 100000 || l.MaxDatabases > 100000 || l.MaxApps > 100000:
+	case l.MaxSites < 0 || l.MaxDatabases < 0 || l.MaxApps < 0 || l.MaxCronJobs < 0 || l.MaxSites > 100000 || l.MaxDatabases > 100000 ||
+		l.MaxApps > 100000 || l.MaxCronJobs > 100000:
 		return fail("invalid_package", "counts must be between 0 and 100,000")
 	case l.DiskMB != nil && (*l.DiskMB < 1 || *l.DiskMB > 1<<30):
 		return fail("invalid_package", "the disk space must be at least 1 MB")

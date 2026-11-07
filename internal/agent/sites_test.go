@@ -20,6 +20,7 @@ type fakeSystem struct {
 	installed map[string]bool     // dpkg packages
 	badCaddy  bool                // make `caddy validate` fail
 	badSSHD   bool                // make `sshd -t` fail
+	isActive  map[string]bool     // units `systemctl is-active` reports as active
 }
 
 func newFakeSystem(t *testing.T) *fakeSystem {
@@ -54,6 +55,13 @@ func newFakeSystem(t *testing.T) *fakeSystem {
 				}
 			case "gpasswd":
 				f.users[args[1]] = slices.DeleteFunc(f.users[args[1]], func(g string) bool { return g == args[2] })
+			case "systemctl":
+				if len(args) == 2 && args[0] == "is-active" {
+					if f.isActive[args[1]] {
+						return []byte("active\n"), nil
+					}
+					return []byte("inactive\n"), errors.New("exit status 3")
+				}
 			case "sshd":
 				if f.badSSHD {
 					return nil, errors.New("line 3: Bad configuration option")
@@ -221,6 +229,7 @@ func TestSwitchToStaticAndDelete(t *testing.T) {
 func TestRefusesForeignAndReservedAccounts(t *testing.T) {
 	f := newFakeSystem(t)
 	f.users["alice"] = []string{"alice", "sudo"} // a real person's account
+	os.MkdirAll(filepath.Join(f.root, "home", "alice"), 0o755)
 	sp := phpSite()
 	sp.User = "alice"
 	if res := apply(t, f, sp); res[0].OK || !strings.Contains(res[0].Error, "not created by ekPanel") {
@@ -231,6 +240,9 @@ func TestRefusesForeignAndReservedAccounts(t *testing.T) {
 	apply(t, f, del)
 	if f.ran("userdel") || f.ran("pkill") {
 		t.Fatal("must never delete an account ekPanel did not create")
+	}
+	if !f.exists("/home/alice") {
+		t.Fatal("must never delete the files of an account ekPanel did not create")
 	}
 	sp.User = "root"
 	if res := apply(t, f, sp); res[0].OK {
@@ -357,5 +369,21 @@ func TestSFTPInputValidation(t *testing.T) {
 		if res := apply(t, f, sp); res[0].OK {
 			t.Errorf("accepted %+v", sp)
 		}
+	}
+}
+
+func TestDeletedSiteLeavesNoFiles(t *testing.T) {
+	f := newFakeSystem(t)
+	apply(t, f, phpSite())
+	if !f.exists("/home/example_ab12/public_html") {
+		t.Fatal("site not created")
+	}
+	del := phpSite()
+	del.Deleted = true
+	if res := apply(t, f, del); !res[0].OK {
+		t.Fatalf("delete: %s", res[0].Error)
+	}
+	if f.exists("/home/example_ab12") {
+		t.Fatal("the site's home folder must go with it")
 	}
 }

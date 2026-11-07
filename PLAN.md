@@ -424,8 +424,26 @@ limits are measured and enforced by the panel, real filesystem quotas come later
 - [ ] Suspending a customer; email to new customers: with notifications (2c)
 - [ ] SFTP uploads are not stopped by the disk limit (the panel's own file actions are)
 
+**2b. Cron jobs — done**
+- [x] Jobs on a website (run with `sh` as the site's account, from `public_html`) or on an app
+      (run inside one of its containers). Presets (every minute … monthly) or any five-field
+      cron expression, in the user's time zone, with the next five runs shown while editing
+- [x] Each job is a systemd timer and a oneshot service: a job still running is not started
+      twice, a time limit stops it, output goes to the journal. The command lives in a script
+      readable only by root and the site's account, so no quoting or `%` can change the unit.
+      Site jobs run with `NoNewPrivileges`, a private /tmp and a read-only /usr and /etc, and
+      customers' jobs run in their slice
+- [x] Cron's "either day" rule (day of month OR day of week) becomes two OnCalendar lines;
+      every schedule is checked with `systemd-analyze calendar` before it is used
+- [x] Last run, result, exit code, next run and recent output; run now; pause; package limit on
+      the number of jobs; jobs go with their website or app
+- [x] Tested in the VM: every-minute job in Asia/Dhaka ran as the site's account; exit code 3
+      and a 10-second time limit reported as such; a job inside an Alpine container; a
+      customer's job in their slice; pause stopped the timer; nothing left after deletes
+- [x] Found and fixed while testing: deleting a website left its home folder behind (userdel
+      skips a home the account does not own); the folder is now removed with the site
+
 **Next, in order**
-- [ ] 2b. Cron jobs: systemd timers per job, in the customer's slice, with run history
 - [ ] 2c. Logs, traffic and notifications (email, Telegram, Discord, Slack, webhook)
 - [ ] 2d. Web terminal for administrators and container shells
 - [ ] 2e. One-click service catalogue

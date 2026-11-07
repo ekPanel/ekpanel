@@ -322,6 +322,30 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		spec.Owner = id
 		params.Apps = append(params.Apps, spec)
 	}
+	jobs, err := r.store.ListCronJobs(ctx, store.CronFilter{ServerID: serverID})
+	if err != nil {
+		return sum, err
+	}
+	params.Cron = make([]agentproto.CronSpec, 0, len(jobs))
+	for _, j := range jobs {
+		deleted := j.State == "deleting" || j.TargetState == "deleting"
+		state := j.State
+		if deleted {
+			state = "deleting"
+		}
+		id, _, err := owner(j.OwnerID, state)
+		if err != nil {
+			return sum, err
+		}
+		spec := agentproto.CronSpec{ID: j.ID, Generation: j.Generation, Owner: id, Schedule: j.Schedule, Timezone: j.Timezone,
+			Command: j.Command, TimeoutSeconds: j.TimeoutSeconds, Enabled: j.Enabled, Deleted: deleted}
+		if j.SiteID != nil && j.LinuxUser != nil {
+			spec.User = *j.LinuxUser
+		} else if j.Service != nil {
+			spec.App, spec.Service = j.TargetName, *j.Service
+		}
+		params.Cron = append(params.Cron, spec)
+	}
 	params.Owners = make([]agentproto.OwnerSpec, 0, len(packages))
 	for id, p := range packages {
 		o := agentproto.OwnerSpec{ID: id}
@@ -363,6 +387,9 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		if ferr := r.store.FailUnappliedApps(ctx, serverID, opErr.Message); ferr != nil {
 			r.log.Error("record apply failure", "server", serverID, "err", ferr)
 		}
+		if ferr := r.store.FailUnappliedCron(ctx, serverID, opErr.Message); ferr != nil {
+			r.log.Error("record apply failure", "server", serverID, "err", ferr)
+		}
 	}
 	if err != nil {
 		return sum, err
@@ -401,6 +428,16 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			sum.Failed++
 		}
 	}
+	for _, cr := range res.Cron {
+		if err := r.store.ApplyCronResult(ctx, cr.ID, cr.Generation, cr.OK, cr.Error); err != nil {
+			return sum, err
+		}
+		if cr.OK {
+			sum.Applied++
+		} else {
+			sum.Failed++
+		}
+	}
 	if res.Firewall != nil {
 		st := store.FirewallStatus{Active: res.Firewall.Active, SSHPorts: res.Firewall.SSHPorts, Error: res.Firewall.Error, At: time.Now()}
 		if err := r.store.RecordFirewallStatus(ctx, serverID, st); err != nil {
@@ -412,7 +449,7 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 	}
 	if sum.Failed > 0 {
 		return sum, fmt.Errorf("%d of %d items could not be applied; see each website, database or app for the reason",
-			sum.Failed, len(res.Sites)+len(res.Databases)+len(res.Apps))
+			sum.Failed, len(res.Sites)+len(res.Databases)+len(res.Apps)+len(res.Cron))
 	}
 	return sum, nil
 }

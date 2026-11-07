@@ -285,6 +285,12 @@
         "deleted": "Customer deleted",
         "impersonated": "Signed in as customer",
         "impersonation_ended": "Left customer account"
+      },
+      "cron": {
+        "created": "Cron job added",
+        "updated": "Cron job changed",
+        "deleted": "Cron job deleted",
+        "run": "Cron job run by hand"
       }
     }
   },
@@ -358,7 +364,7 @@
     "invalid_wp_title": "The title must be up to 100 characters on one line.",
     "invalid_wp_locale": "Choose a language from the list.",
     "agent_not_empty": "The website folder already has files. Move or delete them first.",
-    "invalid_schedule": "Choose how often to back up, and an hour between 0 and 23.",
+    "invalid_schedule": "That schedule is not valid. Use five fields: minute, hour, day of month, month, day of week.",
     "invalid_retention": "Keep at least one backup, and no more than 365 daily, 520 weekly or 240 monthly.",
     "invalid_backup_kind": "Choose this server or S3 storage.",
     "backup_repo_not_found": "That backup location does not exist.",
@@ -404,7 +410,14 @@
     "email_taken": "Another account uses this email address.",
     "customer_has_resources": "Delete or move the customer's websites, databases and apps first.",
     "already_impersonating": "Go back to your own account first.",
-    "not_impersonating": "You are signed in as yourself."
+    "not_impersonating": "You are signed in as yourself.",
+    "invalid_timezone": "Choose a time zone such as Asia/Dhaka.",
+    "invalid_command": "Enter a command of up to 4096 characters.",
+    "invalid_timeout": "The time limit must be between 10 seconds and 24 hours.",
+    "invalid_cron_target": "A job belongs to a website or an app.",
+    "cron_not_found": "That job does not exist.",
+    "cron_not_ready": "The job has not been set up on its server yet.",
+    "limit_reached_cron": "Your package allows no more cron jobs."
   },
   "not_found": {
     "title": "Page not found",
@@ -918,7 +931,52 @@
     "sftp": "SFTP access to their websites",
     "includes": "Includes",
     "resources": "Resources",
-    "includes_text": "{{sites}} websites · {{databases}} databases · {{apps}} apps",
+    "includes_text": "{{sites}} websites · {{databases}} databases · {{apps}} apps · {{cron}} cron jobs",
     "disk_unlimited": "Unlimited disk"
+  },
+  "cron": {
+    "title": "Cron jobs",
+    "add": "Add job",
+    "edit": "Edit job",
+    "create": "Create job",
+    "delete": "Delete job",
+    "none": "No scheduled jobs. Add one to run a command on a schedule, such as a backup script or a Laravel scheduler.",
+    "command": "Command",
+    "command_hint_site": "Runs with sh as the website's own account, starting in public_html. Output is kept in the job's log.",
+    "command_hint_app": "Runs with sh inside the app's container.",
+    "when": "How often",
+    "at": "At",
+    "weekday": "Day",
+    "expression": "Cron expression",
+    "expression_hint": "minute hour day-of-month month day-of-week, for example 30 2 * * 1-5",
+    "presets": {
+      "minute": "Every minute",
+      "5min": "Every 5 minutes",
+      "15min": "Every 15 minutes",
+      "hourly": "Every hour",
+      "daily": "Every day",
+      "weekly": "Every week",
+      "monthly": "Every month (on the 1st)",
+      "custom": "Custom (cron expression)"
+    },
+    "timezone": "Time zone",
+    "next_runs": "Next runs",
+    "name": "Name (optional)",
+    "name_placeholder": "Uses the command if empty",
+    "timeout": "Time limit (minutes)",
+    "service": "Service",
+    "service_hint": "The app's service to run in. Image apps have one, app.",
+    "paused": "Paused",
+    "on": "On",
+    "run_now": "Run now",
+    "output": "Last run and output",
+    "next": "Next {{when}}",
+    "last_run": "Last run",
+    "next_run": "Next run",
+    "running": "Running",
+    "ok": "Succeeded",
+    "failed": "Failed ({{result}}, exit code {{code}})",
+    "never": "Not run yet",
+    "no_output": "No output yet."
   }
 }

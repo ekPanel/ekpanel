@@ -69,6 +69,7 @@ export function UsageList({ usage, pkg }: { usage: Usage; pkg: Package }) {
       <UsageLine label={t("nav.sites")} have={usage.sites} limit={pkg.max_sites} text={count(usage.sites, pkg.max_sites)} />
       <UsageLine label={t("nav.databases")} have={usage.databases} limit={pkg.max_databases} text={count(usage.databases, pkg.max_databases)} />
       {pkg.max_apps > 0 && <UsageLine label={t("nav.apps")} have={usage.apps} limit={pkg.max_apps} text={count(usage.apps, pkg.max_apps)} />}
+      {pkg.max_cron_jobs > 0 && <UsageLine label={t("cron.title")} have={usage.cron_jobs} limit={pkg.max_cron_jobs} text={count(usage.cron_jobs, pkg.max_cron_jobs)} />}
       <UsageLine
         label={t("customers.disk")}
         have={usage.disk_bytes}
@@ -396,6 +397,7 @@ interface PackageForm {
   max_sites: string;
   max_databases: string;
   max_apps: string;
+  max_cron_jobs: string;
   disk_gb: string;
   memory_mb: string;
   cpu_cores: string;
@@ -410,6 +412,7 @@ const newPackage: PackageForm = {
   max_sites: "5",
   max_databases: "5",
   max_apps: "0",
+  max_cron_jobs: "5",
   disk_gb: "10",
   memory_mb: "1024",
   cpu_cores: "1",
@@ -425,6 +428,7 @@ function formFromPackage(p: Package): PackageForm {
     max_sites: String(p.max_sites),
     max_databases: String(p.max_databases),
     max_apps: String(p.max_apps),
+    max_cron_jobs: String(p.max_cron_jobs),
     disk_gb: p.disk_mb === null ? "" : String(Math.round((p.disk_mb / 1024) * 100) / 100),
     memory_mb: p.memory_mb === null ? "" : String(p.memory_mb),
     cpu_cores: p.cpu_percent === null ? "" : String(p.cpu_percent / 100),
@@ -499,6 +503,7 @@ function PackageDialog({ open, pkg, onClose }: { open: boolean; pkg: Package | n
       max_sites: Number(f.max_sites || 0),
       max_databases: Number(f.max_databases || 0),
       max_apps: Number(f.max_apps || 0),
+      max_cron_jobs: Number(f.max_cron_jobs || 0),
       disk_mb: opt(f.disk_gb, 1024),
       memory_mb: opt(f.memory_mb),
       cpu_percent: opt(f.cpu_cores, 100),
@@ -528,10 +533,11 @@ function PackageDialog({ open, pkg, onClose }: { open: boolean; pkg: Package | n
       <form onSubmit={submit} className="grid gap-5">
         <ErrorAlert>{error}</ErrorAlert>
         <Field label={t("packages.name")} value={f.name} onChange={(e) => set("name", e.target.value)} maxLength={60} required />
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Field label={t("nav.sites")} value={f.max_sites} onChange={digits("max_sites")} inputMode="numeric" dir="ltr" required />
           <Field label={t("nav.databases")} value={f.max_databases} onChange={digits("max_databases")} inputMode="numeric" dir="ltr" required />
           <Field label={t("nav.apps")} value={f.max_apps} onChange={digits("max_apps")} inputMode="numeric" dir="ltr" required />
+          <Field label={t("cron.title")} value={f.max_cron_jobs} onChange={digits("max_cron_jobs")} inputMode="numeric" dir="ltr" required />
         </div>
         <p className="-mt-3 text-sm text-muted">{t("packages.counts_hint")}</p>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -648,7 +654,7 @@ export function PackagesPage() {
                   <tr key={p.id} className="border-b border-line last:border-0 hover:bg-sunk/60">
                     <td className="px-4 py-3 font-semibold">{p.name}</td>
                     <td className="px-4 py-3 text-muted">
-                      {t("packages.includes_text", { sites: n(p.max_sites), databases: n(p.max_databases), apps: n(p.max_apps) })}
+                      {t("packages.includes_text", { sites: n(p.max_sites), databases: n(p.max_databases), apps: n(p.max_apps), cron: n(p.max_cron_jobs) })}
                     </td>
                     <td className="px-4 py-3 text-muted">
                       {[

@@ -186,6 +186,7 @@ type StateApplyParams struct {
 	Sites     []SiteSpec     `json:"sites"`
 	Databases []DatabaseSpec `json:"databases"`
 	Apps      []AppSpec      `json:"apps"`
+	Cron      []CronSpec     `json:"cron"`
 	// Owners carries the limits of every customer that owns something on the server.
 	Owners []OwnerSpec `json:"owners"`
 	// Firewall is nil when ekPanel does not manage the server's firewall.
@@ -278,6 +279,7 @@ type StateApplyResult struct {
 	Sites     []SiteResult     `json:"sites"`
 	Databases []DatabaseResult `json:"databases"`
 	Apps      []AppResult      `json:"apps"`
+	Cron      []AppResult      `json:"cron"`
 	Firewall  *FirewallResult  `json:"firewall,omitempty"`
 }
 
@@ -521,4 +523,42 @@ type DiskUsageApp struct {
 type DiskUsageResult struct {
 	Sites map[string]int64 `json:"sites"`
 	Apps  map[string]int64 `json:"apps"`
+}
+
+// ---- Cron jobs ----
+
+// CronSpec is one scheduled command, run by a systemd timer. A website's job runs as the
+// site's account (User); an app's job runs inside a container of the app (App, Service).
+type CronSpec struct {
+	ID             string `json:"id"`
+	Generation     int64  `json:"generation"`
+	Owner          string `json:"owner,omitempty"` // customer ID: the job runs in their slice
+	User           string `json:"user,omitempty"`
+	App            string `json:"app,omitempty"`
+	Service        string `json:"service,omitempty"`
+	Schedule       string `json:"schedule"` // five-field cron expression
+	Timezone       string `json:"timezone"`
+	Command        string `json:"command"`
+	TimeoutSeconds int    `json:"timeout_seconds"`
+	Enabled        bool   `json:"enabled"`
+	Deleted        bool   `json:"deleted,omitempty"`
+}
+
+const (
+	OpCronRun    = "cron.run"    // start a job now
+	OpCronStatus = "cron.status" // last and next run, and recent output
+)
+
+type CronParams struct {
+	ID string `json:"id"`
+}
+
+type CronStatusResult struct {
+	Running  bool       `json:"running"`
+	LastRun  *time.Time `json:"last_run,omitempty"`
+	LastEnd  *time.Time `json:"last_end,omitempty"`
+	ExitCode *int       `json:"exit_code,omitempty"`
+	Result   string     `json:"result,omitempty"` // success, exit-code, timeout, signal…
+	NextRun  *time.Time `json:"next_run,omitempty"`
+	Output   string     `json:"output"`
 }

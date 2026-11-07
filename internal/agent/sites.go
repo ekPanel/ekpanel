@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"text/template"
 	"time"
 
@@ -243,6 +244,7 @@ func stateApply(ctx context.Context, sys *system, p agentproto.StateApplyParams)
 		}
 	}
 	a.removeAppOrphans(p.Apps)
+	res.Cron = a.applyCron(ctx, p.Cron)
 	a.finish(ctx)
 	for i := range res.Sites {
 		res.Sites[i] = *a.results[res.Sites[i].ID]
@@ -651,7 +653,30 @@ func (a *applier) remove(ctx context.Context, sp agentproto.SiteSpec) error {
 			return err
 		}
 	}
+	// userdel leaves a home folder the account does not own, and site homes belong to root
+	// (for the SFTP chroot). Remove it when it is this site's: the account was ekPanel's, or
+	// (after an earlier attempt) the folder still has a site's layout. A person's home is
+	// never root's.
+	home := a.sys.path("/home/" + sp.User)
+	if exists || isSiteHome(home) {
+		if err := os.RemoveAll(home); err != nil {
+			return fmt.Errorf("remove the site's files: %w", err)
+		}
+	}
 	return nil
+}
+
+func isSiteHome(path string) bool {
+	info, err := os.Lstat(path)
+	if err != nil || !info.IsDir() {
+		return false
+	}
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !ok || st.Uid != 0 {
+		return false
+	}
+	_, err = os.Stat(filepath.Join(path, "public_html"))
+	return err == nil
 }
 
 // removeOrphans drops web and PHP configuration for sites the panel no longer knows.

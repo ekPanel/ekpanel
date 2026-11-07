@@ -122,6 +122,14 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/apps/{id}/update", s.handleUpdateAppImages)
 			r.Get("/apps/{id}/status", s.handleAppStatus)
 			r.Get("/apps/{id}/logs", s.handleAppLogs)
+			r.Get("/cron", s.handleListCron)
+			r.Post("/cron", s.handleCreateCron)
+			r.Post("/cron/preview", s.handleCronPreview)
+			r.Get("/cron/{id}", s.handleGetCron)
+			r.Put("/cron/{id}", s.handleUpdateCron)
+			r.Delete("/cron/{id}", s.handleDeleteCron)
+			r.Post("/cron/{id}/run", s.handleRunCron)
+			r.Get("/cron/{id}/status", s.handleCronStatus)
 		})
 
 		r.Group(func(r chi.Router) {

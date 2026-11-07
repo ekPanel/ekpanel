@@ -19,6 +19,7 @@ export interface Package {
   max_sites: number;
   max_databases: number;
   max_apps: number;
+  max_cron_jobs: number;
   disk_mb: number | null;
   memory_mb: number | null;
   cpu_percent: number | null;
@@ -34,6 +35,7 @@ export interface Usage {
   sites: number;
   databases: number;
   apps: number;
+  cron_jobs: number;
   disk_bytes: number;
 }
 
@@ -261,6 +263,37 @@ export interface AppContainer {
   state: string;
   status: string;
   health?: string;
+}
+
+export interface CronJob {
+  id: string;
+  server_id: string;
+  site_id: string | null;
+  app_id: string | null;
+  service: string | null;
+  name: string;
+  schedule: string;
+  timezone: string;
+  command: string;
+  timeout_seconds: number;
+  enabled: boolean;
+  target_name: string;
+  owner_id: string | null;
+  state: "pending" | "active" | "error" | "deleting";
+  message: string | null;
+  generation: number;
+  applied_generation: number;
+  next_run: string | null;
+}
+
+export interface CronStatus {
+  running: boolean;
+  last_run?: string;
+  last_end?: string;
+  exit_code?: number;
+  result?: string;
+  next_run?: string;
+  output: string;
 }
 
 export interface FirewallRule {
