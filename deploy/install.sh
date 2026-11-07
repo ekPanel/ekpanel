@@ -218,14 +218,17 @@ else
     chgrp caddy /etc/ekpanel/tls/panel.key /etc/ekpanel/tls/panel.crt
     chmod 0640 /etc/ekpanel/tls/panel.key
   fi
+  panel_hosts="https://127.0.0.1, https://localhost, https://$(hostname)"
+  [ -n "$ip" ] && panel_hosts="https://$ip, $panel_hosts"
   cat > /etc/caddy/Caddyfile <<EOF
 # Managed by the ekPanel installer. Websites are in /etc/ekpanel/caddy/sites.
 {
 	default_sni ${ip:-localhost}$email_line
 }
 
-# The panel answers on the server's IP address; websites answer on their own domains.
-:443 {
+# The panel answers on the server's addresses; websites answer on their own domains. The
+# addresses are named, not ":443", or Caddy would use this certificate for every website.
+${panel_hosts} {
 	tls /etc/ekpanel/tls/panel.crt /etc/ekpanel/tls/panel.key
 	encode zstd gzip
 	reverse_proxy 127.0.0.1:8080

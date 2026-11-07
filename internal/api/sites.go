@@ -276,8 +276,20 @@ func (s *Server) handleUpdateSite(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "site_deleting", "this site is being deleted")
 		return
 	}
+	// An uploaded certificate is kept by sending "custom" back; it is set only by uploading.
+	keepCert := req.TLS == "custom"
+	if keepCert {
+		if current.TLS != "custom" {
+			writeError(w, http.StatusBadRequest, "certificate_required", "upload a certificate to use your own")
+			return
+		}
+		req.TLS = "auto"
+	}
 	if !validateSiteSettings(w, current.Domain, &req) {
 		return
+	}
+	if keepCert {
+		req.TLS = "custom"
 	}
 	pkg, err := s.packageFor(r, current.OwnerID)
 	if err != nil {
@@ -334,5 +346,15 @@ func (s *Server) handlePHPVersions(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"versions": versions, "default": def})
+	type setting struct {
+		Name    string `json:"name"`
+		Default string `json:"default"`
+		Flag    bool   `json:"flag,omitempty"`
+	}
+	settings := []setting{}
+	for _, name := range agentproto.PHPSettingNames() {
+		ps := agentproto.PHPSettings[name]
+		settings = append(settings, setting{Name: name, Default: ps.Default, Flag: ps.Flag})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"versions": versions, "default": def, "settings": settings})
 }

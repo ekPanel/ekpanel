@@ -161,6 +161,41 @@ const OpStateApply = "state.apply"
 // PHPVersions the panel offers, newest first. Agents install a version when a site needs it.
 var PHPVersions = []string{"8.5", "8.4", "8.3", "8.2", "8.1", "7.4"}
 
+// OpPHPInfo lists the PHP versions installed on the server and their extensions.
+// OpPHPExtension installs or removes one extension of one version.
+const (
+	OpPHPInfo      = "php.info"
+	OpPHPExtension = "php.extension"
+)
+
+// RequiredPHPExtensions are installed with every PHP version and cannot be removed.
+var RequiredPHPExtensions = []string{"cli", "common", "fpm", "mysql", "pgsql", "curl", "gd", "mbstring", "xml", "zip", "intl", "bcmath", "opcache"}
+
+// OptionalPHPExtensions can be added and removed, as php<version>-<name> packages.
+var OptionalPHPExtensions = []string{"apcu", "bz2", "gmp", "igbinary", "imagick", "imap", "ldap", "mailparse", "memcached",
+	"mongodb", "msgpack", "redis", "soap", "sqlite3", "tidy", "xdebug", "yaml"}
+
+type PHPExtensionParams struct {
+	Version   string `json:"version"`
+	Name      string `json:"name"`
+	Installed bool   `json:"installed"`
+}
+
+type PHPInfoResult struct {
+	Versions []PHPVersionInfo `json:"versions"`
+}
+
+type PHPVersionInfo struct {
+	Version    string             `json:"version"`
+	Extensions []PHPExtensionInfo `json:"extensions"`
+}
+
+type PHPExtensionInfo struct {
+	Name      string `json:"name"`
+	Installed bool   `json:"installed"`
+	Required  bool   `json:"required,omitempty"`
+}
+
 // DefaultPHPVersion is preselected for new sites.
 const DefaultPHPVersion = "8.4"
 
@@ -171,7 +206,7 @@ type SiteSpec struct {
 	Aliases    []string `json:"aliases"`
 	Kind       string   `json:"kind"` // "static" or "php"
 	PHPVersion string   `json:"php_version,omitempty"`
-	TLS        string   `json:"tls"`             // "auto" (public CA) or "internal" (self-signed)
+	TLS        string   `json:"tls"`             // "auto" (public CA), "internal" (self-signed) or "custom"
 	User       string   `json:"user"`            // Linux account owning the site
 	Owner      string   `json:"owner,omitempty"` // customer ID; their processes run in their slice
 	Deleted    bool     `json:"deleted,omitempty"`
@@ -180,6 +215,11 @@ type SiteSpec struct {
 	SFTPEnabled      bool     `json:"sftp_enabled,omitempty"`
 	SFTPPasswordHash string   `json:"sftp_password_hash,omitempty"` // SHA-512 crypt; empty means keys only
 	SSHKeys          []string `json:"ssh_keys,omitempty"`           // public keys, one per entry
+
+	Web SiteWeb `json:"web"`
+	// With TLS "custom": the uploaded certificate chain and its key, in PEM.
+	CertPEM string `json:"cert_pem,omitempty"`
+	KeyPEM  string `json:"key_pem,omitempty"`
 }
 
 // DatabaseSpec is one customer database with its owner account. PasswordHash is the

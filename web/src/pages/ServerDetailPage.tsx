@@ -13,6 +13,7 @@ import { ServicesCard } from "../components/Services";
 import { RecentTasks } from "../components/Tasks";
 import { FirewallCard } from "../components/Firewall";
 import { ServerDatabases, ServerSites } from "./ServerSites";
+import { PHPExtensionsCard } from "../components/PHPExtensions";
 
 const ranges = ["live", "1h", "24h", "7d", "30d"] as const;
 type Range = (typeof ranges)[number];
@@ -266,6 +267,7 @@ export function ServerDetailPage() {
               <RecentTasks serverId={s.id} />
             </div>
             <FirewallCard serverId={s.id} />
+            <PHPExtensionsCard serverId={s.id} online={s.online} />
           </>
         )}
       </div>

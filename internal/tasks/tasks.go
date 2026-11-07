@@ -74,6 +74,7 @@ func New(st *store.Store, h *hub.Hub, log *slog.Logger) *Runner {
 	r.handlers[KindBackupRestore] = r.restoreBackup
 	r.handlers[KindAppUpdate] = r.appUpdate
 	r.handlers[KindAppDeploy] = r.appDeploy
+	r.handlers[KindPHPExtension] = r.phpExtension
 	return r
 }
 
@@ -315,7 +316,17 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 	for _, s := range sites {
 		spec := agentproto.SiteSpec{
 			ID: s.ID, Generation: s.Generation, Domain: s.Domain, Aliases: s.Aliases, Kind: s.Kind,
-			TLS: s.TLS, User: s.LinuxUser, Deleted: s.State == "deleting",
+			TLS: s.TLS, User: s.LinuxUser, Deleted: s.State == "deleting", Web: s.Web,
+		}
+		if s.TLS == "custom" && s.TLSCert != nil && !spec.Deleted {
+			if r.secrets == nil {
+				return sum, errors.New("the panel cannot open certificate keys")
+			}
+			key, err := r.secrets.Open(s.TLSKey)
+			if err != nil {
+				return sum, fmt.Errorf("open the certificate key of %s: %w", s.Domain, err)
+			}
+			spec.CertPEM, spec.KeyPEM = *s.TLSCert, string(key)
 		}
 		if s.PHPVersion != nil {
 			spec.PHPVersion = *s.PHPVersion

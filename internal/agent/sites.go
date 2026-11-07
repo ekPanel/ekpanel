@@ -3,6 +3,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -181,8 +182,17 @@ func validateSite(sp agentproto.SiteSpec) error {
 	default:
 		return fmt.Errorf("unknown site kind %q", sp.Kind)
 	}
-	if sp.TLS != "auto" && sp.TLS != "internal" {
+	switch sp.TLS {
+	case "auto", "internal":
+	case "custom":
+		if _, err := tls.X509KeyPair([]byte(sp.CertPEM), []byte(sp.KeyPEM)); err != nil {
+			return fmt.Errorf("the certificate and key do not fit together: %w", err)
+		}
+	default:
 		return fmt.Errorf("unknown TLS mode %q", sp.TLS)
+	}
+	if err := sp.Web.Validate(); err != nil {
+		return err
 	}
 	if sp.SFTPPasswordHash != "" && !cryptHashRE.MatchString(sp.SFTPPasswordHash) {
 		return errors.New("invalid SFTP password hash")
@@ -335,6 +345,9 @@ func (a *applier) ensure(ctx context.Context, sp agentproto.SiteSpec) error {
 		return err
 	}
 	if err := a.ensureSFTP(ctx, sp); err != nil {
+		return err
+	}
+	if err := a.writeCert(ctx, sp); err != nil {
 		return err
 	}
 	return a.writeCaddy(sp)
@@ -507,11 +520,33 @@ php_admin_value[session.save_path] = /home/{{.User}}/tmp
 php_admin_value[sys_temp_dir] = /home/{{.User}}/tmp
 php_admin_value[error_log] = /home/{{.User}}/logs/php-error.log
 php_admin_flag[log_errors] = on
-php_value[memory_limit] = 256M
-php_value[upload_max_filesize] = 64M
-php_value[post_max_size] = 64M
-php_value[max_execution_time] = 120
+{{- range .PHP}}
+{{.}}
+{{- end}}
 `))
+
+// phpLines are the pool lines of a site's PHP settings: the defaults with its own values.
+func phpLines(web agentproto.SiteWeb) []string {
+	var lines []string
+	for _, name := range agentproto.PHPSettingNames() {
+		def := agentproto.PHPSettings[name]
+		value, ok := web.PHP[name]
+		if !ok {
+			value = def.Default
+		}
+		kind := "php_value"
+		switch {
+		case def.Admin && def.Flag:
+			kind = "php_admin_flag"
+		case def.Admin:
+			kind = "php_admin_value"
+		case def.Flag:
+			kind = "php_flag"
+		}
+		lines = append(lines, fmt.Sprintf("%s[%s] = %s", kind, name, value))
+	}
+	return lines
+}
 
 // writePools writes the site's pool for its PHP master and removes it from every other
 // master (the site may have switched versions, changed owner, or become static).
@@ -520,7 +555,7 @@ func (a *applier) writePools(sp agentproto.SiteSpec) error {
 	if sp.Kind == "php" {
 		g := groupFor(sp)
 		var buf bytes.Buffer
-		poolTemplate.Execute(&buf, map[string]string{"ID": sp.ID, "Pool": poolName(sp.ID), "User": sp.User, "Socket": g.socket(sp.ID)})
+		poolTemplate.Execute(&buf, map[string]any{"ID": sp.ID, "Pool": poolName(sp.ID), "User": sp.User, "Socket": g.socket(sp.ID), "PHP": phpLines(sp.Web)})
 		changed, _, err := a.writeIfChanged(g.poolPath(sp.ID), buf.Bytes())
 		if err != nil {
 			return err
@@ -542,10 +577,21 @@ func (a *applier) writePools(sp agentproto.SiteSpec) error {
 
 var caddyTemplate = template.Must(template.New("caddy").Funcs(template.FuncMap{"join": strings.Join}).Parse(
 	`# Managed by ekPanel (site {{.ID}}). Changes here are overwritten.
-{{join .Hosts ", "}} {
-{{- if .Internal}}
+{{- define "tls"}}
+{{- if .Cert}}
+	tls {{.Cert}} {{.Key}}
+{{- else if .Internal}}
 	tls internal
 {{- end}}
+{{- end}}
+{{- if .AliasHosts}}
+{{join .AliasHosts ", "}} {
+{{- template "tls" .}}
+	redir https://{{.Domain}}{uri} 301
+}
+{{- end}}
+{{join .Hosts ", "}} {
+{{- template "tls" .}}
 	root * /home/{{.User}}/public_html
 	encode zstd gzip
 	@hidden {
@@ -553,6 +599,28 @@ var caddyTemplate = template.Must(template.New("caddy").Funcs(template.FuncMap{"
 		not path /.well-known/*
 	}
 	respond @hidden 404
+{{- if .Hotlink}}
+	@hotlink {
+		path_regexp (?i)\.({{.Hotlink.Extensions}})$
+		header Referer *
+		not header_regexp Referer (?i)^https?://({{.Hotlink.Hosts}})(:[0-9]+)?(/|$)
+	}
+	respond @hotlink 403
+{{- end}}
+{{- if .Redirects}}
+	route {
+{{- range .Redirects}}
+{{- if .Strip}}
+		route {{.From}} {
+			uri strip_prefix {{.Strip}}
+			redir {{.To}}{uri} {{.Code}}
+		}
+{{- else}}
+		redir {{.From}} {{.To}} {{.Code}}
+{{- end}}
+{{- end}}
+	}
+{{- end}}
 {{- if .PHP}}
 	php_fastcgi unix/{{.Socket}}
 {{- end}}
@@ -568,11 +636,60 @@ var caddyTemplate = template.Must(template.New("caddy").Funcs(template.FuncMap{"
 
 func caddySitePath(id string) string { return caddySitesDir + "/" + id + ".caddy" }
 
+// caddyRedirect is one redirect as the template writes it.
+type caddyRedirect struct {
+	From, To, Strip string
+	Code            int
+}
+
+func caddyRedirects(web agentproto.SiteWeb) []caddyRedirect {
+	var out []caddyRedirect
+	for _, r := range web.Redirects {
+		cr := caddyRedirect{From: r.From, To: r.To, Code: r.Code}
+		prefix, isPrefix := strings.CutSuffix(r.From, "/*")
+		switch {
+		case isPrefix && r.KeepPath && prefix == "":
+			// Everything, with its path: no prefix to strip.
+			cr.From, cr.To = "*", strings.TrimSuffix(r.To, "/")+"{uri}"
+		case isPrefix && r.KeepPath:
+			cr.Strip, cr.To = prefix, strings.TrimSuffix(r.To, "/")
+		}
+		out = append(out, cr)
+	}
+	return out
+}
+
+// hotlinkRule is the file types and allowed referring hosts as regular expressions.
+func hotlinkRule(sp agentproto.SiteSpec) map[string]string {
+	h := sp.Web.Hotlink
+	if h == nil {
+		return nil
+	}
+	var hosts []string
+	for _, d := range append(append([]string{sp.Domain}, sp.Aliases...), h.Allowed...) {
+		if rest, ok := strings.CutPrefix(d, "*."); ok {
+			hosts = append(hosts, `([a-z0-9-]+\.)+`+regexp.QuoteMeta(rest))
+		} else {
+			hosts = append(hosts, regexp.QuoteMeta(d))
+		}
+	}
+	return map[string]string{"Extensions": strings.Join(h.Extensions, "|"), "Hosts": strings.Join(hosts, "|")}
+}
+
 func (a *applier) writeCaddy(sp agentproto.SiteSpec) error {
 	var buf bytes.Buffer
+	hosts, aliases := append([]string{sp.Domain}, sp.Aliases...), []string(nil)
+	if sp.Web.AliasRedirect && len(sp.Aliases) > 0 {
+		hosts, aliases = []string{sp.Domain}, sp.Aliases
+	}
+	cert, key := "", ""
+	if sp.TLS == "custom" {
+		cert, key = certPaths(sp)
+	}
 	caddyTemplate.Execute(&buf, map[string]any{
-		"ID": sp.ID, "Hosts": append([]string{sp.Domain}, sp.Aliases...), "Internal": sp.TLS == "internal",
-		"User": sp.User, "PHP": sp.Kind == "php", "Socket": groupFor(sp).socket(sp.ID),
+		"ID": sp.ID, "Domain": sp.Domain, "Hosts": hosts, "AliasHosts": aliases, "Internal": sp.TLS == "internal",
+		"Cert": cert, "Key": key, "User": sp.User, "PHP": sp.Kind == "php", "Socket": groupFor(sp).socket(sp.ID),
+		"Hotlink": hotlinkRule(sp), "Redirects": caddyRedirects(sp.Web),
 	})
 	path := caddySitePath(sp.ID)
 	changed, prev, err := a.writeIfChanged(path, buf.Bytes())
@@ -647,6 +764,7 @@ func (a *applier) remove(ctx context.Context, sp agentproto.SiteSpec) error {
 	for path, g := range a.poolFiles(sp.ID) {
 		a.removePool(path, g)
 	}
+	a.removeCerts(sp.ID, "")
 	os.Remove(a.sys.path(sshKeysDir + "/" + sp.User))
 	exists, err := a.managedUser(ctx, sp.User)
 	if err != nil {

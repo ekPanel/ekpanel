@@ -24,6 +24,10 @@
       "title": "Website {{name}} has a problem",
       "body": "{{message}}"
     },
+    "certificate_expiring": {
+      "title": "The certificate of {{name}} expires soon",
+      "body": "It expires on {{date}}. Upload a new one, or switch the site back to a free certificate."
+    },
     "app_error": {
       "title": "App {{name}} has a problem",
       "body": "{{message}}"

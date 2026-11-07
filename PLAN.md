@@ -582,11 +582,29 @@ Agreed (2026-11-07):
   Caddy built with modules, which ekPanel would then build and ship itself; that comes later.
 - **Order:** 3a → 3b → 3c → 3d → 3e → 3f → 3g, each tested in the VM like phase 2.
 
-**3a. Website extras**
-- [ ] Redirects (301/302, whole domain or paths) and hotlink protection
-- [ ] PHP settings per site from a list (memory_limit, upload and post size, execution time,
-      display_errors …), and PHP extensions from an allowlist (php8.x-imagick, -redis, -intl …)
-- [ ] Uploading a site's own certificate and key, checked before use
+**3a. Website extras — done**
+- [x] Redirects (301, 302, 307, 308) of exact paths or prefixes (/blog/*), keeping the rest of
+      the path if wanted, in the order listed; the extra domains of a site can redirect to its
+      main domain. Hotlink protection: chosen file types answer 403 to pages of other sites,
+      with sites that may embed them (*.example.com for all subdomains)
+- [x] PHP settings per site from a list (memory_limit, upload and post size, execution and
+      input time, input vars, file uploads, session lifetime, display_errors, short_open_tag,
+      allow_url_fopen, date.timezone). Applications may still raise them, except
+      allow_url_fopen. The panel and the agent check every value with the same rules, so none
+      can add lines to the web server's or PHP's configuration
+- [x] PHP extensions per server and version: 17 optional ones (redis, imagick, mongodb, apcu,
+      xdebug …) added or removed as a task, then every PHP-FPM master of that version reloads;
+      the ones ekPanel installs are locked
+- [x] Own certificates: checked to fit their key, be valid now and cover the domain (other
+      names it does not cover are listed); the key is sealed in the panel and readable only by
+      root and the web server on the server. A notification goes out two weeks before expiry
+- [x] Tested in the VM: every redirect kind and the alias redirect; hotlinked images refused
+      (also from php.test.evil.com) and allowed from the site, a partner and without a
+      referrer; PHP saw the new values; redis loaded after installing and gone after removing;
+      the uploaded certificate was served
+- [x] Found and fixed while testing: on installs without a domain, the panel's own Caddy site
+      (":443") made Caddy use the panel's self-signed certificate for every website, so real
+      domains would have shown certificate errors. The panel now answers on its addresses only
 
 **3b. Cloudflare DNS**
 - [ ] Connect a Cloudflare account with an API token limited to DNS (and zone settings);
@@ -636,4 +654,4 @@ Agreed (2026-11-07):
       (AXFR/NOTIFY); guidance for glue records
 
 **Next**
-- [ ] 3a. Website extras
+- [ ] 3b. Cloudflare DNS

@@ -57,6 +57,14 @@ func Dispatch(ctx context.Context, op string, params json.RawMessage) (any, *age
 			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
 		}
 		return stateApply(ctx, realSystem, p)
+	case agentproto.OpPHPInfo:
+		return phpInfo(ctx, realSystem)
+	case agentproto.OpPHPExtension:
+		var p agentproto.PHPExtensionParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return phpExtension(ctx, realSystem, p)
 	case agentproto.OpFiles:
 		var p agentproto.FilesParams
 		if err := json.Unmarshal(params, &p); err != nil {

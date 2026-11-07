@@ -223,7 +223,8 @@
         "created": "Server added",
         "deleted": "Server deleted",
         "enroll_token_renewed": "New connection command",
-        "enrolled": "Agent connected"
+        "enrolled": "Agent connected",
+        "php_extension": "PHP extension changed"
       },
       "service": {
         "restart_requested": "Service restart requested"
@@ -236,7 +237,10 @@
         "sftp_disabled": "SFTP turned off",
         "sftp_password_reset": "SFTP password reset",
         "ssh_keys_changed": "SSH keys changed",
-        "wordpress_install": "WordPress install started"
+        "wordpress_install": "WordPress install started",
+        "web_updated": "Redirects and PHP settings changed",
+        "certificate_uploaded": "Certificate uploaded",
+        "certificate_removed": "Certificate removed"
       },
       "database": {
         "created": "Database created",
@@ -457,7 +461,11 @@
     "rollback_not_possible": "Only the last five earlier releases can be returned to.",
     "git_app_update": "A Git app is updated by deploying it.",
     "invalid_builder": "Build with the Dockerfile, with Railpack, or automatically.",
-    "preview_domain_required": "Enter the domain previews go under, such as preview.example.com."
+    "preview_domain_required": "Enter the domain previews go under, such as preview.example.com.",
+    "invalid_site_web": "These settings are not valid.",
+    "invalid_certificate": "The certificate cannot be used.",
+    "certificate_required": "Upload a certificate to use your own.",
+    "invalid_php_extension": "Choose an optional extension of a supported PHP version."
   },
   "not_found": {
     "title": "Page not found",
@@ -497,7 +505,9 @@
       "site_install_wordpress": "Install WordPress",
       "backup_run": "Back up to {{name}}",
       "backup_restore": "Restore from backup",
-      "app_update": "Update {{name}}"
+      "app_update": "Update {{name}}",
+      "app_deploy": "Deploy {{name}}",
+      "php_extension": "PHP {{version}}: {{name}}"
     }
   },
   "sites": {
@@ -569,6 +579,77 @@
       "button": "Delete website"
     },
     "waiting_offline": "{{server}} is offline. The settings are applied as soon as its agent reconnects."
+  },
+  "redirects": {
+    "title": "Redirects",
+    "intro": "Send visitors from one address to another, in the order listed.",
+    "aliases": "Send the other domains to {{domain}}",
+    "aliases_hint": "Visitors of the extra domains go to the same page on the main domain (301).",
+    "from": "From",
+    "to": "To",
+    "code": "Type",
+    "remove": "Remove this redirect",
+    "add": "Add redirect",
+    "keep_path": "Keep the rest of the path (/blog/post goes to …/post)",
+    "hint": "From is a path such as /old-page, or a prefix such as /blog/* for everything under it. To is a path or a full address.",
+    "codes": {
+      "301": "301 permanent",
+      "302": "302 temporary",
+      "307": "307 temporary, same method",
+      "308": "308 permanent, same method"
+    }
+  },
+  "hotlink": {
+    "title": "Hotlink protection",
+    "intro": "Stop other websites from showing your images and media on their pages, using your bandwidth.",
+    "enable": "Protect files from hotlinking",
+    "extensions": "File types",
+    "extensions_hint": "Separated by commas. Requests from pages of other sites get 403; direct visits still work.",
+    "allowed": "Sites that may embed them",
+    "allowed_hint": "One domain per line; *.example.com allows all its subdomains. This site's own domains always may."
+  },
+  "php_settings": {
+    "title": "PHP settings",
+    "intro": "php.ini values for this site's PHP {{version}}. Empty fields use the default shown.",
+    "hint": "Applications can still raise these values themselves, except allow_url_fopen.",
+    "help": {
+      "allow_url_fopen": "Let PHP open web addresses as files.",
+      "date_timezone": "The time zone date functions use, such as Asia/Dhaka.",
+      "display_errors": "Show errors on pages. Keep it off on live sites.",
+      "max_execution_time": "Seconds a request may run; 0 means no limit.",
+      "max_file_uploads": "Files in one upload.",
+      "max_input_time": "Seconds to receive a request's data; -1 uses the execution time.",
+      "max_input_vars": "Form fields in one request.",
+      "memory_limit": "Memory one request may use, such as 512M.",
+      "post_max_size": "Largest form or upload request, such as 128M.",
+      "session_gc_maxlifetime": "Seconds before an idle session is cleaned up.",
+      "short_open_tag": "Allow <? as well as <?php.",
+      "upload_max_filesize": "Largest uploaded file, such as 64M."
+    }
+  },
+  "certificate": {
+    "title": "Own SSL certificate",
+    "intro": "Sites get a free certificate automatically. Upload one only if you need a certificate you bought.",
+    "intro_custom": "This site uses a certificate you uploaded. Remove it to go back to a free one.",
+    "expires": "Valid until {{date}}",
+    "soon": "Expires soon",
+    "uncovered": "The certificate does not cover {{names}}; those addresses will show a warning.",
+    "cert": "Certificate (with the intermediate certificates)",
+    "key": "Private key",
+    "hint": "PEM files. The key is encrypted on the panel and stored only on the server. You are notified two weeks before the certificate expires.",
+    "use": "Use this certificate",
+    "upload": "Upload a certificate",
+    "replace": "Replace",
+    "remove": "Use a free certificate again"
+  },
+  "php_ext": {
+    "title": "PHP extensions",
+    "version": "PHP version",
+    "intro": "Extensions of PHP {{version}} on this server, for every site using it. Locked ones are always installed.",
+    "offline": "The server is offline.",
+    "none": "No PHP version is installed yet; one is installed with the first PHP site.",
+    "required": "Always installed",
+    "working": "Changing…"
   },
   "databases": {
     "add": "Add database",
@@ -1279,6 +1360,7 @@
       "backup_failed": "Backup failed",
       "backup_partial": "Backup partly failed",
       "site_error": "Website problem",
+      "certificate_expiring": "Certificate expiring",
       "app_error": "App problem",
       "deploy_failed": "Deploy failed",
       "database_error": "Database problem",

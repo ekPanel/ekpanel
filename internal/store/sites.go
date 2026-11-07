@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"ekpanel/internal/agentproto"
 )
 
 // ErrHostnameTaken means another site already answers to one of the requested host names.
@@ -21,31 +23,38 @@ type Site struct {
 	Domain     string   `json:"domain"`
 	Aliases    []string `json:"aliases"`
 	// Display forms (Unicode for internationalized names), filled in by the API.
-	DomainDisplay     string    `json:"domain_display"`
-	AliasesDisplay    []string  `json:"aliases_display"`
-	Kind              string    `json:"kind"`
-	PHPVersion        *string   `json:"php_version"`
-	TLS               string    `json:"tls"`
-	LinuxUser         string    `json:"linux_user"`
-	SFTPEnabled       bool      `json:"sftp_enabled"`
-	SSHKeys           []string  `json:"ssh_keys"`
-	SFTPPasswordHash  *string   `json:"-"`
-	App               *string   `json:"app"`
-	AppVersion        *string   `json:"app_version"`
-	State             string    `json:"state"`
-	Message           *string   `json:"message"`
-	Generation        int64     `json:"generation"`
-	AppliedGeneration int64     `json:"applied_generation"`
-	OwnerID           *string   `json:"owner_id"`
-	OwnerName         *string   `json:"owner_name"`
-	DiskBytes         *int64    `json:"disk_bytes"`
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
+	DomainDisplay     string             `json:"domain_display"`
+	AliasesDisplay    []string           `json:"aliases_display"`
+	Kind              string             `json:"kind"`
+	PHPVersion        *string            `json:"php_version"`
+	TLS               string             `json:"tls"`
+	LinuxUser         string             `json:"linux_user"`
+	SFTPEnabled       bool               `json:"sftp_enabled"`
+	SSHKeys           []string           `json:"ssh_keys"`
+	SFTPPasswordHash  *string            `json:"-"`
+	App               *string            `json:"app"`
+	AppVersion        *string            `json:"app_version"`
+	State             string             `json:"state"`
+	Message           *string            `json:"message"`
+	Generation        int64              `json:"generation"`
+	AppliedGeneration int64              `json:"applied_generation"`
+	OwnerID           *string            `json:"owner_id"`
+	OwnerName         *string            `json:"owner_name"`
+	DiskBytes         *int64             `json:"disk_bytes"`
+	Web               agentproto.SiteWeb `json:"web"`
+	// Custom certificates: the chain, its expiry and names. The sealed key is not sent out.
+	TLSCert      *string    `json:"-"`
+	TLSKey       []byte     `json:"-"`
+	TLSExpiresAt *time.Time `json:"tls_expires_at"`
+	TLSNames     []string   `json:"tls_names"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
 const siteColumns = `st.id, st.server_id, sv.name, st.domain, st.aliases, st.kind, st.php_version, st.tls,
 	st.linux_user, st.state, st.message, st.generation, st.applied_generation, st.created_at, st.updated_at,
-	st.sftp_enabled, st.ssh_keys, st.sftp_password_hash, st.app, st.app_version, st.owner_id, ow.name, st.disk_bytes`
+	st.sftp_enabled, st.ssh_keys, st.sftp_password_hash, st.app, st.app_version, st.owner_id, ow.name, st.disk_bytes,
+	st.web, st.tls_cert, st.tls_key, st.tls_expires_at, st.tls_names`
 
 const siteFrom = ` FROM sites st JOIN servers sv ON sv.id = st.server_id LEFT JOIN users ow ON ow.id = st.owner_id`
 
@@ -53,7 +62,8 @@ func scanSite(row pgx.Row) (Site, error) {
 	var s Site
 	err := row.Scan(&s.ID, &s.ServerID, &s.ServerName, &s.Domain, &s.Aliases, &s.Kind, &s.PHPVersion, &s.TLS,
 		&s.LinuxUser, &s.State, &s.Message, &s.Generation, &s.AppliedGeneration, &s.CreatedAt, &s.UpdatedAt,
-		&s.SFTPEnabled, &s.SSHKeys, &s.SFTPPasswordHash, &s.App, &s.AppVersion, &s.OwnerID, &s.OwnerName, &s.DiskBytes)
+		&s.SFTPEnabled, &s.SSHKeys, &s.SFTPPasswordHash, &s.App, &s.AppVersion, &s.OwnerID, &s.OwnerName, &s.DiskBytes,
+		&s.Web, &s.TLSCert, &s.TLSKey, &s.TLSExpiresAt, &s.TLSNames)
 	return s, notFound(err)
 }
 
@@ -150,6 +160,8 @@ func (s *Store) UpdateSite(ctx context.Context, id string, c SiteChange) (Site, 
 	var domain string
 	err = tx.QueryRow(ctx, `
 		UPDATE sites SET aliases = $2, kind = $3, php_version = $4, tls = $5,
+			tls_cert = CASE WHEN $5 = 'custom' THEN tls_cert END, tls_key = CASE WHEN $5 = 'custom' THEN tls_key END,
+			tls_expires_at = CASE WHEN $5 = 'custom' THEN tls_expires_at END, tls_names = CASE WHEN $5 = 'custom' THEN tls_names END,
 			generation = generation + 1, state = 'pending', message = NULL, updated_at = now()
 		WHERE id = $1 AND state <> 'deleting' RETURNING domain`, id, c.Aliases, c.Kind, c.PHPVersion, c.TLS).Scan(&domain)
 	if err != nil {
@@ -162,6 +174,54 @@ func (s *Store) UpdateSite(ctx context.Context, id string, c SiteChange) (Site, 
 		return Site{}, err
 	}
 	return s.GetSite(ctx, id)
+}
+
+// SetSiteWeb replaces a site's redirects, hotlink protection and PHP settings.
+func (s *Store) SetSiteWeb(ctx context.Context, id string, web agentproto.SiteWeb) (Site, error) {
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE sites SET web = $2, generation = generation + 1, state = 'pending', message = NULL, updated_at = now()
+		WHERE id = $1 AND state <> 'deleting'`, id, web)
+	if err != nil {
+		return Site{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		return Site{}, ErrNotFound
+	}
+	return s.GetSite(ctx, id)
+}
+
+// SiteCert is an uploaded certificate, checked by the caller.
+type SiteCert struct {
+	Chain     string
+	SealedKey []byte
+	ExpiresAt time.Time
+	Names     []string
+}
+
+// SetSiteCert makes a site use an uploaded certificate, or (nil) a free one again.
+func (s *Store) SetSiteCert(ctx context.Context, id string, c *SiteCert) (Site, error) {
+	var err error
+	if c != nil {
+		_, err = s.pool.Exec(ctx, `
+			UPDATE sites SET tls = 'custom', tls_cert = $2, tls_key = $3, tls_expires_at = $4, tls_names = $5,
+				generation = generation + 1, state = 'pending', message = NULL, updated_at = now()
+			WHERE id = $1 AND state <> 'deleting'`, id, c.Chain, c.SealedKey, c.ExpiresAt, c.Names)
+	} else {
+		_, err = s.pool.Exec(ctx, `
+			UPDATE sites SET tls = 'auto', tls_cert = NULL, tls_key = NULL, tls_expires_at = NULL, tls_names = NULL,
+				generation = generation + 1, state = 'pending', message = NULL, updated_at = now()
+			WHERE id = $1 AND state <> 'deleting'`, id)
+	}
+	if err != nil {
+		return Site{}, err
+	}
+	return s.GetSite(ctx, id)
+}
+
+// ExpiringCerts lists sites whose uploaded certificate expires before the given time.
+func (s *Store) ExpiringCerts(ctx context.Context, before time.Time) ([]Site, error) {
+	return collectSites(s.pool.Query(ctx, `SELECT `+siteColumns+siteFrom+`
+		WHERE st.tls = 'custom' AND st.tls_expires_at < $1 AND st.state <> 'deleting'`, before))
 }
 
 // SetSiteSFTP changes SFTP access and marks the site for re-applying. passwordHash nil

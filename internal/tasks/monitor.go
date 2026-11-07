@@ -19,11 +19,16 @@ const (
 func (r *Runner) monitorLoop(ctx context.Context) {
 	tick := time.NewTicker(time.Minute)
 	defer tick.Stop()
+	var certsChecked time.Time
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
+		}
+		if time.Since(certsChecked) > time.Hour {
+			certsChecked = time.Now()
+			r.checkCerts(ctx)
 		}
 		servers, err := r.store.ListServers(ctx)
 		if err != nil {
@@ -136,4 +141,25 @@ func humanBytes(b int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %ciB", float64(b)/float64(div), "KMGTPE"[exp])
+}
+
+// certWarning is how long before an uploaded certificate expires its owner hears about it.
+const certWarning = 14 * 24 * time.Hour
+
+// checkCerts warns once about each uploaded certificate that expires soon.
+func (r *Runner) checkCerts(ctx context.Context) {
+	sites, err := r.store.ExpiringCerts(ctx, time.Now().Add(certWarning))
+	if err != nil {
+		if ctx.Err() == nil {
+			r.log.Error("list expiring certificates", "err", err)
+		}
+		return
+	}
+	for _, st := range sites {
+		date := st.TLSExpiresAt.UTC().Format("2006-01-02")
+		// The state names the expiry, so a new certificate that also expires soon warns again.
+		if prev, _ := r.store.SwapAlertState(ctx, "cert:"+st.ID, date); prev != date {
+			r.alert(ctx, st.OwnerID, "certificate_expiring", "warning", map[string]string{"name": st.Domain, "date": date}, "/sites/"+st.ID)
+		}
+	}
 }

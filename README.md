@@ -27,9 +27,11 @@ email, DNS and game servers, with a modern UI in your own language.
 - Live CPU, memory, disk, network, load and uptime per server, plus **30 days of history**
 - See and restart a server's services (Caddy, PostgreSQL, cron…) through background
   **tasks** that show their progress in the UI
-- **Websites**: static or PHP (7.4 to 8.5 side by side), free automatic HTTPS, extra
-  domains, domains in any script. Each site runs as its own Linux user with its own PHP
-  pool. Changes apply with zero downtime and broken configuration repairs itself
+- **Websites**: static or PHP (7.4 to 8.5 side by side), free automatic HTTPS or your own
+  certificate, extra domains, domains in any script, redirects, hotlink protection, PHP
+  settings per site and PHP extensions per server. Each site runs as its own Linux user
+  with its own PHP pool. Changes apply with zero downtime and broken configuration repairs
+  itself
 - **Databases**: MariaDB and PostgreSQL with an account per database. Passwords are shown
   once and never stored, only the database engine's own hash
 - **One-click WordPress** in 14 languages, with its own database. The admin password is shown

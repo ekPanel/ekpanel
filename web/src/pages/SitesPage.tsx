@@ -37,7 +37,7 @@ export function useSites(serverId?: string) {
 export function usePHPVersions() {
   return useQuery({
     queryKey: ["php-versions"],
-    queryFn: () => api.get<{ versions: string[]; default: string }>("/php-versions"),
+    queryFn: () => api.get<{ versions: string[]; default: string; settings: { name: string; default: string; flag?: boolean }[] }>("/php-versions"),
     staleTime: Infinity,
   });
 }

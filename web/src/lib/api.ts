@@ -147,7 +147,10 @@ export interface Site extends Owned {
   aliases_display: string[];
   kind: "static" | "php";
   php_version: string | null;
-  tls: "auto" | "internal";
+  tls: "auto" | "internal" | "custom";
+  web: SiteWeb;
+  tls_expires_at?: string | null;
+  tls_names?: string[] | null;
   linux_user: string;
   sftp_enabled: boolean;
   app: "wordpress" | null;
@@ -159,6 +162,19 @@ export interface Site extends Owned {
   applied_generation: number;
   created_at: string;
   updated_at: string;
+}
+
+/** A site's redirects, hotlink protection and PHP settings (agentproto.SiteWeb). */
+export interface SiteWeb {
+  alias_redirect?: boolean;
+  redirects?: { from: string; to: string; code: number; keep_path?: boolean }[];
+  hotlink?: { extensions: string[]; allowed?: string[] } | null;
+  php?: Record<string, string>;
+}
+
+export interface PHPVersionInfo {
+  version: string;
+  extensions: { name: string; installed: boolean; required?: boolean }[];
 }
 
 export interface Database extends Owned {
