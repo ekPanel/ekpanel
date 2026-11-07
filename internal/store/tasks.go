@@ -118,6 +118,13 @@ func (s *Store) ClaimTask(ctx context.Context, lease time.Duration) (Task, error
 	return s.GetTask(ctx, id)
 }
 
+// ExtendLease keeps a long-running task from being taken for a crashed one.
+func (s *Store) ExtendLease(ctx context.Context, id string, lease time.Duration) error {
+	_, err := s.pool.Exec(ctx, `UPDATE tasks SET locked_until = now() + $2 * interval '1 second' WHERE id = $1 AND status = 'running'`,
+		id, int64(lease.Seconds()))
+	return err
+}
+
 func (s *Store) FinishTask(ctx context.Context, id string, result any) error {
 	b, err := json.Marshal(result)
 	if err != nil {

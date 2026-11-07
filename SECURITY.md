@@ -43,4 +43,8 @@ ekPanel is in early development and has no stable release yet. Fixes go into the
 - State-changing requests are protected against CSRF (`Sec-Fetch-Site`, `Origin` and
   JSON-only bodies); session cookies are `HttpOnly`, `SameSite=Lax` and `__Host-` prefixed.
 - Strict Content-Security-Policy with no inline scripts.
+- Backup encryption keys and storage credentials live only on the server (readable by root
+  only). The panel never stores them; the key is shown to the user once as a recovery key.
+- The firewall always keeps SSH (on the ports sshd uses), HTTP, HTTPS and the agent port open,
+  and the panel refuses rules that would block the address of the person adding them.
 - Every change is written to an append-only audit log that the database refuses to modify.

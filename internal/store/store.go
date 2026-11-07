@@ -15,6 +15,7 @@ var (
 	ErrNotFound       = errors.New("not found")
 	ErrAlreadySetUp   = errors.New("panel already has an administrator")
 	ErrDuplicateEmail = errors.New("email already in use")
+	ErrLimit          = errors.New("limit reached")
 )
 
 type Store struct {

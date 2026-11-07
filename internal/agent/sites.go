@@ -36,8 +36,10 @@ type system struct {
 	run  func(ctx context.Context, name string, args ...string) ([]byte, error)
 	// runInput is run with stdin; used for SQL, which must not appear in the process list.
 	runInput func(ctx context.Context, input, name string, args ...string) ([]byte, error)
-	fetch    func(ctx context.Context, url string) ([]byte, error)
-	osID     func() (id, codename string)
+	// exec runs a command with extra environment and optional streams (backups).
+	exec  func(ctx context.Context, c command) ([]byte, error)
+	fetch func(ctx context.Context, url string) ([]byte, error)
+	osID  func() (id, codename string)
 	// socketWait is how long to wait for PHP-FPM to create a new pool's socket after a
 	// reload; systemd returns before FPM has finished restarting. Zero skips the wait.
 	socketWait time.Duration
@@ -58,8 +60,38 @@ func runCommand(ctx context.Context, input *string, name string, args ...string)
 	return out, nil
 }
 
+// command is a process for system.exec. With Stdout set, the returned bytes are stderr only.
+type command struct {
+	name   string
+	args   []string
+	env    []string
+	stdin  io.Reader
+	stdout io.Writer
+}
+
+func execCommand(ctx context.Context, c command) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, c.name, c.args...)
+	cmd.Env = append(append(os.Environ(), "DEBIAN_FRONTEND=noninteractive"), c.env...)
+	cmd.Stdin = c.stdin
+	var out []byte
+	var err error
+	if c.stdout != nil {
+		var stderr bytes.Buffer
+		cmd.Stdout, cmd.Stderr = c.stdout, &stderr
+		err = cmd.Run()
+		out = stderr.Bytes()
+	} else {
+		out, err = cmd.CombinedOutput()
+	}
+	if err != nil {
+		return out, fmt.Errorf("%s %s: %w: %s", c.name, strings.Join(c.args, " "), err, lastLines(out, 5))
+	}
+	return out, nil
+}
+
 var realSystem = &system{
 	socketWait: 20 * time.Second,
+	exec:       execCommand,
 	run: func(ctx context.Context, name string, args ...string) ([]byte, error) {
 		return runCommand(ctx, nil, name, args...)
 	},
@@ -194,6 +226,9 @@ func stateApply(ctx context.Context, sys *system, p agentproto.StateApplyParams)
 		res.Sites[i] = *a.results[res.Sites[i].ID]
 	}
 	res.Databases = applyDatabases(ctx, sys, p.Databases)
+	if p.Firewall != nil {
+		res.Firewall = applyFirewall(ctx, sys, *p.Firewall)
+	}
 	return res, nil
 }
 

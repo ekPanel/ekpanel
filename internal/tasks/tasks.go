@@ -21,12 +21,17 @@ const (
 	KindServiceRestart   = "service.restart"
 	KindServerReconcile  = "server.reconcile"
 	KindWordPressInstall = "site.install_wordpress"
+	KindBackupRun        = "backup.run"
+	KindBackupRestore    = "backup.restore"
 )
 
 // lease is how long a worker may hold a task before it is considered crashed.
 // Handlers must finish (or time out) well within it; installing a PHP version is the
 // slowest thing a reconcile does.
 const lease = 30 * time.Minute
+
+// maxTaskDuration bounds any single task; backups of large sites are the longest.
+const maxTaskDuration = 12 * time.Hour
 
 // driftCheckInterval is how often every online server is re-applied, which repairs
 // anything changed or broken on the server since the last run.
@@ -48,6 +53,8 @@ func New(st *store.Store, h *hub.Hub, log *slog.Logger) *Runner {
 	r.handlers[KindServiceRestart] = r.serviceRestart
 	r.handlers[KindServerReconcile] = r.serverReconcile
 	r.handlers[KindWordPressInstall] = r.installWordPress
+	r.handlers[KindBackupRun] = r.runBackup
+	r.handlers[KindBackupRestore] = r.restoreBackup
 	return r
 }
 
@@ -77,10 +84,14 @@ func (r *Runner) Run(ctx context.Context, workers int) {
 			r.work(ctx)
 		}()
 	}
-	wg.Add(1)
+	wg.Add(2)
 	go func() {
 		defer wg.Done()
 		r.driftLoop(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		r.backupScheduler(ctx)
 	}()
 	r.housekeeping(ctx)
 	wg.Wait()
@@ -116,9 +127,28 @@ func (r *Runner) work(ctx context.Context) {
 
 func (r *Runner) execute(ctx context.Context, t store.Task) {
 	// A task in progress gets to finish its bookkeeping even if the panel is stopping.
-	runCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), lease-time.Minute)
+	// Handlers set tighter timeouts of their own; this only bounds a runaway.
+	runCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), maxTaskDuration)
 	defer cancel()
 	log := r.log.With("task", t.ID, "kind", t.Kind)
+
+	// Renew the lease while the task runs, so hours-long backups are not recovered as crashed.
+	stopBeat := make(chan struct{})
+	defer close(stopBeat)
+	go func() {
+		tick := time.NewTicker(lease / 3)
+		defer tick.Stop()
+		for {
+			select {
+			case <-stopBeat:
+				return
+			case <-tick.C:
+				if err := r.store.ExtendLease(runCtx, t.ID, lease); err != nil {
+					log.Warn("extend task lease", "err", err)
+				}
+			}
+		}
+	}()
 
 	result, err := func() (res any, err error) {
 		defer func() {
@@ -241,6 +271,20 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			PasswordHash: d.PasswordHash, Deleted: d.State == "deleting",
 		})
 	}
+	fw, err := r.store.GetFirewall(ctx, serverID)
+	if err != nil {
+		return sum, err
+	}
+	if fw.Mode != "unmanaged" {
+		params.Firewall = &agentproto.FirewallSpec{Enabled: fw.Mode == "on", Rules: make([]agentproto.FirewallRuleSpec, 0, len(fw.Rules))}
+		for _, fr := range fw.Rules {
+			spec := agentproto.FirewallRuleSpec{ID: fr.ID, Action: fr.Action, Protocol: fr.Protocol, Source: fr.Source}
+			if fr.PortFrom != nil && fr.PortTo != nil {
+				spec.PortFrom, spec.PortTo = *fr.PortFrom, *fr.PortTo
+			}
+			params.Firewall.Rules = append(params.Firewall.Rules, spec)
+		}
+	}
 	callCtx, cancel := context.WithTimeout(ctx, lease-5*time.Minute)
 	defer cancel()
 	raw, err := r.hub.Call(callCtx, serverID, agentproto.OpStateApply, params)
@@ -280,6 +324,15 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			sum.Applied++
 		} else {
 			sum.Failed++
+		}
+	}
+	if res.Firewall != nil {
+		st := store.FirewallStatus{Active: res.Firewall.Active, SSHPorts: res.Firewall.SSHPorts, Error: res.Firewall.Error, At: time.Now()}
+		if err := r.store.RecordFirewallStatus(ctx, serverID, st); err != nil {
+			return sum, err
+		}
+		if st.Error != "" {
+			return sum, fmt.Errorf("firewall: %s", st.Error)
 		}
 	}
 	if sum.Failed > 0 {

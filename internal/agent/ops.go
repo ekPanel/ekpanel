@@ -69,6 +69,36 @@ func Dispatch(ctx context.Context, op string, params json.RawMessage) (any, *age
 			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
 		}
 		return installWordPress(ctx, realSystem, p)
+	case agentproto.OpBackupSetup:
+		var p agentproto.BackupSetupParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return backupSetup(ctx, realSystem, p)
+	case agentproto.OpBackupRun:
+		var p agentproto.BackupRunParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return backupRun(ctx, realSystem, p)
+	case agentproto.OpBackupSnapshots:
+		var p agentproto.BackupSnapshotsParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return backupSnapshots(ctx, realSystem, p)
+	case agentproto.OpBackupRestore:
+		var p agentproto.BackupRestoreParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return backupRestore(ctx, realSystem, p)
+	case agentproto.OpBackupRemove:
+		var p agentproto.BackupRemoveParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return backupRemove(realSystem, p)
 	case agentproto.OpServicesRestart:
 		var p agentproto.ServicesRestartParams
 		if err := json.Unmarshal(params, &p); err != nil {

@@ -77,6 +77,7 @@ const (
 	ErrNotAllowed    = "not_allowed"
 	ErrFailed        = "failed"
 	ErrNoSystemd     = "no_systemd" // the server (or container) does not run systemd
+	ErrWrongKey      = "wrong_recovery_key"
 )
 
 // Hello is the first message on every connection: static facts about the server.
@@ -183,6 +184,30 @@ type DatabaseSpec struct {
 type StateApplyParams struct {
 	Sites     []SiteSpec     `json:"sites"`
 	Databases []DatabaseSpec `json:"databases"`
+	// Firewall is nil when ekPanel does not manage the server's firewall.
+	Firewall *FirewallSpec `json:"firewall,omitempty"`
+}
+
+// FirewallSpec is the whole ufw firewall ekPanel keeps. With Enabled, the agent always allows
+// SSH (on the ports sshd listens on), HTTP, HTTPS and the agent port before any rule of the user.
+type FirewallSpec struct {
+	Enabled bool               `json:"enabled"`
+	Rules   []FirewallRuleSpec `json:"rules"`
+}
+
+type FirewallRuleSpec struct {
+	ID       string `json:"id"`
+	Action   string `json:"action"`   // "allow" or "deny"
+	Protocol string `json:"protocol"` // "tcp", "udp" or "both"
+	PortFrom int    `json:"port_from,omitempty"`
+	PortTo   int    `json:"port_to,omitempty"`
+	Source   string `json:"source,omitempty"` // address or CIDR; empty means anywhere
+}
+
+type FirewallResult struct {
+	Active   bool   `json:"active"`
+	SSHPorts []int  `json:"ssh_ports"`
+	Error    string `json:"error,omitempty"`
 }
 
 type SiteResult struct {
@@ -203,6 +228,7 @@ type DatabaseResult struct {
 type StateApplyResult struct {
 	Sites     []SiteResult     `json:"sites"`
 	Databases []DatabaseResult `json:"databases"`
+	Firewall  *FirewallResult  `json:"firewall,omitempty"`
 }
 
 // ---- Files ----
@@ -272,4 +298,110 @@ type WordPressInstallParams struct {
 
 type WordPressInstallResult struct {
 	Version string `json:"version"`
+}
+
+// ---- Backups (restic) ----
+//
+// A repository's encryption password and storage credentials live only on the agent
+// (/etc/ekpanel/backup). backup.setup returns the password once, as a recovery key.
+
+const (
+	OpBackupSetup     = "backup.setup"
+	OpBackupRun       = "backup.run"
+	OpBackupSnapshots = "backup.snapshots"
+	OpBackupRestore   = "backup.restore"
+	OpBackupRemove    = "backup.remove"
+)
+
+type BackupS3 struct {
+	Endpoint  string `json:"endpoint"` // host[:port], or http(s)://host[:port]
+	Bucket    string `json:"bucket"`
+	Prefix    string `json:"prefix"`
+	Region    string `json:"region,omitempty"`
+	AccessKey string `json:"access_key"`
+	SecretKey string `json:"secret_key"`
+}
+
+type BackupSetupParams struct {
+	RepoID string    `json:"repo_id"`
+	Kind   string    `json:"kind"` // "local" or "s3"
+	S3     *BackupS3 `json:"s3,omitempty"`
+	// RecoveryKey connects an existing repository (for example after moving to a new
+	// server). Empty creates a new repository with a new key.
+	RecoveryKey string `json:"recovery_key,omitempty"`
+}
+
+type BackupSetupResult struct {
+	RecoveryKey string `json:"recovery_key,omitempty"` // only for a new repository
+	Location    string `json:"location"`
+}
+
+type BackupSite struct {
+	ID   string `json:"id"`
+	Name string `json:"name"` // domain, for people reading the snapshot list
+	User string `json:"user"`
+}
+
+type BackupDatabase struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Engine string `json:"engine"`
+	Owner  string `json:"owner"` // PostgreSQL restores objects as this role
+}
+
+type BackupRunParams struct {
+	RepoID      string           `json:"repo_id"`
+	Sites       []BackupSite     `json:"sites"`
+	Databases   []BackupDatabase `json:"databases"`
+	KeepDaily   int              `json:"keep_daily"`
+	KeepWeekly  int              `json:"keep_weekly"`
+	KeepMonthly int              `json:"keep_monthly"`
+}
+
+type BackupItemResult struct {
+	Kind       string `json:"kind"` // "site" or "database"
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	OK         bool   `json:"ok"`
+	Error      string `json:"error,omitempty"`
+	SnapshotID string `json:"snapshot_id,omitempty"`
+}
+
+type BackupRunResult struct {
+	Items      []BackupItemResult `json:"items"`
+	PruneError string             `json:"prune_error,omitempty"`
+}
+
+type BackupSnapshot struct {
+	ID     string    `json:"id"`
+	Time   time.Time `json:"time"`
+	Kind   string    `json:"kind"`
+	ItemID string    `json:"item_id"`
+	Name   string    `json:"name"`
+}
+
+type BackupSnapshotsParams struct {
+	RepoID string `json:"repo_id"`
+}
+
+type BackupSnapshotsResult struct {
+	Snapshots []BackupSnapshot `json:"snapshots"`
+}
+
+type BackupRestoreParams struct {
+	RepoID     string          `json:"repo_id"`
+	SnapshotID string          `json:"snapshot_id"`
+	Site       *BackupSite     `json:"site,omitempty"`
+	Database   *BackupDatabase `json:"database,omitempty"`
+	// Mode for sites: "folder" restores next to the live files; "replace" swaps them in and
+	// moves the current files to the site's trash.
+	Mode string `json:"mode,omitempty"`
+}
+
+type BackupRestoreResult struct {
+	Path string `json:"path,omitempty"`
+}
+
+type BackupRemoveParams struct {
+	RepoID string `json:"repo_id"`
 }

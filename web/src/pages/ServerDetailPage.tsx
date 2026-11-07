@@ -11,6 +11,7 @@ import { AreaChart, Sparkline } from "../components/Charts";
 import { Badge, Button, Card, Dialog, ErrorAlert, Field, Meter, Spinner, cx } from "../components/ui";
 import { ServicesCard } from "../components/Services";
 import { RecentTasks } from "../components/Tasks";
+import { FirewallCard } from "../components/Firewall";
 import { ServerDatabases, ServerSites } from "./ServerSites";
 
 const ranges = ["live", "1h", "24h", "7d", "30d"] as const;
@@ -258,6 +259,7 @@ export function ServerDetailPage() {
               <ServicesCard serverId={s.id} online={s.online} />
               <RecentTasks serverId={s.id} />
             </div>
+            <FirewallCard serverId={s.id} />
           </>
         )}
       </div>

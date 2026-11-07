@@ -21,7 +21,8 @@
     "open_menu": "Open menu",
     "sign_out": "Sign out",
     "sites": "Websites",
-    "databases": "Databases"
+    "databases": "Databases",
+    "backups": "Backups"
   },
   "theme": {
     "label": "Theme",
@@ -237,6 +238,18 @@
         "extract": "Archive extracted",
         "compress": "Archive created",
         "upload": "File uploaded"
+      },
+      "backup": {
+        "repo_created": "Backup location added",
+        "schedule_changed": "Backup schedule changed",
+        "repo_removed": "Backup location removed",
+        "started": "Backup started",
+        "restore_started": "Restore started"
+      },
+      "firewall": {
+        "mode_changed": "Firewall setting changed",
+        "rule_added": "Firewall rule added",
+        "rule_removed": "Firewall rule removed"
       }
     }
   },
@@ -309,7 +322,24 @@
     "invalid_wp_admin_user": "Use 3–60 letters, digits and . _ @ - for the admin user name.",
     "invalid_wp_title": "The title must be up to 100 characters on one line.",
     "invalid_wp_locale": "Choose a language from the list.",
-    "agent_not_empty": "The website folder already has files. Move or delete them first."
+    "agent_not_empty": "The website folder already has files. Move or delete them first.",
+    "invalid_schedule": "Choose how often to back up, and an hour between 0 and 23.",
+    "invalid_retention": "Keep at least one backup, and no more than 365 daily, 520 weekly or 240 monthly.",
+    "invalid_backup_kind": "Choose this server or S3 storage.",
+    "backup_repo_not_found": "That backup location does not exist.",
+    "invalid_restore_mode": "Choose whether to restore into a new folder or replace the current files.",
+    "invalid_restore": "Choose a website or database to restore.",
+    "connect_needs_s3": "Only backups kept in S3 storage can be connected again.",
+    "agent_wrong_recovery_key": "That recovery key does not open the backups at this location.",
+    "invalid_firewall_mode": "Choose on, off or not managed.",
+    "invalid_firewall_rule": "Choose to open a port or block an address.",
+    "invalid_protocol": "Choose TCP, UDP or both.",
+    "invalid_ports": "Enter a port such as 8080, or a range such as 6000-6010.",
+    "invalid_source": "Enter an IP address, or a range such as 203.0.113.0/24.",
+    "firewall_blocks_you": "That would block your own address and cut you off from this panel.",
+    "invalid_note": "Keep the note under 200 characters.",
+    "too_many_firewall_rules": "A server can have up to 200 firewall rules.",
+    "firewall_rule_not_found": "That rule does not exist."
   },
   "not_found": {
     "title": "Page not found",
@@ -346,7 +376,9 @@
     "kinds": {
       "service_restart": "Restart {{name}}",
       "server_reconcile": "Apply server settings",
-      "site_install_wordpress": "Install WordPress"
+      "site_install_wordpress": "Install WordPress",
+      "backup_run": "Back up to {{name}}",
+      "backup_restore": "Restore from backup"
     }
   },
   "sites": {
@@ -547,5 +579,143 @@
     "installed_hint": "Plugins and updates work directly from WordPress; no FTP details are needed.",
     "with_site": "Install WordPress",
     "with_site_hint": "Creates a database and installs WordPress as soon as the site is ready."
+  },
+  "backups": {
+    "intro": "Encrypted, deduplicated backups of your websites and databases, kept on the server or in S3-compatible storage.",
+    "add": "Add backup location",
+    "created_title": "Backups are ready",
+    "empty": {
+      "title": "No backups yet",
+      "body": "Add a backup location and ekPanel backs up every website and database on that server on a schedule."
+    },
+    "where": "Where to keep the backups",
+    "kind": {
+      "local": "This server",
+      "s3": "S3-compatible storage"
+    },
+    "kind_hint": {
+      "local": "Fast to set up, but lost if the server's disk is lost.",
+      "s3": "Amazon S3, Backblaze B2, Cloudflare R2, Wasabi, MinIO and others. Safer: kept off the server."
+    },
+    "default_name": {
+      "local": "On this server",
+      "s3": "Offsite (S3)"
+    },
+    "name": "Name",
+    "s3": {
+      "endpoint": "Endpoint",
+      "endpoint_hint": "The host name only, for example s3.us-west-002.backblazeb2.com",
+      "bucket": "Bucket",
+      "prefix": "Folder in the bucket (optional)",
+      "region": "Region (optional)",
+      "access_key": "Access key ID",
+      "secret_key": "Secret access key",
+      "secret_note": "The keys are stored only on the server, readable by root. The panel does not keep them."
+    },
+    "frequency": "How often",
+    "frequency_options": {
+      "daily": "Every day",
+      "hourly": "Every hour",
+      "weekly": "Every week (Sunday)",
+      "off": "Only when I start it"
+    },
+    "time": "At",
+    "keep": "How many to keep",
+    "keep_daily": "Daily",
+    "keep_weekly": "Weekly",
+    "keep_monthly": "Monthly",
+    "keep_hint": "Older backups are removed after each run. Because backups are deduplicated, keeping many costs little extra space.",
+    "connect_existing": "Connect backups made earlier, using their recovery key",
+    "recovery_key": "Recovery key",
+    "connect": "Connect",
+    "create": "Create",
+    "recovery_once": "This is the recovery key. It is shown only this once. Without it, nobody (including you) can read these backups.",
+    "recovery_hint": "Keep it somewhere safe and away from this server, such as a password manager. You need it to restore after rebuilding the server.",
+    "schedule_text": {
+      "off": "Manual only",
+      "hourly": "Every hour",
+      "daily": "Every day at {{time}}",
+      "weekly": "Sundays at {{time}}"
+    },
+    "never_run": "Not run yet",
+    "status": {
+      "succeeded": "Succeeded",
+      "partial": "Partly failed",
+      "failed": "Failed"
+    },
+    "next": "Next backup: {{when}}",
+    "run_now": "Back up now",
+    "running": {
+      "backup": "Backing up…",
+      "restore": "Restoring…"
+    },
+    "edit_schedule": "Schedule and retention",
+    "location": "Stored at",
+    "snapshots": "Backups",
+    "no_snapshots": "No backups here yet. Click “Back up now” to make the first one.",
+    "count_one": "{{count, number}} backup",
+    "count_other": "{{count, number}} backups",
+    "item_gone": "Deleted from the panel",
+    "restore": "Restore",
+    "restore_title": "Restore {{name}}",
+    "restore_from": "From the backup of {{when}}.",
+    "mode": {
+      "folder": "Into a new folder",
+      "replace": "Replace the current files"
+    },
+    "mode_hint": {
+      "folder": "Puts the files in a “restored-…” folder in the site's home, next to public_html. Nothing current changes.",
+      "replace": "Swaps public_html for the backup. The current files move to the site's trash, so you can still get them back."
+    },
+    "db_restore_warning": "This replaces everything in the database with the backup. Changes made since then are lost.",
+    "remove": "Remove location",
+    "remove_title": "Remove this backup location",
+    "remove_body": "Stops backing up here. The backups themselves are not deleted; you can connect them again with the recovery key.",
+    "remove_confirm": "ekPanel stops backing up here and forgets the location. The stored backups stay where they are and can be connected again with the recovery key.",
+    "saved_it": "I have saved the recovery key",
+    "remove_body_local": "Stops backing up here. The backups already made stay on the server in {{path}}; delete that folder yourself if you no longer need them.",
+    "remove_confirm_local": "ekPanel stops backing up here and forgets the location. The backups stay in {{path}} on the server, and cannot be connected again from the panel."
+  },
+  "firewall": {
+    "title": "Firewall",
+    "state": {
+      "active": "On",
+      "applying": "Turning on…",
+      "off": "Off"
+    },
+    "turn_on": "Turn on firewall",
+    "turn_off": "Turn off",
+    "stop_managing": "Stop managing",
+    "unmanaged": "ekPanel is not managing this server's firewall, so whatever firewall the server has stays as it is. Turn it on to block every incoming connection except SSH, websites, the ekPanel agent and the ports you open.",
+    "off": "The firewall is off: every port that a program listens on can be reached. Your rules are kept for when you turn it on again.",
+    "always_open": "Always open: SSH ({{ssh}}), HTTP (80), HTTPS (443) and the ekPanel agent (7443). Everything else coming in is blocked unless a rule below opens it.",
+    "checked": "Checked by the server {{when}}",
+    "confirm_on_title": "Turn on the firewall?",
+    "confirm_on": "Incoming connections are blocked except SSH ({{ssh}}), HTTP, HTTPS and the ekPanel agent. Anything else that is reached from outside (a mail server, a game server, a database used by other machines) stops working until you open its port.",
+    "confirm_off_title": "Turn off the firewall?",
+    "confirm_off": "Every port that a program listens on becomes reachable from the internet.",
+    "add": "Add a rule",
+    "add_button": "Add rule",
+    "remove": "Remove rule",
+    "action": "Rule",
+    "actions": {
+      "allow": "Open a port",
+      "deny": "Block an address"
+    },
+    "ports": "Port or range",
+    "ports_optional": "Port or range (empty: all)",
+    "protocol_label": "Protocol",
+    "protocol": {
+      "tcp": "TCP",
+      "udp": "UDP",
+      "both": "TCP and UDP"
+    },
+    "source": "Address or range",
+    "source_optional": "Only from (optional)",
+    "anywhere": "anywhere",
+    "note": "Note (optional)",
+    "rule_allow": "Port {{ports}} ({{proto}}) open to {{source}}",
+    "rule_deny": "Block everything from {{source}}",
+    "rule_deny_ports": "Block port {{ports}} ({{proto}}) from {{source}}"
   }
 }

@@ -341,5 +341,31 @@ Phase 1 is delivered in parts; each is tested in the VM and committed separately
 - [x] `wp-config.php` is readable only by the site's account (600); `FS_METHOD direct`, so
       plugins and updates need no FTP details; installs only into an empty folder
 - [ ] WordPress toolkit (staging, bulk updates, hardening): phase 3
-- [ ] 1e. Backups and restore (restic), basic firewall
+**1e. Backups and a basic firewall — done**
+- [x] Backups with restic: encrypted and deduplicated, to the server's own disk or any
+      S3-compatible storage (AWS S3, Backblaze B2, Cloudflare R2, Wasabi, MinIO…). Every
+      website (home folder, without tmp and trash) and every database (`mariadb-dump
+      --single-transaction`, `pg_dump -Fc`) on the server, as one snapshot each
+- [x] The encryption password is a recovery key shown once; it and the S3 keys live only on
+      the agent (root, 600). The panel never stores either. An S3 location can be connected
+      again with the recovery key, for example after rebuilding a server
+- [x] Schedule (hourly, daily, weekly or manual) in the user's local time, retention (daily,
+      weekly and monthly copies, pruned after each run), "Back up now", last result with
+      partial failures named. Database dumps stream into restic; a dump that fails half way
+      is not kept
+- [x] Restore a website into a new folder next to `public_html`, or replace `public_html`
+      (the current files go to the site's trash); restore a database in place, after typing
+      its name
+- [x] Long tasks keep their lease with a heartbeat, so a backup of many hours is not run twice
+- [x] Firewall (ufw): off by default ("not managed", so an existing firewall is left alone).
+      When on, SSH (on the ports sshd really uses), HTTP, HTTPS (TCP and UDP) and the agent
+      port always stay open; users open ports or ranges (optionally only from an address) and
+      block addresses. Blocks go on top. Only the differences are applied, and rules added by
+      hand are kept. The panel refuses to block the address of the person using it
+- [x] Tested in the VM: local and S3 backups (S3 against a local test server), dedup across
+      runs, all three restore kinds for sites, MariaDB (WordPress) and PostgreSQL restores,
+      reconnecting with the recovery key, wrong key refused; firewall on/off with SSH, panel
+      and agent still reachable
+- [ ] Single-file restore and download of a backup: later. Restore to another server: later
+- [ ] Firewall: rate limiting and fail2ban-style blocking: phase 4 (security center)
 - [ ] 1f. Docker apps (image and Compose)

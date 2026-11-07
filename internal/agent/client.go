@@ -234,8 +234,8 @@ func session(ctx context.Context, log *slog.Logger, cfg Config, collector *Colle
 				continue
 			}
 			go func(req agentproto.Envelope) {
-				// Installing a PHP version can take several minutes on a slow server.
-				opCtx, cancel := context.WithTimeout(ctx, 15*time.Minute)
+				// Installing PHP takes minutes; backing up a large site can take hours.
+				opCtx, cancel := context.WithTimeout(ctx, 12*time.Hour)
 				defer cancel()
 				resp := agentproto.Envelope{Type: agentproto.TypeResponse, ID: req.ID}
 				result, opErr := Dispatch(opCtx, req.Op, req.Params)

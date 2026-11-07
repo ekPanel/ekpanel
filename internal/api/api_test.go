@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1081,5 +1082,250 @@ func TestWordPressInstall(t *testing.T) {
 	}
 	if st := c.do("POST", "/api/v1/sites/"+site.ID+"/wordpress", map[string]any{"admin_user": "owner"}, &e); st != http.StatusConflict || e.Code != "app_installed" {
 		t.Fatalf("second install: %d %s", st, e.Code)
+	}
+}
+
+func TestBackups(t *testing.T) {
+	p := newTestPanel(t)
+	c := newClient(t, p.web.URL)
+	setUp(t, c)
+	serverID, cfg, _, _ := enrolled(t, p, c, "web-1")
+	tlsCfg, _ := cfg.TLSConfig()
+	conn, _, err := dialAgent(t, p, tlsCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.CloseNow()
+	runs := make(chan agentproto.BackupRunParams, 5)
+	restores := make(chan agentproto.BackupRestoreParams, 5)
+	removed := make(chan string, 1)
+	var failDB atomic.Bool
+	fakeAgent(t, conn, func(op string, params json.RawMessage) (any, *agentproto.OpError) {
+		switch op {
+		case agentproto.OpStateApply:
+			var in agentproto.StateApplyParams
+			json.Unmarshal(params, &in)
+			var out agentproto.StateApplyResult
+			for _, s := range in.Sites {
+				out.Sites = append(out.Sites, agentproto.SiteResult{ID: s.ID, Generation: s.Generation, OK: true})
+			}
+			for _, d := range in.Databases {
+				out.Databases = append(out.Databases, agentproto.DatabaseResult{ID: d.ID, Generation: d.Generation, OK: true})
+			}
+			return out, nil
+		case agentproto.OpBackupSetup:
+			var in agentproto.BackupSetupParams
+			json.Unmarshal(params, &in)
+			return agentproto.BackupSetupResult{RecoveryKey: "RecoveryKeyRecoveryKeyRecover", Location: "/var/backups/ekpanel/" + in.RepoID}, nil
+		case agentproto.OpBackupRun:
+			var in agentproto.BackupRunParams
+			json.Unmarshal(params, &in)
+			runs <- in
+			var res agentproto.BackupRunResult
+			for _, s := range in.Sites {
+				res.Items = append(res.Items, agentproto.BackupItemResult{Kind: "site", ID: s.ID, Name: s.Name, OK: true})
+			}
+			for _, d := range in.Databases {
+				res.Items = append(res.Items, agentproto.BackupItemResult{Kind: "database", ID: d.ID, Name: d.Name, OK: !failDB.Load(), Error: map[bool]string{true: "dump failed"}[failDB.Load()]})
+			}
+			return res, nil
+		case agentproto.OpBackupRestore:
+			var in agentproto.BackupRestoreParams
+			json.Unmarshal(params, &in)
+			restores <- in
+			return agentproto.BackupRestoreResult{Path: "/restored-x"}, nil
+		case agentproto.OpBackupRemove:
+			var in agentproto.BackupRemoveParams
+			json.Unmarshal(params, &in)
+			removed <- in.RepoID
+			return agentproto.BackupRestoreResult{}, nil
+		}
+		return nil, &agentproto.OpError{Code: agentproto.ErrUnknownOp}
+	})
+
+	var site, db struct {
+		ID string `json:"id"`
+	}
+	c.do("POST", "/api/v1/sites", map[string]any{"server_id": serverID, "domain": "shop.example.com", "kind": "static"}, &site)
+	var dbc struct {
+		Database struct{ ID string } `json:"database"`
+	}
+	c.do("POST", "/api/v1/databases", map[string]string{"server_id": serverID, "engine": "mariadb", "name": "shop"}, &dbc)
+	db.ID = dbc.Database.ID
+
+	var e errBody
+	if st := c.do("POST", "/api/v1/backups", map[string]any{"server_id": serverID, "name": "x", "kind": "local", "schedule": "daily",
+		"keep_daily": 0, "keep_weekly": 0, "keep_monthly": 0}, &e); st != http.StatusBadRequest || e.Code != "invalid_retention" {
+		t.Fatalf("no retention: %d %s", st, e.Code)
+	}
+	if st := c.do("POST", "/api/v1/backups", map[string]any{"server_id": serverID, "name": "x", "kind": "local", "schedule": "daily",
+		"keep_daily": 7, "recovery_key": "AAAAAAAAAAAAAAAAAAAA"}, &e); st != http.StatusBadRequest || e.Code != "connect_needs_s3" {
+		t.Fatalf("connect a local location: %d %s", st, e.Code)
+	}
+	var created struct {
+		Repo struct {
+			ID        string     `json:"id"`
+			Location  string     `json:"location"`
+			NextRunAt *time.Time `json:"next_run_at"`
+		} `json:"repo"`
+		RecoveryKey string `json:"recovery_key"`
+	}
+	if st := c.do("POST", "/api/v1/backups", map[string]any{"server_id": serverID, "name": "On this server", "kind": "local",
+		"schedule": "daily", "hour_utc": 2, "keep_daily": 7, "keep_weekly": 4, "keep_monthly": 6}, &created); st != http.StatusCreated {
+		t.Fatalf("create: %d", st)
+	}
+	if created.RecoveryKey == "" || !strings.HasSuffix(created.Repo.Location, created.Repo.ID) || created.Repo.NextRunAt == nil || created.Repo.NextRunAt.UTC().Hour() != 2 {
+		t.Fatalf("created = %+v", created)
+	}
+	repo := created.Repo.ID
+
+	// Back up now: every site and database on the server is included.
+	c.do("POST", "/api/v1/backups/"+repo+"/run", nil, nil)
+	var run agentproto.BackupRunParams
+	select {
+	case run = <-runs:
+	case <-time.After(5 * time.Second):
+		t.Fatal("backup never reached the agent")
+	}
+	if len(run.Sites) != 1 || len(run.Databases) != 1 || run.KeepDaily != 7 || run.Sites[0].Name != "shop.example.com" || run.Databases[0].Owner != "shop" {
+		t.Fatalf("run = %+v", run)
+	}
+	type repoView struct {
+		LastStatus  *string `json:"last_status"`
+		LastMessage *string `json:"last_message"`
+	}
+	eventually(t, "run recorded", func() bool {
+		var v repoView
+		c.do("GET", "/api/v1/backups/"+repo, nil, &v)
+		return v.LastStatus != nil && *v.LastStatus == "succeeded"
+	})
+	failDB.Store(true)
+	c.do("POST", "/api/v1/backups/"+repo+"/run", nil, nil)
+	<-runs
+	eventually(t, "partial run recorded", func() bool {
+		var v repoView
+		c.do("GET", "/api/v1/backups/"+repo, nil, &v)
+		return v.LastStatus != nil && *v.LastStatus == "partial" && v.LastMessage != nil && strings.Contains(*v.LastMessage, "shop: dump failed")
+	})
+
+	// Restores go to the right item and mode.
+	if st := c.do("POST", "/api/v1/backups/"+repo+"/restore", map[string]string{"snapshot_id": "abcd1234; rm -rf /", "database_id": db.ID}, &e); st != http.StatusBadRequest || e.Code != "invalid_restore" {
+		t.Fatalf("bad snapshot id: %d %s", st, e.Code)
+	}
+	if st := c.do("POST", "/api/v1/backups/"+repo+"/restore", map[string]string{"snapshot_id": "abcd1234", "site_id": site.ID, "mode": "everything"}, &e); st != http.StatusBadRequest {
+		t.Fatalf("bad mode: %d", st)
+	}
+	c.do("POST", "/api/v1/backups/"+repo+"/restore", map[string]string{"snapshot_id": "abcd1234", "site_id": site.ID, "mode": "replace"}, nil)
+	if r := <-restores; r.Site == nil || r.Site.ID != site.ID || r.Mode != "replace" || r.SnapshotID != "abcd1234" {
+		t.Fatalf("site restore = %+v", r)
+	}
+	c.do("POST", "/api/v1/backups/"+repo+"/restore", map[string]string{"snapshot_id": "abcd1234", "database_id": db.ID}, nil)
+	if r := <-restores; r.Database == nil || r.Database.Name != "shop" {
+		t.Fatalf("database restore = %+v", r)
+	}
+
+	if st := c.do("DELETE", "/api/v1/backups/"+repo, nil, nil); st != http.StatusNoContent {
+		t.Fatalf("delete: %d", st)
+	}
+	if id := <-removed; id != repo {
+		t.Fatalf("removed %s", id)
+	}
+}
+
+func TestFirewall(t *testing.T) {
+	p := newTestPanel(t)
+	c := newClient(t, p.web.URL)
+	setUp(t, c)
+	serverID, cfg, _, _ := enrolled(t, p, c, "web-1")
+	tlsCfg, _ := cfg.TLSConfig()
+	conn, _, err := dialAgent(t, p, tlsCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.CloseNow()
+	applied := make(chan *agentproto.FirewallSpec, 10)
+	fakeAgent(t, conn, func(op string, raw json.RawMessage) (any, *agentproto.OpError) {
+		if op != agentproto.OpStateApply {
+			return nil, &agentproto.OpError{Code: agentproto.ErrUnknownOp}
+		}
+		var in agentproto.StateApplyParams
+		json.Unmarshal(raw, &in)
+		applied <- in.Firewall
+		res := agentproto.StateApplyResult{}
+		if in.Firewall != nil {
+			res.Firewall = &agentproto.FirewallResult{Active: in.Firewall.Enabled, SSHPorts: []int{22, 2222}}
+		}
+		return res, nil
+	})
+	next := func() *agentproto.FirewallSpec {
+		t.Helper()
+		for {
+			select {
+			case fw := <-applied:
+				if fw != nil || len(applied) == 0 {
+					return fw
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("no state.apply")
+			}
+		}
+	}
+	base := "/api/v1/servers/" + serverID + "/firewall"
+	var fw struct {
+		Mode   string `json:"mode"`
+		Status *struct {
+			Active   bool  `json:"active"`
+			SSHPorts []int `json:"ssh_ports"`
+		} `json:"status"`
+		Rules []struct {
+			ID     string `json:"id"`
+			Source string `json:"source"`
+		} `json:"rules"`
+	}
+	c.do("GET", base, nil, &fw)
+	if fw.Mode != "unmanaged" || fw.Status != nil {
+		t.Fatalf("new server firewall = %+v", fw)
+	}
+
+	c.do("PUT", base, map[string]string{"mode": "on"}, nil)
+	if spec := next(); spec == nil || !spec.Enabled || len(spec.Rules) != 0 {
+		t.Fatalf("turning on sent %+v", spec)
+	}
+	eventually(t, "status recorded", func() bool {
+		c.do("GET", base, nil, &fw)
+		return fw.Status != nil && fw.Status.Active && len(fw.Status.SSHPorts) == 2
+	})
+
+	var e errBody
+	for _, bad := range []struct {
+		body map[string]string
+		code string
+	}{
+		{map[string]string{"action": "allow", "protocol": "tcp", "ports": ""}, "invalid_ports"},
+		{map[string]string{"action": "allow", "protocol": "tcp", "ports": "70000"}, "invalid_ports"},
+		{map[string]string{"action": "allow", "protocol": "tcp", "ports": "90-80"}, "invalid_ports"},
+		{map[string]string{"action": "allow", "protocol": "icmp", "ports": "80"}, "invalid_protocol"},
+		{map[string]string{"action": "deny", "protocol": "both", "source": "not-an-ip"}, "invalid_source"},
+		{map[string]string{"action": "deny", "protocol": "both", "source": "127.0.0.0/8"}, "firewall_blocks_you"},
+	} {
+		if st := c.do("POST", base+"/rules", bad.body, &e); st != http.StatusBadRequest || e.Code != bad.code {
+			t.Errorf("%v: %d %s, want %s", bad.body, st, e.Code, bad.code)
+		}
+	}
+	c.do("POST", base+"/rules", map[string]string{"action": "allow", "protocol": "tcp", "ports": "5432", "source": "10.1.2.3/8", "note": "app servers"}, &fw)
+	if len(fw.Rules) != 1 || fw.Rules[0].Source != "10.0.0.0/8" {
+		t.Fatalf("rules = %+v", fw.Rules)
+	}
+	if spec := next(); spec == nil || len(spec.Rules) != 1 || spec.Rules[0].PortFrom != 5432 || spec.Rules[0].PortTo != 5432 {
+		t.Fatalf("rule sent as %+v", spec)
+	}
+	c.do("DELETE", base+"/rules/"+fw.Rules[0].ID, nil, &fw)
+	if spec := next(); len(fw.Rules) != 0 || spec == nil || len(spec.Rules) != 0 {
+		t.Fatalf("after delete: %+v / %+v", fw.Rules, spec)
+	}
+
+	c.do("PUT", base, map[string]string{"mode": "unmanaged"}, nil)
+	if spec := next(); spec != nil {
+		t.Fatalf("unmanaged must send no firewall, sent %+v", spec)
 	}
 }

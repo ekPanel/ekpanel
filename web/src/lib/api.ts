@@ -159,6 +159,52 @@ export interface FilesResult {
   count?: number;
 }
 
+export type BackupScheduleKind = "off" | "hourly" | "daily" | "weekly";
+
+export interface BackupRepo {
+  id: string;
+  server_id: string;
+  server_name: string;
+  name: string;
+  kind: "local" | "s3";
+  location: string;
+  schedule: BackupScheduleKind;
+  hour_utc: number;
+  keep_daily: number;
+  keep_weekly: number;
+  keep_monthly: number;
+  next_run_at: string | null;
+  last_run_at: string | null;
+  last_status: "succeeded" | "partial" | "failed" | null;
+  last_message: string | null;
+  created_at: string;
+}
+
+export interface BackupSnapshot {
+  id: string;
+  time: string;
+  kind: "site" | "database";
+  item_id: string;
+  name: string;
+}
+
+export interface FirewallRule {
+  id: string;
+  action: "allow" | "deny";
+  protocol: "tcp" | "udp" | "both";
+  port_from: number | null;
+  port_to: number | null;
+  source: string;
+  note: string;
+  created_at: string;
+}
+
+export interface Firewall {
+  mode: "unmanaged" | "on" | "off";
+  status: { active: boolean; ssh_ports: number[]; error?: string; at: string } | null;
+  rules: FirewallRule[];
+}
+
 export interface AuditEntry {
   id: number;
   at: string;
@@ -212,7 +258,7 @@ export const api = {
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body ?? {}),
   patch: <T>(path: string, body: unknown) => request<T>("PATCH", path, body),
   put: <T>(path: string, body: unknown) => request<T>("PUT", path, body),
-  del: (path: string) => request<void>("DELETE", path),
+  del: <T = void>(path: string) => request<T>("DELETE", path),
 };
 
 /** Turns any thrown error into a sentence in the user's language. */

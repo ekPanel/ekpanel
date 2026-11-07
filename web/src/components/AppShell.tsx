@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, Database, Gauge, Globe, Languages, LogOut, Menu, Monitor, Moon, ScrollText, Search, Server, ShieldCheck, Sun, X } from "lucide-react";
+import { Activity, ArchiveRestore, Database, Gauge, Globe, Languages, LogOut, Menu, Monitor, Moon, ScrollText, Search, Server, ShieldCheck, Sun, X } from "lucide-react";
 import { api, type User } from "../lib/api";
 import { meKey } from "../lib/session";
 import { useTheme, type Theme } from "../lib/theme";
@@ -51,6 +51,7 @@ function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => void }) 
         <>
           <NavItem to="/sites" icon={<Globe />}>{t("nav.sites")}</NavItem>
           <NavItem to="/databases" icon={<Database />}>{t("nav.databases")}</NavItem>
+          <NavItem to="/backups" icon={<ArchiveRestore />}>{t("nav.backups")}</NavItem>
           <NavItem to="/servers" icon={<Server />}>{t("nav.servers")}</NavItem>
           <p className="px-3 pt-5 pb-1 text-xs font-semibold tracking-wider text-muted uppercase">{t("nav.admin")}</p>
           <NavItem to="/audit" icon={<ScrollText />}>{t("nav.audit")}</NavItem>
