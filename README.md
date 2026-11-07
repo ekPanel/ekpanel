@@ -22,11 +22,13 @@ email, DNS and game servers, with a modern UI in your own language.
 - **Websites**: static or PHP (7.4 to 8.5 side by side), free automatic HTTPS, extra
   domains, domains in any script. Each site runs as its own Linux user with its own PHP
   pool. Changes apply with zero downtime and broken configuration repairs itself
+- **Databases**: MariaDB and PostgreSQL with an account per database. Passwords are shown
+  once and never stored, only the database engine's own hash
 - An append-only audit log of every change (the database itself refuses edits and deletes)
 - A web UI in **English** and **বাংলা (Bangla)**, ready for right-to-left languages, with
   light/dark themes, a `Ctrl+K` command palette and phone-friendly layouts
 
-Coming next, in order: databases, file manager and SFTP, one-click WordPress, backups,
+Coming next, in order: file manager and SFTP, one-click WordPress, backups,
 Docker apps, then Git deploys, an app store, customers and packages. [PLAN.md](PLAN.md) lists
 every phase.
 

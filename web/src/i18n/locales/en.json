@@ -20,7 +20,8 @@
     "security": "Security",
     "open_menu": "Open menu",
     "sign_out": "Sign out",
-    "sites": "Websites"
+    "sites": "Websites",
+    "databases": "Databases"
   },
   "theme": {
     "label": "Theme",
@@ -215,6 +216,11 @@
         "created": "Website created",
         "updated": "Website changed",
         "deleted": "Website deleted"
+      },
+      "database": {
+        "created": "Database created",
+        "password_reset": "Database password reset",
+        "deleted": "Database deleted"
       }
     }
   },
@@ -262,7 +268,14 @@
     "invalid_tls": "Choose an SSL option.",
     "hostname_taken": "Another website already uses this domain.",
     "site_not_found": "That website does not exist. It may have been deleted.",
-    "site_deleting": "This website is being deleted."
+    "site_deleting": "This website is being deleted.",
+    "invalid_engine": "Choose MariaDB or PostgreSQL.",
+    "invalid_database_name": "Use up to 32 lowercase letters, digits and _ , starting with a letter. System names are not allowed.",
+    "invalid_database_user": "Use up to 32 lowercase letters, digits and _ , starting with a letter. System names are not allowed.",
+    "database_name_taken": "This server already has a database with that name.",
+    "database_user_taken": "This server already has a database user with that name.",
+    "database_not_found": "That database does not exist. It may have been deleted.",
+    "database_deleting": "This database is being deleted."
   },
   "not_found": {
     "title": "Page not found",
@@ -298,7 +311,7 @@
     },
     "kinds": {
       "service_restart": "Restart {{name}}",
-      "server_reconcile": "Apply website settings"
+      "server_reconcile": "Apply server settings"
     }
   },
   "sites": {
@@ -370,5 +383,53 @@
       "button": "Delete website"
     },
     "waiting_offline": "{{server}} is offline. The settings are applied as soon as its agent reconnects."
+  },
+  "databases": {
+    "add": "Add database",
+    "create": "Create database",
+    "intro": "MariaDB and PostgreSQL databases for your websites and apps. Each has its own account with access to that database only.",
+    "empty": {
+      "title": "Create your first database",
+      "body": "WordPress and most PHP apps use MariaDB; many modern apps use PostgreSQL. ekPanel installs the engine on the server the first time."
+    },
+    "none_on_server": "No databases on this server yet.",
+    "engine": "Engine",
+    "engine_hint": {
+      "mariadb": "Compatible with MySQL. WordPress, Laravel, most PHP apps.",
+      "postgresql": "Advanced SQL. Django, Rails, many Node and Go apps."
+    },
+    "name": "Database name",
+    "name_hint": "Lowercase letters, digits and _ , up to 32 characters.",
+    "username": "User name",
+    "password": "Password",
+    "password_note": "ekPanel creates a strong password and shows it once. Only a one-way hash is stored.",
+    "password_once": "Copy the password now. ekPanel does not keep it and cannot show it again; you can only reset it.",
+    "created_title": "{{name}} is being created",
+    "saved_it": "I have saved the password",
+    "open": "Open database",
+    "host": "Host",
+    "port": "Port",
+    "url": "Connection URL",
+    "size": "Size",
+    "connect": "Connect",
+    "connect_hint": "Use these details in your application's settings on the same server. Remote access is off.",
+    "reset": "Create a new password",
+    "reset_hint": "The current password stops working as soon as the server applies the new one.",
+    "applying": "Applying on the server. The first database on a server also installs the engine, which takes a minute or two.",
+    "error_title": "The server could not apply this database",
+    "state": {
+      "pending": "Applying…",
+      "active": "Ready",
+      "error": "Problem",
+      "deleting": "Deleting…"
+    },
+    "delete": {
+      "title_short": "Delete database",
+      "title": "Delete {{name}}?",
+      "body": "Removes the database, all its data and its user from the server.",
+      "warning": "All tables and data in this database are deleted permanently. Applications using it stop working.",
+      "confirm": "Type {{name}} to confirm",
+      "button": "Delete database"
+    }
   }
 }

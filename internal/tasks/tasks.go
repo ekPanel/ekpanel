@@ -223,6 +223,17 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		}
 		params.Sites = append(params.Sites, spec)
 	}
+	dbs, err := r.store.ListDatabases(ctx, serverID)
+	if err != nil {
+		return sum, err
+	}
+	params.Databases = make([]agentproto.DatabaseSpec, 0, len(dbs))
+	for _, d := range dbs {
+		params.Databases = append(params.Databases, agentproto.DatabaseSpec{
+			ID: d.ID, Generation: d.Generation, Engine: d.Engine, Name: d.Name, User: d.Username,
+			PasswordHash: d.PasswordHash, Deleted: d.State == "deleting",
+		})
+	}
 	callCtx, cancel := context.WithTimeout(ctx, lease-5*time.Minute)
 	defer cancel()
 	raw, err := r.hub.Call(callCtx, serverID, agentproto.OpStateApply, params)
@@ -231,6 +242,9 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		// The agent could not start applying (for example, it is not running as root).
 		// Show the reason on the waiting sites; an offline agent just leaves them waiting.
 		if ferr := r.store.FailUnappliedSites(ctx, serverID, opErr.Message); ferr != nil {
+			r.log.Error("record apply failure", "server", serverID, "err", ferr)
+		}
+		if ferr := r.store.FailUnappliedDatabases(ctx, serverID, opErr.Message); ferr != nil {
 			r.log.Error("record apply failure", "server", serverID, "err", ferr)
 		}
 	}
@@ -251,8 +265,19 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			sum.Failed++
 		}
 	}
+	for _, dr := range res.Databases {
+		if err := r.store.ApplyDatabaseResult(ctx, dr.ID, dr.Generation, dr.OK, dr.Error, dr.SizeBytes); err != nil {
+			return sum, err
+		}
+		if dr.OK {
+			sum.Applied++
+		} else {
+			sum.Failed++
+		}
+	}
 	if sum.Failed > 0 {
-		return sum, fmt.Errorf("%d of %d sites could not be applied; see each site for the reason", sum.Failed, len(res.Sites))
+		return sum, fmt.Errorf("%d of %d items could not be applied; see each website or database for the reason",
+			sum.Failed, len(res.Sites)+len(res.Databases))
 	}
 	return sum, nil
 }

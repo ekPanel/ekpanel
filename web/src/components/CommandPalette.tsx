@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { CornerDownLeft, Gauge, Globe, Plus, ScrollText, Search, Server as ServerIcon, ShieldCheck } from "lucide-react";
-import { api, type Server, type Site, type User } from "../lib/api";
+import { CornerDownLeft, Database as DatabaseIcon, Gauge, Globe, Plus, ScrollText, Search, Server as ServerIcon, ShieldCheck } from "lucide-react";
+import { api, type Database, type Server, type Site, type User } from "../lib/api";
 import { cx } from "./ui";
 
 interface Item {
@@ -34,6 +34,11 @@ export function CommandPalette({ open, onClose, user }: { open: boolean; onClose
     queryFn: () => api.get<Site[]>("/sites"),
     enabled: open && isAdmin,
   });
+  const databases = useQuery({
+    queryKey: ["databases", "all"],
+    queryFn: () => api.get<Database[]>("/databases"),
+    enabled: open && isAdmin,
+  });
 
   useEffect(() => {
     const d = ref.current;
@@ -56,11 +61,16 @@ export function CommandPalette({ open, onClose, user }: { open: boolean; onClose
     if (isAdmin) {
       list.push(
         { id: "sites", group: pages, label: t("nav.sites"), icon: <Globe />, run: go("/sites") },
+        { id: "databases", group: pages, label: t("nav.databases"), icon: <DatabaseIcon />, run: go("/databases") },
         { id: "servers", group: pages, label: t("nav.servers"), icon: <ServerIcon />, run: go("/servers") },
         { id: "audit", group: pages, label: t("nav.audit"), icon: <ScrollText />, run: go("/audit") },
         { id: "add-site", group: t("palette.actions"), label: t("sites.add"), icon: <Plus />, run: go("/sites?add=1") },
+        { id: "add-db", group: t("palette.actions"), label: t("databases.add"), icon: <Plus />, run: go("/databases?add=1") },
         { id: "add-server", group: t("palette.actions"), label: t("servers.add"), icon: <Plus />, run: go("/servers?add=1") },
       );
+      for (const d of databases.data ?? []) {
+        list.push({ id: "d-" + d.id, group: t("nav.databases"), label: d.name, hint: d.server_name, icon: <DatabaseIcon />, run: go(`/databases/${d.id}`) });
+      }
       for (const s of sites.data ?? []) {
         list.push({ id: "w-" + s.id, group: t("nav.sites"), label: s.domain_display, hint: s.server_name, icon: <Globe />, run: go(`/sites/${s.id}`) });
       }
@@ -70,7 +80,7 @@ export function CommandPalette({ open, onClose, user }: { open: boolean; onClose
     }
     list.push({ id: "security", group: pages, label: t("nav.security"), icon: <ShieldCheck />, run: go("/settings/security") });
     return list;
-  }, [t, isAdmin, servers.data, sites.data, navigate, onClose]);
+  }, [t, isAdmin, servers.data, sites.data, databases.data, navigate, onClose]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase();

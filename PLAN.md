@@ -298,7 +298,21 @@ Phase 1 is delivered in parts; each is tested in the VM and committed separately
       the server page, command palette entries; English and Bangla
 
 **Next**
-- [ ] 1b. Databases: MariaDB and PostgreSQL, users and grants, browser
+**1b. Databases — done**
+- [x] MariaDB and PostgreSQL, installed on first use; one owner account per database with
+      access to that database only (MariaDB grants; PostgreSQL ownership and
+      `REVOKE ALL … FROM PUBLIC`), local access only
+- [x] Passwords are generated, shown once and never stored: the panel keeps only the
+      engine's own hash (MariaDB native hash, PostgreSQL SCRAM-SHA-256 verifier), so
+      neither the panel database nor the agent ever holds a password
+- [x] SQL reaches the database through stdin, never the process list; names and hashes are
+      validated on both sides; system names are refused
+- [x] The agent keeps a registry of what it created and refuses to change or drop any
+      database or account it did not create; deletes happen only on request
+- [x] Customer PostgreSQL accounts cannot connect to the panel's own database
+- [x] UI: databases list, add dialog with the one-time password and connection details,
+      database page (connect info, size, password reset, delete), cards on the server page
+- [ ] Database browser in the panel (Adminer-style), import and export: later
 - [ ] 1c. File manager and SFTP
 - [ ] 1d. One-click WordPress
 - [ ] 1e. Backups and restore (restic), basic firewall

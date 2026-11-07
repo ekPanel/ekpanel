@@ -163,8 +163,21 @@ type SiteSpec struct {
 	Deleted    bool     `json:"deleted,omitempty"`
 }
 
+// DatabaseSpec is one customer database with its owner account. PasswordHash is the
+// engine's own hash (MariaDB native hash or PostgreSQL SCRAM verifier), never a password.
+type DatabaseSpec struct {
+	ID           string `json:"id"`
+	Generation   int64  `json:"generation"`
+	Engine       string `json:"engine"` // "mariadb" or "postgresql"
+	Name         string `json:"name"`
+	User         string `json:"user"`
+	PasswordHash string `json:"password_hash"`
+	Deleted      bool   `json:"deleted,omitempty"`
+}
+
 type StateApplyParams struct {
-	Sites []SiteSpec `json:"sites"`
+	Sites     []SiteSpec     `json:"sites"`
+	Databases []DatabaseSpec `json:"databases"`
 }
 
 type SiteResult struct {
@@ -174,6 +187,15 @@ type SiteResult struct {
 	Error      string `json:"error,omitempty"`
 }
 
+type DatabaseResult struct {
+	ID         string `json:"id"`
+	Generation int64  `json:"generation"`
+	OK         bool   `json:"ok"`
+	Error      string `json:"error,omitempty"`
+	SizeBytes  *int64 `json:"size_bytes,omitempty"`
+}
+
 type StateApplyResult struct {
-	Sites []SiteResult `json:"sites"`
+	Sites     []SiteResult     `json:"sites"`
+	Databases []DatabaseResult `json:"databases"`
 }

@@ -184,9 +184,9 @@ func (s *Store) FailUnappliedSites(ctx context.Context, serverID, message string
 	return err
 }
 
-// ServersWithSites lists servers that host at least one site.
+// ServersWithSites lists servers that host at least one site or database.
 func (s *Store) ServersWithSites(ctx context.Context) ([]string, error) {
-	rows, err := s.pool.Query(ctx, `SELECT DISTINCT server_id::text FROM sites`)
+	rows, err := s.pool.Query(ctx, `SELECT server_id::text FROM sites UNION SELECT server_id::text FROM databases`)
 	if err != nil {
 		return nil, err
 	}

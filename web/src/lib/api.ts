@@ -114,6 +114,28 @@ export interface Site {
   updated_at: string;
 }
 
+export interface Database {
+  id: string;
+  server_id: string;
+  server_name: string;
+  engine: "mariadb" | "postgresql";
+  name: string;
+  username: string;
+  state: SiteState;
+  message: string | null;
+  size_bytes: number | null;
+  generation: number;
+  applied_generation: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Returned when a password is created or reset. The password is shown only this once. */
+export interface DatabaseWithPassword {
+  database: Database;
+  password: string;
+}
+
 export interface AuditEntry {
   id: number;
   at: string;

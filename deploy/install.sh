@@ -90,6 +90,8 @@ fi
 if ! runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_database WHERE datname = 'ekpanel'" | grep -q 1; then
   runuser -u postgres -- createdb -O ekpanel ekpanel
 fi
+# Customer database accounts on this server must not even connect to the panel's database.
+runuser -u postgres -- psql -q -c "REVOKE ALL ON DATABASE ekpanel FROM PUBLIC"
 
 # ---- Binaries and services ----------------------------------------------------------
 

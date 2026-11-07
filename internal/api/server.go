@@ -101,6 +101,11 @@ func (s *Server) Handler() http.Handler {
 			r.Patch("/sites/{id}", s.handleUpdateSite)
 			r.Delete("/sites/{id}", s.handleDeleteSite)
 			r.Get("/php-versions", s.handlePHPVersions)
+			r.Get("/databases", s.handleListDatabases)
+			r.Post("/databases", s.handleCreateDatabase)
+			r.Get("/databases/{id}", s.handleGetDatabase)
+			r.Post("/databases/{id}/password", s.handleResetDatabasePassword)
+			r.Delete("/databases/{id}", s.handleDeleteDatabase)
 			r.Get("/audit", s.handleListAudit)
 		})
 

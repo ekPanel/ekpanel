@@ -32,10 +32,12 @@ const (
 // system is how site provisioning touches the machine. Tests swap in a temporary root
 // directory and a fake command runner.
 type system struct {
-	root  string // prefix for every path; "" on a real server
-	run   func(ctx context.Context, name string, args ...string) ([]byte, error)
-	fetch func(ctx context.Context, url string) ([]byte, error)
-	osID  func() (id, codename string)
+	root string // prefix for every path; "" on a real server
+	run  func(ctx context.Context, name string, args ...string) ([]byte, error)
+	// runInput is run with stdin; used for SQL, which must not appear in the process list.
+	runInput func(ctx context.Context, input, name string, args ...string) ([]byte, error)
+	fetch    func(ctx context.Context, url string) ([]byte, error)
+	osID     func() (id, codename string)
 	// socketWait is how long to wait for PHP-FPM to create a new pool's socket after a
 	// reload; systemd returns before FPM has finished restarting. Zero skips the wait.
 	socketWait time.Duration
@@ -43,16 +45,26 @@ type system struct {
 
 func (s *system) path(p string) string { return filepath.Join(s.root, p) }
 
+func runCommand(ctx context.Context, input *string, name string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive", "NEEDRESTART_SUSPEND=1")
+	if input != nil {
+		cmd.Stdin = strings.NewReader(*input)
+	}
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return out, fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, lastLines(out, 5))
+	}
+	return out, nil
+}
+
 var realSystem = &system{
 	socketWait: 20 * time.Second,
 	run: func(ctx context.Context, name string, args ...string) ([]byte, error) {
-		cmd := exec.CommandContext(ctx, name, args...)
-		cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive", "NEEDRESTART_SUSPEND=1")
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			return out, fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, lastLines(out, 5))
-		}
-		return out, nil
+		return runCommand(ctx, nil, name, args...)
+	},
+	runInput: func(ctx context.Context, input, name string, args ...string) ([]byte, error) {
+		return runCommand(ctx, &input, name, args...)
 	},
 	fetch: func(ctx context.Context, url string) ([]byte, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -170,6 +182,7 @@ func stateApply(ctx context.Context, sys *system, p agentproto.StateApplyParams)
 	for i := range res.Sites {
 		res.Sites[i] = *a.results[res.Sites[i].ID]
 	}
+	res.Databases = applyDatabases(ctx, sys, p.Databases)
 	return res, nil
 }
 

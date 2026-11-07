@@ -32,6 +32,9 @@ ekPanel is in early development and has no stable release yet. Fixes go into the
 - Every website runs as its own Linux account with its own PHP-FPM pool and `open_basedir`;
   site folders are closed to other accounts, and only the web server gets read access
   through ACLs. The agent never modifies an account it did not create.
+- Database passwords are never stored: the panel keeps only MariaDB's native hash or
+  PostgreSQL's SCRAM-SHA-256 verifier. The agent never adopts or drops a database it did not
+  create, and customer PostgreSQL accounts cannot connect to the panel's database.
 - Web server configuration is validated before it is loaded; a rejected change is rolled
   back so one site cannot take others down.
 - State-changing requests are protected against CSRF (`Sec-Fetch-Site`, `Origin` and

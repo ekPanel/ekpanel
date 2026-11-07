@@ -22,6 +22,7 @@ import (
 	"ekpanel/internal/agent"
 	"ekpanel/internal/agentproto"
 	"ekpanel/internal/api"
+	"ekpanel/internal/auth"
 	"ekpanel/internal/db"
 	"ekpanel/internal/hub"
 	"ekpanel/internal/pki"
@@ -720,5 +721,111 @@ func TestApplyFailureIsShownOnSites(t *testing.T) {
 	eventually(t, "site shows the agent's error", func() bool {
 		c.do("GET", "/api/v1/sites/"+s.ID, nil, &s)
 		return s.State == "error" && s.Message != nil && strings.Contains(*s.Message, "permission denied")
+	})
+}
+
+func TestDatabasesLifecycle(t *testing.T) {
+	p := newTestPanel(t)
+	c := newClient(t, p.web.URL)
+	setUp(t, c)
+	serverID, cfg, _, _ := enrolled(t, p, c, "db-1")
+	tlsCfg, _ := cfg.TLSConfig()
+	conn, _, err := dialAgent(t, p, tlsCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.CloseNow()
+	hashes := make(chan string, 20)
+	fakeAgent(t, conn, func(op string, params json.RawMessage) (any, *agentproto.OpError) {
+		var in agentproto.StateApplyParams
+		json.Unmarshal(params, &in)
+		var out agentproto.StateApplyResult
+		for _, d := range in.Databases {
+			size := int64(4096)
+			hashes <- d.PasswordHash
+			out.Databases = append(out.Databases, agentproto.DatabaseResult{ID: d.ID, Generation: d.Generation, OK: true, SizeBytes: &size})
+		}
+		return out, nil
+	})
+
+	type db struct {
+		ID        string `json:"id"`
+		Name      string `json:"name"`
+		Username  string `json:"username"`
+		Engine    string `json:"engine"`
+		State     string `json:"state"`
+		SizeBytes *int64 `json:"size_bytes"`
+	}
+	var created struct {
+		Database db     `json:"database"`
+		Password string `json:"password"`
+	}
+	if st := c.do("POST", "/api/v1/databases", map[string]string{"server_id": serverID, "engine": "mariadb", "name": "Shop"}, &created); st != http.StatusCreated {
+		t.Fatalf("create: %d", st)
+	}
+	if created.Database.Name != "shop" || created.Database.Username != "shop" || len(created.Password) != 24 {
+		t.Fatalf("created = %+v", created)
+	}
+	id := created.Database.ID
+	eventually(t, "database active with size", func() bool {
+		var d db
+		c.do("GET", "/api/v1/databases/"+id, nil, &d)
+		return d.State == "active" && d.SizeBytes != nil && *d.SizeBytes == 4096
+	})
+
+	// The agent receives only the MariaDB hash of the password, never the password.
+	var sent string
+	for len(hashes) > 0 {
+		sent = <-hashes
+	}
+	if sent != auth.MariaDBNativeHash(created.Password) || strings.Contains(sent, created.Password) {
+		t.Fatalf("agent got %q", sent)
+	}
+	// Nor does the API ever return the hash.
+	var raw map[string]any
+	c.do("GET", "/api/v1/databases/"+id, nil, &raw)
+	if _, ok := raw["password_hash"]; ok {
+		t.Fatal("password hash exposed by the API")
+	}
+
+	var e errBody
+	for _, bad := range []map[string]string{
+		{"server_id": serverID, "engine": "mariadb", "name": "shop"},                      // taken
+		{"server_id": serverID, "engine": "mariadb", "name": "other", "username": "shop"}, // user taken
+		{"server_id": serverID, "engine": "mariadb", "name": "mysql"},                     // reserved
+		{"server_id": serverID, "engine": "mariadb", "name": "x`; DROP DATABASE y"},       // invalid
+		{"server_id": serverID, "engine": "mongodb", "name": "m"},                         // engine
+	} {
+		if st := c.do("POST", "/api/v1/databases", bad, &e); st != http.StatusConflict && st != http.StatusBadRequest {
+			t.Errorf("%v: %d %s", bad, st, e.Code)
+		}
+	}
+	// The same name is fine on the other engine.
+	var pg struct {
+		Database db     `json:"database"`
+		Password string `json:"password"`
+	}
+	if st := c.do("POST", "/api/v1/databases", map[string]string{"server_id": serverID, "engine": "postgresql", "name": "shop"}, &pg); st != http.StatusCreated {
+		t.Fatalf("postgres with same name: %d", st)
+	}
+
+	var reset struct {
+		Database db     `json:"database"`
+		Password string `json:"password"`
+	}
+	if st := c.do("POST", "/api/v1/databases/"+id+"/password", nil, &reset); st != http.StatusOK || reset.Password == created.Password || reset.Database.State != "pending" {
+		t.Fatalf("reset: %d %+v", st, reset)
+	}
+	eventually(t, "new password applied", func() bool {
+		var d db
+		c.do("GET", "/api/v1/databases/"+id, nil, &d)
+		return d.State == "active"
+	})
+
+	if st := c.do("DELETE", "/api/v1/databases/"+id, nil, nil); st != http.StatusAccepted {
+		t.Fatalf("delete: %d", st)
+	}
+	eventually(t, "database removed", func() bool {
+		return c.do("GET", "/api/v1/databases/"+id, nil, nil) == http.StatusNotFound
 	})
 }
