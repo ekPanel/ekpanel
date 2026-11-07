@@ -8,23 +8,13 @@ import { meKey } from "../lib/session";
 import { useTheme, type Theme } from "../lib/theme";
 import { languages } from "../i18n";
 import { CommandPalette } from "./CommandPalette";
+import { Logo } from "./Brand";
+
+export { Logo };
 import { TaskTray } from "./Tasks";
 import { ImpersonationBanner } from "../pages/CustomersPage";
 import { NotificationBell } from "../pages/NotificationsPage";
 import { cx } from "./ui";
-
-export function Logo({ className }: { className?: string }) {
-  return (
-    <span className={cx("flex items-center gap-2 font-bold tracking-tight", className)}>
-      <svg viewBox="0 0 32 32" className="size-7" aria-hidden>
-        <rect width="32" height="32" rx="8" fill="var(--accent)" />
-        <rect x="8" y="9" width="16" height="5" rx="1.5" fill="var(--accent-ink)" />
-        <rect x="8" y="18" width="16" height="5" rx="1.5" fill="var(--accent-ink)" opacity=".7" />
-      </svg>
-      ekPanel
-    </span>
-  );
-}
 
 function NavItem({ to, icon, children }: { to: string; icon: ReactNode; children: ReactNode }) {
   return (

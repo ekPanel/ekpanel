@@ -1,10 +1,18 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/ekpanel-logo-dark.svg">
+    <img src="assets/brand/ekpanel-logo.svg" alt="ekPanel" width="320">
+  </picture>
+</p>
+<p align="center"><b>One panel. Your whole hosting.</b><br>এক প্যানেলে পুরো হোস্টিং</p>
+
 # ekPanel
 
 **An open-source hosting control panel for everyone, everywhere.** One panel for classic web
 hosting (like cPanel and aaPanel), Git and Docker app deployment (like Coolify), and later
 email, DNS and game servers, with a modern UI in your own language.
 
-> **Status: early development (phase 0 of 6).** Do not use it for production hosting yet.
+> **Status: early development (phase 2 of 4).** Do not use it for production hosting yet.
 > See [PLAN.md](PLAN.md) for the full roadmap.
 
 > **ek** (এক) is Bangla for "one": one panel for everything.
