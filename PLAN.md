@@ -606,17 +606,33 @@ Agreed (2026-11-07):
       (":443") made Caddy use the panel's self-signed certificate for every website, so real
       domains would have shown certificate errors. The panel now answers on its addresses only
 
-**3b. Cloudflare DNS**
-- [ ] Connect a Cloudflare account with an API token limited to DNS (and zone settings);
-      sealed like other secrets. Customers can connect their own
-- [ ] One click per domain: the records a site, app or mailbox needs are created; proxied
-      (orange cloud) or not, per record
-- [ ] Kept in sync: adding, renaming or deleting a site or app changes its records; records
-      changed by hand in Cloudflare are shown as drift instead of being overwritten silently
-- [ ] Adding a new domain to Cloudflare from the panel, with the nameservers to set at the
-      registrar; zone editor for every record; cache purge
-- [ ] Behind Cloudflare, Caddy trusts Cloudflare's addresses, so logs, traffic and (3e)
-      CrowdSec see visitors' real addresses; the zone's SSL mode is checked (Full (strict))
+**3b. Cloudflare DNS — done**
+- [x] Connect a Cloudflare account with an API token (checked with Cloudflare, then sealed);
+      the DNS page explains which permissions to give it. Customers connect their own, and
+      their zones only get their own websites and apps
+- [x] One click per domain of the account (or add a new domain to Cloudflare, with the
+      nameservers to set at the registrar): every website, alias, app and preview under it gets
+      A and AAAA records for its server, proxied or not (a default per zone, a switch per
+      record), marked "Managed by ekPanel"
+- [x] Kept in sync on every change of a website or app and every 10 minutes: records follow a
+      server's new address and go with their website. ekPanel changes only records it made and
+      that nobody changed since; a record changed by hand, or one of someone else's in the way,
+      is shown with a button to use ekPanel's value. Each hostname goes to its most specific
+      zone
+- [x] Servers report their addresses; the first public one is used (not private, shared NAT or
+      site-local), or one set by hand for servers behind NAT
+- [x] Zone editor for A, AAAA, CNAME, MX, TXT, CAA and NS records; the zone's SSL mode with a
+      one-click switch to Full (strict); cache purge; stop managing (keeping or deleting the
+      records ekPanel made, never ones changed by hand)
+- [x] Caddy trusts Cloudflare's published addresses, and only those, for CF-Connecting-IP, so
+      logs, traffic and later bans see visitors' real addresses
+- [x] Tested against an in-memory Cloudflare (also runnable: `go run
+      ./internal/cloudflare/cloudflaretest/fakecf`) in Go tests and in the VM: a domain added
+      from the panel, records made once the server had a public address, a record changed by
+      hand reported and restored, records following a new address; a request from a Cloudflare
+      address logged with the visitor's address, a spoofed header from elsewhere ignored
+- [ ] Not yet tried against the real Cloudflare API: needs an account and a test domain
+- [ ] DNS-01 certificates (wildcards) through Cloudflare, and mail records: with 3c
 
 **3c. Email**
 - [ ] Stalwart on the server, installed on first use (pinned version, checked download)
@@ -654,4 +670,4 @@ Agreed (2026-11-07):
       (AXFR/NOTIFY); guidance for glue records
 
 **Next**
-- [ ] 3b. Cloudflare DNS
+- [ ] 3c. Email

@@ -85,6 +85,57 @@ export interface Server {
   created_at: string;
   online: boolean;
   latest: Metrics | null;
+  addresses: string[];
+  public_ipv4: string | null;
+  public_ipv6: string | null;
+}
+
+export interface CloudflareAccount {
+  id: string;
+  name: string;
+  account_id: string | null;
+  account_name: string | null;
+  zones: number;
+  created_at: string;
+}
+
+export interface DNSIssue {
+  kind: "changed" | "conflict" | "no_address";
+  name: string;
+  type: string;
+  want?: string;
+  have?: string;
+  server?: string;
+}
+
+export interface DNSZone {
+  id: string;
+  account_id: string;
+  account_name: string;
+  owner_id: string | null;
+  cf_zone_id: string;
+  name: string;
+  status: string;
+  name_servers: string[];
+  proxied: boolean;
+  issues: DNSIssue[];
+  sync_error: string | null;
+  synced_at: string | null;
+  records: number;
+  created_at: string;
+}
+
+export interface DNSRecord {
+  id: string;
+  type: string;
+  name: string;
+  content: string;
+  ttl: number;
+  proxied: boolean;
+  proxiable?: boolean;
+  priority?: number | null;
+  comment?: string;
+  managed: boolean;
 }
 
 export interface EnrollResult {

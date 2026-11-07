@@ -192,11 +192,16 @@ ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
 install -d -m 0755 /etc/ekpanel/caddy/sites
 email_line=""
 [ -n "$EMAIL" ] && email_line=$'\n\temail '"$EMAIL"
+# Behind Cloudflare's proxy, requests come from Cloudflare's addresses; trusting those (and
+# only those) for CF-Connecting-IP gives logs, traffic and bans the visitor's real address.
+# The ranges are Cloudflare's published ones (cloudflare.com/ips).
+cloudflare_ranges="173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32"
+servers_block=$'\n\tservers {\n\t\ttrusted_proxies static '"$cloudflare_ranges"$'\n\t\tclient_ip_headers CF-Connecting-IP\n\t}'
 if [ -n "$DOMAIN" ]; then
   # Caddy obtains and renews a Let's Encrypt certificate for the domain by itself.
   cat > /etc/caddy/Caddyfile <<EOF
 # Managed by the ekPanel installer. Websites are in /etc/ekpanel/caddy/sites.
-{$email_line
+{$email_line$servers_block
 }
 
 $DOMAIN {
@@ -223,7 +228,7 @@ else
   cat > /etc/caddy/Caddyfile <<EOF
 # Managed by the ekPanel installer. Websites are in /etc/ekpanel/caddy/sites.
 {
-	default_sni ${ip:-localhost}$email_line
+	default_sni ${ip:-localhost}$email_line$servers_block
 }
 
 # The panel answers on the server's addresses; websites answer on their own domains. The

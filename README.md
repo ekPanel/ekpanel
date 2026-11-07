@@ -49,6 +49,9 @@ email, DNS and game servers, with a modern UI in your own language.
   live, release without downtime, and roll back to any of the last five builds in one click.
   Each pull request can get a preview at its own address, removed when it closes. Private
   repositories use a deploy key
+- **Cloudflare DNS**: connect your Cloudflare account once and every website and app gets
+  its DNS records, kept in sync when servers or domains change, with a zone editor, the SSL
+  mode check, cache purge, and visitors' real addresses in your logs
 - **Docker apps**: run any image or Compose file, with a domain and free HTTPS, variables,
   kept folders, limits, logs and one-click image updates. App ports stay private to the
   server, so Docker cannot open holes in the firewall

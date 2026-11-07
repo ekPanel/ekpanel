@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -181,7 +182,7 @@ func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
 			h := env.Hello
 			err = s.store.UpdateServerFacts(ctx, srv.ID, store.ServerFacts{
 				Hostname: trim(h.Hostname, 255), OS: trim(h.OS, 255), Kernel: trim(h.Kernel, 255),
-				Arch: trim(h.Arch, 32), CPUCount: h.CPUCount, AgentVersion: trim(h.AgentVersion, 64),
+				Arch: trim(h.Arch, 32), CPUCount: h.CPUCount, AgentVersion: trim(h.AgentVersion, 64), Addresses: validAddresses(h.Addresses),
 			})
 			lastTouch = time.Now()
 			// The agent may have missed changes while it was offline.
@@ -212,6 +213,20 @@ func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
 			s.log.Error("agent message", "server", srv.ID, "err", err)
 		}
 	}
+}
+
+// validAddresses keeps the IP addresses of a list from an agent, at most 64.
+func validAddresses(list []string) []string {
+	var out []string
+	for _, a := range list {
+		if ip := net.ParseIP(a); ip != nil && len(out) < 64 {
+			out = append(out, ip.String())
+		}
+	}
+	if len(out) == 0 {
+		return nil // an older agent: keep what is known
+	}
+	return out
 }
 
 func trim(s string, n int) string {

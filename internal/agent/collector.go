@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -255,7 +256,28 @@ func Facts(version string) agentproto.Hello {
 		h.OS = osName(f)
 		f.Close()
 	}
+	h.Addresses = globalAddresses()
 	return h
+}
+
+// globalAddresses lists the server's global unicast addresses, without those of Docker's
+// and other virtual bridges.
+func globalAddresses() []string {
+	ifaces, _ := net.Interfaces()
+	var out []string
+	for _, ifc := range ifaces {
+		if ifc.Flags&net.FlagUp == 0 || ifc.Flags&net.FlagLoopback != 0 ||
+			strings.HasPrefix(ifc.Name, "docker") || strings.HasPrefix(ifc.Name, "br-") || strings.HasPrefix(ifc.Name, "veth") {
+			continue
+		}
+		addrs, _ := ifc.Addrs()
+		for _, a := range addrs {
+			if n, ok := a.(*net.IPNet); ok && n.IP.IsGlobalUnicast() {
+				out = append(out, n.IP.String())
+			}
+		}
+	}
+	return out
 }
 
 // osName returns PRETTY_NAME from an os-release file, e.g. "Ubuntu 24.04.1 LTS".

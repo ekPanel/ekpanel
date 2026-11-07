@@ -243,6 +243,10 @@ func (s *Server) queueReconcile(r *http.Request, serverID string) {
 	if _, err := s.opts.Tasks.QueueReconcile(r.Context(), serverID, by); err != nil {
 		s.log.Error("queue reconcile", "server", serverID, "err", err)
 	}
+	// Host names may have changed: bring connected DNS zones along.
+	if has, err := s.store.HasZones(r.Context()); err == nil && has {
+		s.queueDNSSync(r, "")
+	}
 }
 
 func siteID(r *http.Request) string {

@@ -26,7 +26,8 @@
     "apps": "অ্যাপ",
     "customers": "গ্রাহক",
     "packages": "প্যাকেজ",
-    "notifications": "নোটিফিকেশন"
+    "notifications": "নোটিফিকেশন",
+    "dns": "DNS"
   },
   "theme": {
     "label": "থিম",
@@ -224,7 +225,8 @@
         "deleted": "সার্ভার মোছা হয়েছে",
         "enroll_token_renewed": "নতুন সংযোগ কমান্ড",
         "enrolled": "এজেন্ট যুক্ত হয়েছে",
-        "php_extension": "PHP এক্সটেনশন বদলানো"
+        "php_extension": "PHP এক্সটেনশন বদলানো",
+        "addresses_set": "পাবলিক ঠিকানা বসানো"
       },
       "service": {
         "restart_requested": "সার্ভিস রিস্টার্টের অনুরোধ"
@@ -310,6 +312,19 @@
       "terminal": {
         "opened": "টার্মিনাল খোলা হয়েছে",
         "closed": "টার্মিনাল বন্ধ হয়েছে"
+      },
+      "dns": {
+        "cloudflare_connected": "Cloudflare যুক্ত",
+        "cloudflare_disconnected": "Cloudflare বিচ্ছিন্ন",
+        "zone_added": "ডোমেইন যোগ",
+        "zone_updated": "ডোমেইনের সেটিংস বদল",
+        "zone_removed": "ডোমেইন চালানো বন্ধ",
+        "issue_resolved": "ekPanel DNS রেকর্ড বসিয়েছে",
+        "record_created": "DNS রেকর্ড যোগ",
+        "record_updated": "DNS রেকর্ড বদল",
+        "record_deleted": "DNS রেকর্ড মোছা",
+        "ssl_mode": "Cloudflare SSL মোড বদল",
+        "cache_purged": "Cloudflare ক্যাশ খালি"
       }
     }
   },
@@ -465,7 +480,16 @@
     "invalid_site_web": "এই সেটিংস সঠিক নয়।",
     "invalid_certificate": "এই সার্টিফিকেট ব্যবহার করা যাবে না।",
     "certificate_required": "নিজের সার্টিফিকেট ব্যবহার করতে আগে আপলোড করুন।",
-    "invalid_php_extension": "সমর্থিত PHP সংস্করণের একটি ঐচ্ছিক এক্সটেনশন বাছুন।"
+    "invalid_php_extension": "সমর্থিত PHP সংস্করণের একটি ঐচ্ছিক এক্সটেনশন বাছুন।",
+    "invalid_token": "Cloudflare টোকেন তৈরির সময় যে টোকেন দেখিয়েছিল সেটি পেস্ট করুন।",
+    "cloudflare_denied": "Cloudflare টোকেনটি গ্রহণ করেনি। দেখুন এটি চালু আছে আর তালিকার অনুমতিগুলো আছে কি না।",
+    "cloudflare_error": "Cloudflare এটি করতে পারেনি।",
+    "zone_taken": "এই ডোমেইন আগে থেকেই ekPanel-এ চালু আছে।",
+    "cloudflare_account_unknown": "এই টোকেন নিজের Cloudflare অ্যাকাউন্ট দেখতে পায় না; আগে Cloudflare-এ ডোমেইন যোগ করুন।",
+    "invalid_record": "রেকর্ডটি সঠিক নয়।",
+    "managed_record": "ekPanel এই রেকর্ড একটি ওয়েবসাইট বা অ্যাপের জন্য তৈরি করেছে; সেটি গেলে এটিও যাবে।",
+    "invalid_ssl_mode": "off, flexible, full অথবা strict বাছুন।",
+    "invalid_address": "একটি IPv4 আর একটি IPv6 ঠিকানা দিন, অথবা খালি রাখুন।"
   },
   "not_found": {
     "title": "পাতাটা পাওয়া যায়নি",
@@ -507,7 +531,8 @@
       "backup_restore": "ব্যাকআপ থেকে ফেরত আনা",
       "app_update": "{{name}} আপডেট",
       "app_deploy": "{{name}} ডিপ্লয়",
-      "php_extension": "PHP {{version}}: {{name}}"
+      "php_extension": "PHP {{version}}: {{name}}",
+      "dns_sync": "DNS মেলানো"
     }
   },
   "sites": {
@@ -1152,6 +1177,126 @@
       "dockerfile": "রিপোজিটরির নিজের Dockerfile।",
       "railpack": "ভাষা আর ফ্রেমওয়ার্ক নিজে চিনে নেয়; Dockerfile লাগে না।"
     }
+  },
+  "dns": {
+    "title": "DNS",
+    "intro": "Cloudflare-এ আপনার ডোমেইন, ওয়েবসাইট আর অ্যাপের সঙ্গে মিলিয়ে রাখা।",
+    "add_domain": "ডোমেইন যোগ করুন",
+    "connect": {
+      "title": "Cloudflare যুক্ত করুন",
+      "why": "ekPanel ডোমেইনের DNS Cloudflare-এ রাখার পরামর্শ দেয়: ফ্রি, দ্রুত, আর সাইটগুলোকে সুরক্ষা দেয়। একবার অ্যাকাউন্ট যুক্ত করুন, প্রতিটি ওয়েবসাইট আর অ্যাপ নিজে থেকেই DNS রেকর্ড পাবে।",
+      "step1": "Cloudflare-এ একটি API টোকেন তৈরি করুন:",
+      "open": "API tokens খুলুন",
+      "step2": "“Create Custom Token” বেছে নিয়ে নাম দিন, যেমন ekPanel।",
+      "step3": "এই অনুমতিগুলো দিন, সব zone-এর জন্য (অথবা শুধু যেগুলো ekPanel চালাবে):",
+      "step4": "টোকেন তৈরি করে এখানে পেস্ট করুন।",
+      "name": "নাম",
+      "name_hint": "ঐচ্ছিক, অ্যাকাউন্ট আলাদা করে চিনতে।",
+      "token": "API টোকেন",
+      "kept": "টোকেন Cloudflare-এ যাচাই করে এনক্রিপ্ট করে রাখা হয়। আর কখনো দেখানো হয় না।",
+      "button": "Cloudflare যুক্ত করুন",
+      "another": "আরেকটি অ্যাকাউন্ট যুক্ত করুন"
+    },
+    "disconnect_confirm": "{{name}} বিচ্ছিন্ন করবেন? এর ডোমেইনগুলো আর মিলিয়ে রাখা হবে না; রেকর্ডগুলো Cloudflare-এ থেকে যাবে।",
+    "disconnect": "{{name}} বিচ্ছিন্ন করুন",
+    "empty": {
+      "title": "এখনো কোনো ডোমেইন নেই",
+      "body": "Cloudflare অ্যাকাউন্টের একটি ডোমেইন বাছুন, অথবা নতুন যোগ করুন। ওয়েবসাইট আর অ্যাপের রেকর্ড নিজে থেকে তৈরি হবে।"
+    },
+    "col": {
+      "domain": "ডোমেইন",
+      "status": "অবস্থা",
+      "records": "রেকর্ড",
+      "synced": "মিলানো",
+      "type": "ধরন",
+      "name": "নাম",
+      "content": "মান",
+      "proxy": "প্রক্সি"
+    },
+    "state": {
+      "error": "মিলানো ব্যর্থ",
+      "pending": "নেমসার্ভারের অপেক্ষায়",
+      "issues_one": "{{count, number}}টি বিষয় দেখতে হবে",
+      "issues_other": "{{count, number}}টি বিষয় দেখতে হবে",
+      "ok": "মিলানো আছে",
+      "active": "চালু"
+    },
+    "managed_count_one": "ekPanel-এর {{count, number}}টি রেকর্ড",
+    "managed_count_other": "ekPanel-এর {{count, number}}টি রেকর্ড",
+    "accounts": "Cloudflare অ্যাকাউন্ট",
+    "zones_count_one": "{{count, number}}টি ডোমেইন",
+    "zones_count_other": "{{count, number}}টি ডোমেইন",
+    "no_account_read": "এই টোকেন নিজের অ্যাকাউন্ট দেখতে পায় না, তাই নতুন ডোমেইন Cloudflare-এই যোগ করতে হবে (Account Settings: Read দিলে এখান থেকে পারবেন)।",
+    "account": "Cloudflare অ্যাকাউন্ট",
+    "proxied_default": "নতুন রেকর্ড Cloudflare-এর মাধ্যমে প্রক্সি করুন",
+    "proxied_hint": "কমলা মেঘ: দর্শকেরা Cloudflare-এ আসেন, যা সার্ভারের ঠিকানা লুকায় আর ক্যাশ করে। প্রতিটি রেকর্ড পরে বদলানো যায়।",
+    "in_cloudflare": "Cloudflare-এ আপনার ডোমেইন",
+    "no_zones": "এই অ্যাকাউন্টে এখনো কোনো ডোমেইন নেই।",
+    "managed": "চালু আছে",
+    "manage": "চালু করুন",
+    "new_domain": "Cloudflare-এ নতুন ডোমেইন যোগ করুন",
+    "new_domain_hint": "এটি আপনার Cloudflare অ্যাকাউন্টে যোগ হবে; তারপর রেজিস্ট্রারে এর নেমসার্ভার বদলাতে হবে।",
+    "add_to_cloudflare": "Cloudflare-এ যোগ করুন",
+    "zone_intro": "Cloudflare-এ ({{account}})। ওয়েবসাইট আর অ্যাপের রেকর্ড ekPanel তৈরি করে আর হালনাগাদ রাখে।",
+    "sync": "এখনই মেলান",
+    "purge": "ক্যাশ খালি করুন",
+    "purged": "এই ডোমেইনের Cloudflare ক্যাশ খালি করা হয়েছে।",
+    "synced": "মেলানো হয়েছে {{when}}",
+    "not_synced": "এখনো মেলানো হয়নি",
+    "pending_title": "ডোমেইনের নেমসার্ভার বদলান",
+    "pending_body": "যে রেজিস্ট্রার থেকে ডোমেইন কিনেছেন, সেখানে নেমসার্ভার বদলে এই দুটি দিন। Cloudflare এগুলো দেখলেই ডোমেইন চালু করে, সাধারণত এক ঘণ্টার মধ্যে।",
+    "issues_title": "আপনার নজর দরকার",
+    "issue": {
+      "changed": "Cloudflare-এ বদলে {{have}} করা হয়েছে; ekPanel দিত {{want}}।",
+      "conflict": "আগে থেকেই ব্যবহৃত ({{have}}); ekPanel দিত {{want}}।",
+      "no_address": "সার্ভার {{server}}-এর এখনো কোনো পাবলিক ঠিকানা নেই; সার্ভারের পেজে দিন।"
+    },
+    "use_ours": "ekPanel-এর মান দিন",
+    "ssl_title": "SSL/TLS মোড",
+    "ssl_now": "Cloudflare ব্যবহার করছে “{{mode}}”।",
+    "ssl_modes": {
+      "off": "বন্ধ",
+      "flexible": "Flexible",
+      "full": "Full",
+      "strict": "Full (strict)"
+    },
+    "ssl_good": "প্রস্তাবিত",
+    "ssl_weak": "প্রস্তাবিত নয়",
+    "ssl_unknown": "টোকেন হয়তো এই সেটিং পড়তে পারে না।",
+    "ssl_hint": "আপনার সাইটগুলোর নিজস্ব বৈধ সার্টিফিকেট আছে, তাই “Full (strict)” পুরো পথ এনক্রিপ্ট করে আর যাচাই করে। “Flexible” সার্ভার পর্যন্ত ট্রাফিক এনক্রিপ্ট ছাড়া পাঠায়।",
+    "ssl_use_strict": "Full (strict) ব্যবহার করুন",
+    "settings": "সেটিংস",
+    "remove": "চালানো বন্ধ করুন",
+    "records_title": "রেকর্ড",
+    "records_hint": "ekPanel-এর রেকর্ড আপনার ওয়েবসাইট আর অ্যাপ অনুসরণ করে; প্রক্সি বদলাতে পারেন।",
+    "add_record": "রেকর্ড যোগ করুন",
+    "proxied": "প্রক্সি চালু",
+    "dns_only": "শুধু DNS",
+    "edit_record": "রেকর্ড বদলান",
+    "delete_record": "রেকর্ড মুছুন",
+    "delete_record_confirm": "Cloudflare থেকে {{name}} রেকর্ডটি মুছবেন?",
+    "name_hint": "www, {{zone}}-এর জন্য @, অথবা zone-এর ভেতরের পূর্ণ নাম।",
+    "content_hint": {
+      "A": "একটি IPv4 ঠিকানা।",
+      "AAAA": "একটি IPv6 ঠিকানা।",
+      "CNAME": "একটি হোস্ট নাম, যেমন example.netlify.app।",
+      "MX": "মেইল সার্ভারের হোস্ট নাম।",
+      "TXT": "লেখা, যেমন v=spf1 …",
+      "CAA": "যেমন 0 issue \"letsencrypt.org\"",
+      "NS": "নেমসার্ভারের হোস্ট নাম।"
+    },
+    "priority": "অগ্রাধিকার",
+    "remove_title": "{{name}} চালানো বন্ধ করবেন?",
+    "remove_body": "ekPanel আর এই ডোমেইনের রেকর্ড মিলিয়ে রাখবে না। ডোমেইন Cloudflare-এ থেকে যাবে।",
+    "remove_records": "ekPanel-এর তৈরি রেকর্ডগুলোও মুছুন",
+    "remove_records_hint": "এই ডোমেইনের ওয়েবসাইট আর অ্যাপ নামে আর পাওয়া যাবে না।"
+  },
+  "addresses": {
+    "title": "DNS-এর জন্য পাবলিক ঠিকানা",
+    "intro": "এই সার্ভারের ওয়েবসাইট আর অ্যাপের DNS রেকর্ড যে ঠিকানা দেখায়।",
+    "found": "সার্ভারে পাওয়া গেছে:",
+    "automatic": "নিজে থেকে খুঁজে নেওয়া",
+    "hint": "খালি রাখলে পাওয়া প্রথম পাবলিক ঠিকানা ব্যবহার হবে। সার্ভার NAT বা লোড ব্যালান্সারের পেছনে থাকলে হাতে দিন।"
   },
   "previews": {
     "enable": "প্রতিটি pull request-এর প্রিভিউ",

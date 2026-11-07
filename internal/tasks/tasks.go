@@ -75,6 +75,7 @@ func New(st *store.Store, h *hub.Hub, log *slog.Logger) *Runner {
 	r.handlers[KindAppUpdate] = r.appUpdate
 	r.handlers[KindAppDeploy] = r.appDeploy
 	r.handlers[KindPHPExtension] = r.phpExtension
+	r.handlers[KindDNSSync] = r.dnsSync
 	return r
 }
 
@@ -108,10 +109,14 @@ func (r *Runner) Run(ctx context.Context, workers int) {
 			r.work(ctx)
 		}()
 	}
-	wg.Add(5)
+	wg.Add(6)
 	go func() {
 		defer wg.Done()
 		r.driftLoop(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		r.dnsLoop(ctx)
 	}()
 	go func() {
 		defer wg.Done()

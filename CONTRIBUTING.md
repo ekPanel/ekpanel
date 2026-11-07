@@ -73,6 +73,13 @@ a pull request from `dev`. Open your pull requests against `dev`.
   PostgreSQL in `internal/api/api_test.go`.
 - Run `gofmt` and `make test` before opening a pull request.
 
+## Trying the DNS features without Cloudflare
+
+`go run ./internal/cloudflare/cloudflaretest/fakecf -zones example.com` serves an in-memory
+copy of the parts of Cloudflare's API ekPanel uses. Start the panel with
+`EKPANEL_CLOUDFLARE_API=http://127.0.0.1:18080/client/v4` and connect with the token
+`test-token`.
+
 ## Adding a service to the catalogue
 
 Each service is a Compose file in `internal/catalog/templates/<id>.yaml` and an entry in

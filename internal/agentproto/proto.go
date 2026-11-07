@@ -100,6 +100,8 @@ type Hello struct {
 	Arch         string `json:"arch"`
 	CPUCount     int    `json:"cpu_count"`
 	AgentVersion string `json:"agent_version"`
+	// Addresses are the server's global unicast IP addresses.
+	Addresses []string `json:"addresses,omitempty"`
 }
 
 // Metrics is one sample of live server usage. Byte values are bytes, rates are bytes/second.

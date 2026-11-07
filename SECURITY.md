@@ -73,6 +73,10 @@ ekPanel is in early development and has no stable release yet. Fixes go into the
   customers whose package includes them; a customer's builds and containers run in their
   slice. Pull requests from forks are never previewed, since their code would run on the
   server. Railpack is a pinned version, checked against its published SHA-256.
+- Cloudflare API tokens are checked with Cloudflare and stored sealed; customers' tokens
+  manage only their zones, which only get their own websites and apps. ekPanel changes or
+  deletes only DNS records it made, and none that someone changed since. Caddy trusts the
+  CF-Connecting-IP header only from Cloudflare's published address ranges.
 - Revoking an agent's certificate (a new connection command, or deleting the server) also
   closes any connection the agent has open.
 - Secrets the panel must reuse (notification channel tokens, webhook addresses and keys, the

@@ -26,7 +26,8 @@
     "apps": "Apps",
     "customers": "Customers",
     "packages": "Packages",
-    "notifications": "Notifications"
+    "notifications": "Notifications",
+    "dns": "DNS"
   },
   "theme": {
     "label": "Theme",
@@ -224,7 +225,8 @@
         "deleted": "Server deleted",
         "enroll_token_renewed": "New connection command",
         "enrolled": "Agent connected",
-        "php_extension": "PHP extension changed"
+        "php_extension": "PHP extension changed",
+        "addresses_set": "Public addresses set"
       },
       "service": {
         "restart_requested": "Service restart requested"
@@ -310,6 +312,19 @@
       "terminal": {
         "opened": "Terminal opened",
         "closed": "Terminal closed"
+      },
+      "dns": {
+        "cloudflare_connected": "Cloudflare connected",
+        "cloudflare_disconnected": "Cloudflare disconnected",
+        "zone_added": "Domain added",
+        "zone_updated": "Domain settings changed",
+        "zone_removed": "Domain no longer managed",
+        "issue_resolved": "DNS record set by ekPanel",
+        "record_created": "DNS record added",
+        "record_updated": "DNS record changed",
+        "record_deleted": "DNS record deleted",
+        "ssl_mode": "Cloudflare SSL mode changed",
+        "cache_purged": "Cloudflare cache purged"
       }
     }
   },
@@ -465,7 +480,16 @@
     "invalid_site_web": "These settings are not valid.",
     "invalid_certificate": "The certificate cannot be used.",
     "certificate_required": "Upload a certificate to use your own.",
-    "invalid_php_extension": "Choose an optional extension of a supported PHP version."
+    "invalid_php_extension": "Choose an optional extension of a supported PHP version.",
+    "invalid_token": "Paste the API token Cloudflare showed when you created it.",
+    "cloudflare_denied": "Cloudflare refused the token. Check that it is active and has the permissions listed.",
+    "cloudflare_error": "Cloudflare could not do this.",
+    "zone_taken": "This domain is already managed in ekPanel.",
+    "cloudflare_account_unknown": "This token cannot see its Cloudflare account; add the domain in Cloudflare first.",
+    "invalid_record": "This record is not valid.",
+    "managed_record": "ekPanel made this record for a website or app; it goes when that does.",
+    "invalid_ssl_mode": "Choose off, flexible, full or strict.",
+    "invalid_address": "Enter an IPv4 and an IPv6 address, or leave them empty."
   },
   "not_found": {
     "title": "Page not found",
@@ -507,7 +531,8 @@
       "backup_restore": "Restore from backup",
       "app_update": "Update {{name}}",
       "app_deploy": "Deploy {{name}}",
-      "php_extension": "PHP {{version}}: {{name}}"
+      "php_extension": "PHP {{version}}: {{name}}",
+      "dns_sync": "Sync DNS"
     }
   },
   "sites": {
@@ -1152,6 +1177,126 @@
       "dockerfile": "The repository's own Dockerfile.",
       "railpack": "Detects the language and framework; no Dockerfile needed."
     }
+  },
+  "dns": {
+    "title": "DNS",
+    "intro": "Your domains on Cloudflare, kept in sync with your websites and apps.",
+    "add_domain": "Add a domain",
+    "connect": {
+      "title": "Connect Cloudflare",
+      "why": "ekPanel recommends keeping your domains' DNS on Cloudflare: it is free, fast and protects your sites. Connect your account once, and every website and app gets its DNS records by itself.",
+      "step1": "In Cloudflare, create an API token:",
+      "open": "open API tokens",
+      "step2": "Choose “Create Custom Token” and give it a name such as ekPanel.",
+      "step3": "Add these permissions, for all zones (or only the ones ekPanel should manage):",
+      "step4": "Create the token and paste it here.",
+      "name": "Name",
+      "name_hint": "Optional, to tell accounts apart.",
+      "token": "API token",
+      "kept": "The token is checked with Cloudflare, then stored encrypted. It is never shown again.",
+      "button": "Connect Cloudflare",
+      "another": "Connect another account"
+    },
+    "disconnect_confirm": "Disconnect {{name}}? Its domains stop being kept in sync; their records stay in Cloudflare.",
+    "disconnect": "Disconnect {{name}}",
+    "empty": {
+      "title": "No domains yet",
+      "body": "Pick a domain of your Cloudflare account, or add a new one. Its records for your websites and apps are made for you."
+    },
+    "col": {
+      "domain": "Domain",
+      "status": "Status",
+      "records": "Records",
+      "synced": "Synced",
+      "type": "Type",
+      "name": "Name",
+      "content": "Content",
+      "proxy": "Proxy"
+    },
+    "state": {
+      "error": "Sync failed",
+      "pending": "Waiting for nameservers",
+      "issues_one": "{{count, number}} thing to check",
+      "issues_other": "{{count, number}} things to check",
+      "ok": "In sync",
+      "active": "Active"
+    },
+    "managed_count_one": "{{count, number}} record by ekPanel",
+    "managed_count_other": "{{count, number}} records by ekPanel",
+    "accounts": "Cloudflare accounts",
+    "zones_count_one": "{{count, number}} domain",
+    "zones_count_other": "{{count, number}} domains",
+    "no_account_read": "This token cannot see its account, so new domains are added in Cloudflare itself (Account Settings: Read allows it here).",
+    "account": "Cloudflare account",
+    "proxied_default": "Proxy new records through Cloudflare",
+    "proxied_hint": "Orange cloud: visitors reach Cloudflare, which hides the server's address and caches. Each record can be changed later.",
+    "in_cloudflare": "Your domains in Cloudflare",
+    "no_zones": "This account has no domains yet.",
+    "managed": "Managed",
+    "manage": "Manage",
+    "new_domain": "Add a new domain to Cloudflare",
+    "new_domain_hint": "It is added to your Cloudflare account; you then change its nameservers at your registrar.",
+    "add_to_cloudflare": "Add to Cloudflare",
+    "zone_intro": "On Cloudflare ({{account}}). Records for your websites and apps are made and kept up to date by ekPanel.",
+    "sync": "Sync now",
+    "purge": "Purge cache",
+    "purged": "Cloudflare's cache of this domain was emptied.",
+    "synced": "Synced {{when}}",
+    "not_synced": "Not synced yet",
+    "pending_title": "Change the domain's nameservers",
+    "pending_body": "At the registrar where you bought the domain, replace its nameservers with these two. Cloudflare activates the domain once it sees them, usually within an hour.",
+    "issues_title": "Needs your attention",
+    "issue": {
+      "changed": "was changed in Cloudflare to {{have}}; ekPanel would set {{want}}.",
+      "conflict": "is already used ({{have}}); ekPanel would set {{want}}.",
+      "no_address": "server {{server}} has no public address yet; set it on the server's page."
+    },
+    "use_ours": "Use ekPanel's value",
+    "ssl_title": "SSL/TLS mode",
+    "ssl_now": "Cloudflare uses “{{mode}}”.",
+    "ssl_modes": {
+      "off": "Off",
+      "flexible": "Flexible",
+      "full": "Full",
+      "strict": "Full (strict)"
+    },
+    "ssl_good": "Recommended",
+    "ssl_weak": "Not recommended",
+    "ssl_unknown": "The token may not read this setting.",
+    "ssl_hint": "Your sites have their own valid certificates, so “Full (strict)” encrypts all the way and checks it. “Flexible” sends traffic to the server unencrypted.",
+    "ssl_use_strict": "Use Full (strict)",
+    "settings": "Settings",
+    "remove": "Stop managing",
+    "records_title": "Records",
+    "records_hint": "ekPanel's records follow your websites and apps; you can switch their proxy.",
+    "add_record": "Add record",
+    "proxied": "Proxied",
+    "dns_only": "DNS only",
+    "edit_record": "Edit record",
+    "delete_record": "Delete record",
+    "delete_record_confirm": "Delete the record {{name}} from Cloudflare?",
+    "name_hint": "www, @ for {{zone}} itself, or a full name in the zone.",
+    "content_hint": {
+      "A": "An IPv4 address.",
+      "AAAA": "An IPv6 address.",
+      "CNAME": "A host name, such as example.netlify.app.",
+      "MX": "The mail server's host name.",
+      "TXT": "Text, such as v=spf1 …",
+      "CAA": "Such as 0 issue \"letsencrypt.org\"",
+      "NS": "A nameserver's host name."
+    },
+    "priority": "Priority",
+    "remove_title": "Stop managing {{name}}?",
+    "remove_body": "ekPanel no longer keeps this domain's records in sync. The domain stays in Cloudflare.",
+    "remove_records": "Also delete the records ekPanel made",
+    "remove_records_hint": "Your websites and apps on this domain stop being reachable by name."
+  },
+  "addresses": {
+    "title": "Public addresses for DNS",
+    "intro": "The addresses DNS records of this server's websites and apps point at.",
+    "found": "Found on the server:",
+    "automatic": "Found automatically",
+    "hint": "Leave empty to use the first public address found. Set one by hand when the server is behind NAT or a load balancer."
   },
   "previews": {
     "enable": "Preview each pull request",
