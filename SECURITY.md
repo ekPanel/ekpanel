@@ -29,6 +29,11 @@ ekPanel is in early development and has no stable release yet. Fixes go into the
 - Passwords are hashed with argon2id. Session and enrolment tokens are stored only as
   SHA-256 hashes.
 - A fresh install requires a one-time setup token, so nobody else can claim it first.
+- Every website runs as its own Linux account with its own PHP-FPM pool and `open_basedir`;
+  site folders are closed to other accounts, and only the web server gets read access
+  through ACLs. The agent never modifies an account it did not create.
+- Web server configuration is validated before it is loaded; a rejected change is rolled
+  back so one site cannot take others down.
 - State-changing requests are protected against CSRF (`Sec-Fetch-Site`, `Origin` and
   JSON-only bodies); session cookies are `HttpOnly`, `SameSite=Lax` and `__Host-` prefixed.
 - Strict Content-Security-Policy with no inline scripts.

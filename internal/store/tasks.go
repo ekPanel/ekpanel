@@ -41,6 +41,9 @@ type NewTask struct {
 	Params      any
 	MaxAttempts int
 	CreatedBy   *string
+	// DedupeKey, when set, makes CreateTask return the already-queued task with the same
+	// key instead of adding another.
+	DedupeKey string
 }
 
 func (s *Store) CreateTask(ctx context.Context, n NewTask) (Task, error) {
@@ -54,10 +57,18 @@ func (s *Store) CreateTask(ctx context.Context, n NewTask) (Task, error) {
 	if n.Params == nil {
 		params = []byte("{}")
 	}
+	var dedupe *string
+	if n.DedupeKey != "" {
+		dedupe = &n.DedupeKey
+	}
 	var id string
 	err = s.pool.QueryRow(ctx, `
-		INSERT INTO tasks (kind, server_id, params, max_attempts, created_by) VALUES ($1, $2, $3, $4, $5)
-		RETURNING id`, n.Kind, n.ServerID, params, n.MaxAttempts, n.CreatedBy).Scan(&id)
+		INSERT INTO tasks (kind, server_id, params, max_attempts, created_by, dedupe_key) VALUES ($1, $2, $3, $4, $5, $6)
+		-- A new request joins the queued task, and also brings forward one that was waiting
+		-- to retry, with a fresh set of attempts.
+		ON CONFLICT (dedupe_key) WHERE status = 'queued' AND dedupe_key IS NOT NULL
+		DO UPDATE SET run_after = LEAST(tasks.run_after, now()), attempts = 0, error = NULL
+		RETURNING id`, n.Kind, n.ServerID, params, n.MaxAttempts, n.CreatedBy, dedupe).Scan(&id)
 	if err != nil {
 		return Task{}, err
 	}

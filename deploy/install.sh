@@ -63,7 +63,10 @@ export DEBIAN_FRONTEND=noninteractive
 export NEEDRESTART_SUSPEND=1  # no "restart services?" report during apt runs
 say "Installing PostgreSQL and Caddy"
 apt-get update -qq
-apt-get install -y -qq ca-certificates curl gnupg openssl postgresql >/dev/null
+# acl: lets the web server read each site's files without opening them to other sites.
+apt-get install -y -qq ca-certificates curl gnupg openssl acl postgresql >/dev/null
+# add-apt-repository is used to add the PHP package repository on Ubuntu.
+[ "$ID" = ubuntu ] && apt-get install -y -qq software-properties-common >/dev/null
 if ! command -v caddy >/dev/null; then
   # Caddy's official package repository (https://caddyserver.com/docs/install#debian-ubuntu-raspbian).
   install -d -m 0755 /usr/share/keyrings
@@ -183,17 +186,23 @@ systemctl restart ekpanel-agent
 
 say "Configuring Caddy"
 ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+# The agent writes one file per website here; the Caddyfile imports them.
+install -d -m 0755 /etc/ekpanel/caddy/sites
+email_line=""
+[ -n "$EMAIL" ] && email_line=$'\n\temail '"$EMAIL"
 if [ -n "$DOMAIN" ]; then
   # Caddy obtains and renews a Let's Encrypt certificate for the domain by itself.
-  tls_line=""
-  [ -n "$EMAIL" ] && tls_line="tls $EMAIL"
   cat > /etc/caddy/Caddyfile <<EOF
-# Managed by the ekPanel installer.
+# Managed by the ekPanel installer. Websites are in /etc/ekpanel/caddy/sites.
+{$email_line
+}
+
 $DOMAIN {
-	$tls_line
 	encode zstd gzip
 	reverse_proxy 127.0.0.1:8080
 }
+
+import /etc/ekpanel/caddy/sites/*.caddy
 EOF
 else
   # No domain: a self-signed certificate for this server's IP and host name. Browsers send
@@ -208,16 +217,19 @@ else
     chmod 0640 /etc/ekpanel/tls/panel.key
   fi
   cat > /etc/caddy/Caddyfile <<EOF
-# Managed by the ekPanel installer.
+# Managed by the ekPanel installer. Websites are in /etc/ekpanel/caddy/sites.
 {
-	default_sni ${ip:-localhost}
+	default_sni ${ip:-localhost}$email_line
 }
 
+# The panel answers on the server's IP address; websites answer on their own domains.
 :443 {
 	tls /etc/ekpanel/tls/panel.crt /etc/ekpanel/tls/panel.key
 	encode zstd gzip
 	reverse_proxy 127.0.0.1:8080
 }
+
+import /etc/ekpanel/caddy/sites/*.caddy
 EOF
 fi
 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 \

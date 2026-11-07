@@ -95,6 +95,12 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/servers/{id}/services", s.handleServerServices)
 			r.Post("/servers/{id}/services/{name}/restart", s.handleRestartService)
 			r.Get("/tasks", s.handleListTasks)
+			r.Get("/sites", s.handleListSites)
+			r.Post("/sites", s.handleCreateSite)
+			r.Get("/sites/{id}", s.handleGetSite)
+			r.Patch("/sites/{id}", s.handleUpdateSite)
+			r.Delete("/sites/{id}", s.handleDeleteSite)
+			r.Get("/php-versions", s.handlePHPVersions)
 			r.Get("/audit", s.handleListAudit)
 		})
 

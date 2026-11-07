@@ -91,6 +91,29 @@ export interface Task {
   finished_at: string | null;
 }
 
+export type SiteState = "pending" | "active" | "error" | "deleting";
+
+export interface Site {
+  id: string;
+  server_id: string;
+  server_name: string;
+  domain: string;
+  aliases: string[];
+  /** Unicode forms of the host names, for display. */
+  domain_display: string;
+  aliases_display: string[];
+  kind: "static" | "php";
+  php_version: string | null;
+  tls: "auto" | "internal";
+  linux_user: string;
+  state: SiteState;
+  message: string | null;
+  generation: number;
+  applied_generation: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AuditEntry {
   id: number;
   at: string;

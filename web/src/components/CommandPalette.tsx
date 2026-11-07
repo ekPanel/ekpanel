@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { CornerDownLeft, Gauge, Plus, ScrollText, Search, Server as ServerIcon, ShieldCheck } from "lucide-react";
-import { api, type Server, type User } from "../lib/api";
+import { CornerDownLeft, Gauge, Globe, Plus, ScrollText, Search, Server as ServerIcon, ShieldCheck } from "lucide-react";
+import { api, type Server, type Site, type User } from "../lib/api";
 import { cx } from "./ui";
 
 interface Item {
@@ -29,6 +29,11 @@ export function CommandPalette({ open, onClose, user }: { open: boolean; onClose
     queryFn: () => api.get<Server[]>("/servers"),
     enabled: open && isAdmin,
   });
+  const sites = useQuery({
+    queryKey: ["sites", "all"],
+    queryFn: () => api.get<Site[]>("/sites"),
+    enabled: open && isAdmin,
+  });
 
   useEffect(() => {
     const d = ref.current;
@@ -50,17 +55,22 @@ export function CommandPalette({ open, onClose, user }: { open: boolean; onClose
     const list: Item[] = [{ id: "dash", group: pages, label: t("nav.dashboard"), icon: <Gauge />, run: go("/") }];
     if (isAdmin) {
       list.push(
+        { id: "sites", group: pages, label: t("nav.sites"), icon: <Globe />, run: go("/sites") },
         { id: "servers", group: pages, label: t("nav.servers"), icon: <ServerIcon />, run: go("/servers") },
         { id: "audit", group: pages, label: t("nav.audit"), icon: <ScrollText />, run: go("/audit") },
+        { id: "add-site", group: t("palette.actions"), label: t("sites.add"), icon: <Plus />, run: go("/sites?add=1") },
         { id: "add-server", group: t("palette.actions"), label: t("servers.add"), icon: <Plus />, run: go("/servers?add=1") },
       );
+      for (const s of sites.data ?? []) {
+        list.push({ id: "w-" + s.id, group: t("nav.sites"), label: s.domain_display, hint: s.server_name, icon: <Globe />, run: go(`/sites/${s.id}`) });
+      }
       for (const s of servers.data ?? []) {
         list.push({ id: "s-" + s.id, group: t("nav.servers"), label: s.name, hint: s.hostname, icon: <ServerIcon />, run: go(`/servers/${s.id}`) });
       }
     }
     list.push({ id: "security", group: pages, label: t("nav.security"), icon: <ShieldCheck />, run: go("/settings/security") });
     return list;
-  }, [t, isAdmin, servers.data, navigate, onClose]);
+  }, [t, isAdmin, servers.data, sites.data, navigate, onClose]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase();

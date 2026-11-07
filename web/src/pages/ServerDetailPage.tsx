@@ -11,6 +11,7 @@ import { AreaChart, Sparkline } from "../components/Charts";
 import { Badge, Button, Card, Dialog, ErrorAlert, Field, Meter, Spinner, cx } from "../components/ui";
 import { ServicesCard } from "../components/Services";
 import { RecentTasks } from "../components/Tasks";
+import { ServerSites } from "./ServerSites";
 
 const ranges = ["live", "1h", "24h", "7d", "30d"] as const;
 type Range = (typeof ranges)[number];
@@ -249,6 +250,7 @@ export function ServerDetailPage() {
                 </ChartCard>
               </div>
             )}
+            <ServerSites serverId={s.id} />
             <div className="grid gap-4 xl:grid-cols-2">
               <ServicesCard serverId={s.id} online={s.online} />
               <RecentTasks serverId={s.id} />

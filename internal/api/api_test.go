@@ -581,3 +581,144 @@ func TestMetricCompactionAndTaskRecovery(t *testing.T) {
 		t.Fatalf("after last attempt: %+v", got)
 	}
 }
+
+func TestSitesLifecycle(t *testing.T) {
+	p := newTestPanel(t)
+	c := newClient(t, p.web.URL)
+	setUp(t, c)
+	serverID, cfg, _, _ := enrolled(t, p, c, "web-1")
+
+	// A fake agent that applies everything, except PHP 7.4 which it reports as broken.
+	tlsCfg, _ := cfg.TLSConfig()
+	conn, _, err := dialAgent(t, p, tlsCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.CloseNow()
+	applied := make(chan agentproto.StateApplyParams, 10)
+	fakeAgent(t, conn, func(op string, params json.RawMessage) (any, *agentproto.OpError) {
+		var in agentproto.StateApplyParams
+		json.Unmarshal(params, &in)
+		applied <- in
+		var out agentproto.StateApplyResult
+		for _, s := range in.Sites {
+			r := agentproto.SiteResult{ID: s.ID, Generation: s.Generation, OK: true}
+			if s.PHPVersion == "7.4" {
+				r.OK, r.Error = false, "install PHP 7.4: no candidate"
+			}
+			out.Sites = append(out.Sites, r)
+		}
+		return out, nil
+	})
+
+	type site struct {
+		ID         string   `json:"id"`
+		Domain     string   `json:"domain"`
+		Aliases    []string `json:"aliases"`
+		State      string   `json:"state"`
+		Message    *string  `json:"message"`
+		LinuxUser  string   `json:"linux_user"`
+		Generation int64    `json:"generation"`
+		PHPVersion *string  `json:"php_version"`
+	}
+	getSite := func(id string) (site, int) {
+		var s site
+		status := c.do("GET", "/api/v1/sites/"+id, nil, &s)
+		return s, status
+	}
+
+	var s site
+	var e errBody
+	if st := c.do("POST", "/api/v1/sites", map[string]any{"server_id": serverID, "domain": "Shop.Example.com",
+		"aliases": []string{"www.shop.example.com", "shop.example.com"}, "kind": "php", "php_version": "8.4", "tls": "internal"}, &s); st != http.StatusCreated {
+		t.Fatalf("create: %d", st)
+	}
+	if s.Domain != "shop.example.com" || len(s.Aliases) != 1 || !strings.HasPrefix(s.LinuxUser, "shop_") || s.State != "pending" {
+		t.Fatalf("created site = %+v", s)
+	}
+	eventually(t, "site becomes active", func() bool { got, _ := getSite(s.ID); return got.State == "active" })
+
+	// Every host name is unique across the panel.
+	if st := c.do("POST", "/api/v1/sites", map[string]any{"server_id": serverID, "domain": "www.shop.example.com", "kind": "static"}, &e); st != http.StatusConflict || e.Code != "hostname_taken" {
+		t.Fatalf("duplicate host: %d %s", st, e.Code)
+	}
+	for _, bad := range []map[string]any{
+		{"server_id": serverID, "domain": "not a domain", "kind": "static"},
+		{"server_id": serverID, "domain": "ok.example.com", "kind": "php", "php_version": "5.6"},
+		{"server_id": serverID, "domain": "ok.example.com", "kind": "python"},
+		{"server_id": serverID, "domain": "ok.example.com", "kind": "static", "aliases": []string{"evil.com {"}},
+	} {
+		if st := c.do("POST", "/api/v1/sites", bad, &e); st != http.StatusBadRequest {
+			t.Errorf("%v: status %d", bad, st)
+		}
+	}
+
+	// A change the agent cannot apply shows the reason on the site.
+	if st := c.do("PATCH", "/api/v1/sites/"+s.ID, map[string]any{"kind": "php", "php_version": "7.4", "tls": "internal"}, &s); st != http.StatusOK || s.Generation != 2 {
+		t.Fatalf("update: %d %+v", st, s)
+	}
+	eventually(t, "site shows the error", func() bool {
+		got, _ := getSite(s.ID)
+		return got.State == "error" && got.Message != nil && strings.Contains(*got.Message, "7.4")
+	})
+	c.do("PATCH", "/api/v1/sites/"+s.ID, map[string]any{"kind": "static", "tls": "auto"}, &s)
+	eventually(t, "fixed site is active again", func() bool { got, _ := getSite(s.ID); return got.State == "active" && got.PHPVersion == nil })
+
+	// A domain in Bangla script is stored in its DNS (punycode) form.
+	var bn site
+	if st := c.do("POST", "/api/v1/sites", map[string]any{"server_id": serverID, "domain": "উদাহরণ.বাংলা", "kind": "static"}, &bn); st != http.StatusCreated || bn.Domain != "xn--d5b6ci4b4b3a.xn--54b7fta0cc" {
+		t.Fatalf("IDN site: %d %+v", st, bn)
+	}
+
+	// Deleting waits for the agent, then the site is gone and its host names are free again.
+	if st := c.do("DELETE", "/api/v1/sites/"+s.ID, nil, &s); st != http.StatusAccepted || s.State != "deleting" {
+		t.Fatalf("delete: %d %+v", st, s)
+	}
+	eventually(t, "site removed", func() bool { _, st := getSite(s.ID); return st == http.StatusNotFound })
+	var last agentproto.StateApplyParams
+	for len(applied) > 0 {
+		last = <-applied
+	}
+	_ = last
+	if st := c.do("POST", "/api/v1/sites", map[string]any{"server_id": serverID, "domain": "shop.example.com", "kind": "static"}, &e); st != http.StatusCreated {
+		t.Fatalf("host name not released after delete: %d %s", st, e.Code)
+	}
+
+	var audit []store.AuditEntry
+	c.do("GET", "/api/v1/audit", nil, &audit)
+	seen := map[string]bool{}
+	for _, a := range audit {
+		seen[a.Action] = true
+	}
+	for _, want := range []string{"site.created", "site.updated", "site.deleted"} {
+		if !seen[want] {
+			t.Errorf("audit missing %s", want)
+		}
+	}
+}
+
+func TestApplyFailureIsShownOnSites(t *testing.T) {
+	p := newTestPanel(t)
+	c := newClient(t, p.web.URL)
+	setUp(t, c)
+	serverID, cfg, _, _ := enrolled(t, p, c, "web-1")
+	tlsCfg, _ := cfg.TLSConfig()
+	conn, _, err := dialAgent(t, p, tlsCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.CloseNow()
+	fakeAgent(t, conn, func(op string, _ json.RawMessage) (any, *agentproto.OpError) {
+		return nil, &agentproto.OpError{Code: agentproto.ErrFailed, Message: "mkdir /etc/ekpanel: permission denied"}
+	})
+	var s struct {
+		ID      string  `json:"id"`
+		State   string  `json:"state"`
+		Message *string `json:"message"`
+	}
+	c.do("POST", "/api/v1/sites", map[string]any{"server_id": serverID, "domain": "a.example.com", "kind": "static"}, &s)
+	eventually(t, "site shows the agent's error", func() bool {
+		c.do("GET", "/api/v1/sites/"+s.ID, nil, &s)
+		return s.State == "error" && s.Message != nil && strings.Contains(*s.Message, "permission denied")
+	})
+}

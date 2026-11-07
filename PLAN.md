@@ -264,8 +264,7 @@ Decided (2026-11-07):
 - [x] Metric history in PostgreSQL: 1-minute buckets for 48 h, rolled up hourly for 31 days;
       UI ranges Live / 1 h / 24 h / 7 d / 30 d
 - [x] Services card (live systemd state, restart) and task tray in the UI
-- [ ] Desired-state / reconcile engine. Moved to phase 1: it is built together with the first
-      resource it manages (websites), instead of guessing its shape without one
+- [x] Desired-state / reconcile engine: delivered in phase 1a together with websites
 - [x] `deploy/install.sh` for Ubuntu 24.04+/Debian 12+: PostgreSQL, Caddy (domain → Let's Encrypt,
       no domain → self-signed for the IP), sandboxed systemd units, auto-connects the server's own
       agent, prints the setup token; re-runnable as an upgrade. Tested in a local VM incl. reboot
@@ -273,3 +272,34 @@ Decided (2026-11-07):
 - [ ] One-line install from release downloads (after the first release)
 - [x] `make release`: linux amd64/arm64 archives with SHA256SUMS
 - [ ] Signed releases from CI (needs the GitHub repository)
+
+## 10. Phase 1 progress
+
+Phase 1 is delivered in parts; each is tested in the VM and committed separately.
+
+**1a. Websites — done**
+- [x] Desired-state engine: the panel sends a server's complete list of sites (`state.apply`);
+      the agent converges, reports per site, and is re-run on every change, on agent
+      reconnect and every 10 minutes (self-healing: a deleted config is restored)
+- [x] Static and PHP sites; PHP 7.4–8.5 side by side from Ondřej Surý's packages, installed
+      on first use; switching versions has zero downtime (new FPM pool and socket first,
+      then Caddy, then the old pool — verified under load: 457/457 requests answered)
+- [x] Isolation: one Linux account per site (`/home/<user>/public_html`), PHP-FPM pool per
+      site running as that account with `open_basedir`; ACLs let only Caddy read site files
+- [x] Caddy: one file per site, validated (as the caddy user) before a graceful reload;
+      a rejected config is rolled back and reported on that site only
+- [x] Free automatic HTTPS (Let's Encrypt) or self-signed per site; dotfiles such as
+      `.env` and `.git` are never served
+- [x] Domains in any script (IDNA → punycode), extra domains, `www.` offered by default,
+      every host name unique across the panel
+- [x] Safety: the agent validates everything again, only touches Linux accounts in the
+      `ekpanel-sites` group, and only deletes data on an explicit delete
+- [x] UI: websites list, add dialog, site page (settings, status, retry, delete), sites on
+      the server page, command palette entries; English and Bangla
+
+**Next**
+- [ ] 1b. Databases: MariaDB and PostgreSQL, users and grants, browser
+- [ ] 1c. File manager and SFTP
+- [ ] 1d. One-click WordPress
+- [ ] 1e. Backups and restore (restic), basic firewall
+- [ ] 1f. Docker apps (image and Compose)

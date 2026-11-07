@@ -19,12 +19,15 @@ email, DNS and game servers, with a modern UI in your own language.
 - Live CPU, memory, disk, network, load and uptime per server, plus **30 days of history**
 - See and restart a server's services (Caddy, PostgreSQL, cron…) through background
   **tasks** that show their progress in the UI
+- **Websites**: static or PHP (7.4 to 8.5 side by side), free automatic HTTPS, extra
+  domains, domains in any script. Each site runs as its own Linux user with its own PHP
+  pool. Changes apply with zero downtime and broken configuration repairs itself
 - An append-only audit log of every change (the database itself refuses edits and deletes)
 - A web UI in **English** and **বাংলা (Bangla)**, ready for right-to-left languages, with
   light/dark themes, a `Ctrl+K` command palette and phone-friendly layouts
 
-Coming next, in order: websites with automatic SSL, databases, file manager, Docker apps,
-backups, then Git deploys, an app store, customers and packages. [PLAN.md](PLAN.md) lists
+Coming next, in order: databases, file manager and SFTP, one-click WordPress, backups,
+Docker apps, then Git deploys, an app store, customers and packages. [PLAN.md](PLAN.md) lists
 every phase.
 
 ## How it fits together

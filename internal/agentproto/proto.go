@@ -137,3 +137,43 @@ type ServicesStatusResult struct {
 type ServicesRestartParams struct {
 	Name string `json:"name"`
 }
+
+// ---- Desired state ----
+
+// OpStateApply sends the full desired state of a server; the agent converges to it and
+// reports a result per item. The panel always sends every site of the server, including
+// those being deleted (Deleted=true), so the agent never guesses what to remove.
+const OpStateApply = "state.apply"
+
+// PHPVersions the panel offers, newest first. Agents install a version when a site needs it.
+var PHPVersions = []string{"8.5", "8.4", "8.3", "8.2", "8.1", "7.4"}
+
+// DefaultPHPVersion is preselected for new sites.
+const DefaultPHPVersion = "8.4"
+
+type SiteSpec struct {
+	ID         string   `json:"id"`
+	Generation int64    `json:"generation"`
+	Domain     string   `json:"domain"`
+	Aliases    []string `json:"aliases"`
+	Kind       string   `json:"kind"` // "static" or "php"
+	PHPVersion string   `json:"php_version,omitempty"`
+	TLS        string   `json:"tls"`  // "auto" (public CA) or "internal" (self-signed)
+	User       string   `json:"user"` // Linux account owning the site
+	Deleted    bool     `json:"deleted,omitempty"`
+}
+
+type StateApplyParams struct {
+	Sites []SiteSpec `json:"sites"`
+}
+
+type SiteResult struct {
+	ID         string `json:"id"`
+	Generation int64  `json:"generation"`
+	OK         bool   `json:"ok"`
+	Error      string `json:"error,omitempty"`
+}
+
+type StateApplyResult struct {
+	Sites []SiteResult `json:"sites"`
+}

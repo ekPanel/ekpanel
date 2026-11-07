@@ -19,7 +19,8 @@
     "account": "Your account",
     "security": "Security",
     "open_menu": "Open menu",
-    "sign_out": "Sign out"
+    "sign_out": "Sign out",
+    "sites": "Websites"
   },
   "theme": {
     "label": "Theme",
@@ -209,6 +210,11 @@
       },
       "service": {
         "restart_requested": "Service restart requested"
+      },
+      "site": {
+        "created": "Website created",
+        "updated": "Website changed",
+        "deleted": "Website deleted"
       }
     }
   },
@@ -247,7 +253,16 @@
     "invalid_service": "That is not a service name.",
     "invalid_range": "That time range is not available.",
     "invalid_csr": "The agent sent an invalid certificate request.",
-    "agent_no_systemd": "This server does not run systemd (for example a container), so its services cannot be shown or restarted."
+    "agent_no_systemd": "This server does not run systemd (for example a container), so its services cannot be shown or restarted.",
+    "invalid_domain": "Enter a domain name such as example.com.",
+    "invalid_alias": "One of the extra domains is not a valid domain name.",
+    "too_many_aliases": "A website can have at most 20 extra domains.",
+    "invalid_php_version": "Choose one of the listed PHP versions.",
+    "invalid_site_kind": "Choose PHP or static.",
+    "invalid_tls": "Choose an SSL option.",
+    "hostname_taken": "Another website already uses this domain.",
+    "site_not_found": "That website does not exist. It may have been deleted.",
+    "site_deleting": "This website is being deleted."
   },
   "not_found": {
     "title": "Page not found",
@@ -282,7 +297,78 @@
       "failed": "Failed"
     },
     "kinds": {
-      "service_restart": "Restart {{name}}"
+      "service_restart": "Restart {{name}}",
+      "server_reconcile": "Apply website settings"
     }
+  },
+  "sites": {
+    "add": "Add website",
+    "create": "Create website",
+    "intro": "Each website gets its own Linux account and PHP processes, so one site cannot touch another.",
+    "empty": {
+      "title": "Add your first website",
+      "body": "Point a domain at one of your servers, choose PHP or static, and ekPanel sets up the web server and a free SSL certificate."
+    },
+    "none_on_server": "No websites on this server yet.",
+    "need_server": "Connect a server first. Websites are hosted on your servers.",
+    "domain": "Domain",
+    "domain_hint": "For example example.com. Names in any language and script work.",
+    "add_www": "Also answer on {{domain}}",
+    "more_domains": "More domains for this site",
+    "aliases": "Extra domains",
+    "aliases_hint": "One per line. Visitors to these addresses see the same site.",
+    "server": "Server",
+    "kind": {
+      "label": "Type of site",
+      "php": "PHP",
+      "php_hint": "WordPress, Laravel and other PHP applications.",
+      "static": "Static",
+      "static_hint": "HTML, CSS and JavaScript files only. The fastest option."
+    },
+    "php_version": "PHP version",
+    "recommended": "recommended",
+    "php_install_note": "A version that is not on the server yet is installed automatically. This can take a few minutes the first time.",
+    "tls": {
+      "label": "SSL certificate (HTTPS)",
+      "auto": "Automatic, free",
+      "auto_hint": "Let's Encrypt, renewed automatically. The domain's DNS must point to this server.",
+      "internal": "Self-signed",
+      "internal_hint": "For testing, or domains not on the public internet. Browsers show a warning."
+    },
+    "col": {
+      "site": "Website",
+      "type": "Type",
+      "server": "Server",
+      "status": "Status"
+    },
+    "state": {
+      "pending": "Applying…",
+      "active": "Live",
+      "error": "Problem",
+      "deleting": "Deleting…"
+    },
+    "visit": "Visit site",
+    "applying": "Applying your settings on {{server}}. This usually takes a few seconds.",
+    "deleting": "Deleting this website and its files…",
+    "delete_failed": "Deleting is not finished yet: {{reason}}. ekPanel keeps trying.",
+    "error_title": "The server could not apply this website's settings",
+    "retry": "Try again",
+    "settings": "Settings",
+    "save": "Save changes",
+    "saved": "Saved. The server is applying the changes.",
+    "details": "Details",
+    "addresses": "Addresses",
+    "linux_user": "Linux account",
+    "docroot": "Website folder",
+    "created": "Created",
+    "delete": {
+      "title_short": "Delete website",
+      "title": "Delete {{domain}}?",
+      "body": "Removes the website, its files and its Linux account from the server.",
+      "warning": "This permanently deletes everything in /home/{{user}}, including uploaded files. Make a backup first if you need them.",
+      "confirm": "Type {{domain}} to confirm",
+      "button": "Delete website"
+    },
+    "waiting_offline": "{{server}} is offline. The settings are applied as soon as its agent reconnects."
   }
 }

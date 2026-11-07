@@ -183,6 +183,14 @@ func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
 				Arch: trim(h.Arch, 32), CPUCount: h.CPUCount, AgentVersion: trim(h.AgentVersion, 64),
 			})
 			lastTouch = time.Now()
+			// The agent may have missed changes while it was offline.
+			if s.opts.Tasks != nil {
+				go func() {
+					if _, err := s.opts.Tasks.Reconcile(context.WithoutCancel(ctx), srv.ID); err != nil {
+						s.log.Warn("reconcile after connect", "server", srv.ID, "err", err)
+					}
+				}()
+			}
 		case env.Type == agentproto.TypeMetrics && env.Metrics != nil:
 			s.hub.Publish(srv.ID, *env.Metrics)
 			// Buckets use the panel's clock, so a wrong clock on the server cannot scramble history.
