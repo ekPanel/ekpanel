@@ -1,0 +1,56 @@
+# Contributing to HostPanel
+
+Thank you for helping. Contributions of every size are welcome: code, translations, docs,
+bug reports and design feedback.
+
+## Development setup
+
+Requirements: Linux, Go 1.26+ (an older `go` downloads 1.26 by itself), Node.js 22+, `make`.
+You do **not** need PostgreSQL or Docker: `make dev` starts a private embedded PostgreSQL
+inside `.data/`, and the tests start their own.
+
+```bash
+make ui          # install web dependencies and build the UI into the panel
+make dev         # run the panel at http://127.0.0.1:8080 (prints a setup token)
+make dev-ui      # optional: Vite dev server with hot reload at http://localhost:5173
+make dev-agent TOKEN=...   # enrol and run an agent on this machine
+make test        # everything CI runs
+```
+
+`make help` lists all tasks. To start over, stop the panel and delete `.data/`.
+
+## Project layout
+
+| Path | What it is |
+| --- | --- |
+| `cmd/hostpanel` | the panel binary |
+| `cmd/hostpanel-agent` | the agent binary that runs on managed servers |
+| `internal/api` | HTTP API, sessions, CSRF protection, agent endpoints |
+| `internal/store` | PostgreSQL queries |
+| `internal/db/migrations` | schema migrations, applied in name order at startup |
+| `internal/agent` | metric collection and the agent's connection loop |
+| `internal/agentproto` | messages shared by the panel and agents |
+| `internal/hub` | live server state and fan-out to browsers |
+| `web/` | React + TypeScript UI (Vite, Tailwind, TanStack Query, i18next) |
+
+## Guidelines
+
+- **Every UI string is translated.** Never write user-facing text directly in a component:
+  add a key to `web/src/i18n/locales/en.json` and use `t("key")`. If you can, add the
+  Bangla too; otherwise `npm run i18n:check` shows what is missing for translators.
+- **Format with Intl.** Use the helpers in `web/src/lib/format.ts` for numbers, sizes, rates
+  and dates so they follow the user's language.
+- **Right-to-left safe.** Use logical Tailwind classes (`ms-`, `me-`, `ps-`, `pe-`, `start-`,
+  `end-`, `text-start`) instead of left/right. Flip directional icons with `rtl:-scale-x-100`.
+- **API errors carry a stable `code`.** The UI translates `errors.<code>`, so add both.
+- **Security first.** Validate all input on the server, never log secrets, store only hashes
+  of tokens, and add an audit entry for every change an admin or user makes.
+- **Tests.** New behaviour comes with tests. API behaviour is tested end to end against a real
+  PostgreSQL in `internal/api/api_test.go`.
+- Run `gofmt` and `make test` before opening a pull request.
+
+## Reporting bugs
+
+Open an issue with what you did, what you expected and what happened, plus the panel and agent
+versions (`hostpanel version`, `hostpanel-agent version`) and the server's OS. For security
+problems, follow [SECURITY.md](SECURITY.md) instead.

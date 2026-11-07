@@ -1,0 +1,232 @@
+{
+  "common": {
+    "copy": "Copy",
+    "copied": "Copied",
+    "close": "Close",
+    "cancel": "Cancel",
+    "continue": "Continue",
+    "done": "Done",
+    "delete": "Delete",
+    "back": "Back",
+    "language": "Language"
+  },
+  "nav": {
+    "main": "Main navigation",
+    "dashboard": "Dashboard",
+    "servers": "Servers",
+    "admin": "Administration",
+    "audit": "Audit log",
+    "account": "Your account",
+    "security": "Security",
+    "open_menu": "Open menu",
+    "sign_out": "Sign out"
+  },
+  "theme": {
+    "label": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "Match system"
+  },
+  "palette": {
+    "placeholder": "Search or jump to…",
+    "pages": "Pages",
+    "actions": "Actions",
+    "empty": "Nothing matches that."
+  },
+  "setup": {
+    "title": "Welcome to HostPanel",
+    "subtitle": "Create the administrator account. You only do this once.",
+    "token": "Setup token",
+    "token_hint": "The installer printed it. You can also find it in <code>/var/lib/hostpanel/setup-token</code> on the server.",
+    "submit": "Create administrator"
+  },
+  "account": {
+    "name": "Your name",
+    "email": "Email",
+    "password": "Password",
+    "password_hint": "At least 10 characters. A short sentence is easy to remember and hard to guess."
+  },
+  "login": {
+    "title": "Sign in",
+    "subtitle": "Manage your servers, sites and apps.",
+    "code_subtitle": "One more step to keep your account safe.",
+    "code_help": "Open your authenticator app and enter the 6-digit code for HostPanel.",
+    "verify": "Verify",
+    "submit": "Sign in"
+  },
+  "security": {
+    "intro": "Protect your account and control where you are signed in.",
+    "code": "6-digit code",
+    "twofa": {
+      "title": "Two-factor authentication",
+      "body": "Signing in will need a code from your phone as well as your password.",
+      "on": "On",
+      "off": "Off",
+      "enable": "Turn on two-factor authentication",
+      "qr_alt": "QR code for your authenticator app",
+      "step_scan": "Scan the QR code with an authenticator app such as Google Authenticator, Aegis or 1Password.",
+      "step_code": "Enter the 6-digit code the app shows.",
+      "manual": "Can't scan? Type this key into the app instead:",
+      "confirm": "Confirm and turn on",
+      "disable": "Turn off two-factor authentication",
+      "disable_password": "Enter your password to turn it off"
+    },
+    "sessions": {
+      "title": "Signed-in devices",
+      "body": "If you signed in on a computer you no longer use, sign out everywhere else. This device stays signed in.",
+      "revoke": "Sign out all other devices",
+      "revoked": "All other devices are signed out."
+    }
+  },
+  "servers": {
+    "add": "Add server",
+    "intro": "Every server runs a small agent that connects it to this panel.",
+    "name": "Server name",
+    "name_hint": "Something you will recognise, like \"Singapore web 1\".",
+    "state": {
+      "online": "Online",
+      "offline": "Offline",
+      "pending": "Waiting for agent"
+    },
+    "last_seen": "Last seen {{when}}",
+    "not_connected_yet": "Not connected yet",
+    "finish_setup": "Finish connecting this server",
+    "view_details": "View details",
+    "never": "never",
+    "empty": {
+      "title": "Connect your first server",
+      "body": "Add a Linux server (Ubuntu or Debian). You run one command on it, and it shows up here with live statistics."
+    },
+    "col": {
+      "server": "Server",
+      "status": "Status",
+      "last_seen": "Last seen"
+    },
+    "enroll": {
+      "title": "Connect {{name}}",
+      "intro": "Run these commands on the server as root. The agent connects out to this panel, so you do not need to open any port.",
+      "step1": "1. Register the server with this panel",
+      "step2": "2. Start the agent",
+      "token_note": "The token in the command works once and expires {{when}}. It will not be shown again.",
+      "connected": "Connected! The server is sending live statistics.",
+      "waiting": "Waiting for the agent to connect…"
+    },
+    "back": "Back to servers",
+    "reenroll": "New connection command",
+    "pending": {
+      "title": "This server is not connected yet",
+      "body": "Its agent has not registered. The command shown when you added it may have expired; create a fresh one.",
+      "show_command": "Show connection command"
+    },
+    "offline_help": "The agent is not connected. It was last seen {{when}}. Check that the server is running and that the agent service is started.",
+    "facts": {
+      "title": "System",
+      "hostname": "Hostname",
+      "os": "Operating system",
+      "kernel": "Kernel",
+      "arch": "Architecture",
+      "agent": "Agent version",
+      "enrolled": "Connected since"
+    },
+    "live": "Live",
+    "reconnecting": "Reconnecting…",
+    "history_note": "Charts show about the last 20 minutes. Long-term history arrives in a later release.",
+    "delete": {
+      "title": "Delete {{name}}?",
+      "body": "The panel forgets this server and its agent can no longer connect. Nothing on the server itself is deleted.",
+      "confirm": "Type {{name}} to confirm",
+      "submit": "Delete server"
+    }
+  },
+  "metrics": {
+    "cpu": "CPU",
+    "memory": "Memory",
+    "disk": "Disk",
+    "network": "Network",
+    "download": "Download",
+    "upload": "Upload",
+    "uptime": "Uptime",
+    "cores_one": "{{formatted}} core",
+    "cores_other": "{{formatted}} cores",
+    "of_total": "of {{total}}",
+    "load": "Load {{l1}} · {{l5}} · {{l15}}"
+  },
+  "dashboard": {
+    "greeting": "Hello, {{name}}",
+    "customer_intro": "Your websites and apps will appear here.",
+    "no_servers_intro": "Let's connect your first server.",
+    "all_good_one": "Everything is running. {{formatted}} server online.",
+    "all_good_other": "Everything is running. {{formatted}} servers online.",
+    "attention_one": "{{formatted}} server needs your attention.",
+    "attention_other": "{{formatted}} servers need your attention.",
+    "start": {
+      "title": "Getting started",
+      "admin": "Create the administrator account",
+      "server": "Connect a server",
+      "twofa": "Turn on two-factor authentication"
+    }
+  },
+  "audit": {
+    "intro": "Every change made in this panel, who made it and from where. Entries cannot be edited or deleted.",
+    "col": {
+      "when": "When",
+      "who": "Who",
+      "what": "What",
+      "target": "On",
+      "ip": "IP address"
+    },
+    "system": "System",
+    "more": "Show older entries",
+    "actions": {
+      "setup": {
+        "admin_created": "Administrator created"
+      },
+      "auth": {
+        "login": "Signed in",
+        "login_failed": "Sign-in failed",
+        "logout": "Signed out",
+        "2fa_enabled": "Two-factor turned on",
+        "2fa_disabled": "Two-factor turned off",
+        "sessions_revoked": "Other devices signed out"
+      },
+      "server": {
+        "created": "Server added",
+        "deleted": "Server deleted",
+        "enroll_token_renewed": "New connection command",
+        "enrolled": "Agent connected"
+      }
+    }
+  },
+  "errors": {
+    "network": "Could not reach the panel. Check your connection and try again.",
+    "internal": "Something went wrong on the panel. The error has been logged.",
+    "not_found": "That does not exist.",
+    "unauthenticated": "Please sign in again.",
+    "forbidden": "You do not have permission to do that.",
+    "cross_site": "This request was blocked for your safety. Reload the page and try again.",
+    "json_required": "The request was not in the expected format.",
+    "invalid_body": "The request was not in the expected format.",
+    "body_too_large": "That is too large to send.",
+    "too_many_attempts": "Too many attempts. Wait 15 minutes and try again.",
+    "invalid_setup_token": "That setup token is not correct.",
+    "already_set_up": "This panel already has an administrator. Sign in instead.",
+    "invalid_email": "Enter a valid email address.",
+    "invalid_name": "Enter a name of up to 100 characters.",
+    "weak_password": "Use a password of at least 10 characters.",
+    "invalid_credentials": "Email or password is not correct.",
+    "totp_required": "Enter the code from your authenticator app.",
+    "invalid_totp": "That code is not correct. Codes change every 30 seconds.",
+    "totp_already_enabled": "Two-factor authentication is already on.",
+    "totp_not_started": "Start two-factor setup first.",
+    "invalid_password": "That password is not correct.",
+    "unsupported_locale": "That language is not available yet.",
+    "server_not_found": "That server does not exist. It may have been deleted.",
+    "invalid_enroll_token": "That connection token is wrong, used or expired.",
+    "invalid_agent_credentials": "The agent's credential is not valid. Connect the server again."
+  },
+  "not_found": {
+    "title": "Page not found",
+    "body": "The page you are looking for does not exist or has moved.",
+    "home": "Go to the dashboard"
+  }
+}

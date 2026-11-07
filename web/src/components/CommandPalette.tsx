@@ -1,0 +1,144 @@
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useNavigate } from "react-router";
+import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
+import { CornerDownLeft, Gauge, Plus, ScrollText, Search, Server as ServerIcon, ShieldCheck } from "lucide-react";
+import { api, type Server, type User } from "../lib/api";
+import { cx } from "./ui";
+
+interface Item {
+  id: string;
+  group: string;
+  label: string;
+  hint?: string;
+  icon: ReactNode;
+  run: () => void;
+}
+
+/** Ctrl+K: jump to any page, server or action by typing. */
+export function CommandPalette({ open, onClose, user }: { open: boolean; onClose: () => void; user: User }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const ref = useRef<HTMLDialogElement>(null);
+  const [query, setQuery] = useState("");
+  const [active, setActive] = useState(0);
+  const isAdmin = user.role === "admin";
+
+  const servers = useQuery({
+    queryKey: ["servers"],
+    queryFn: () => api.get<Server[]>("/servers"),
+    enabled: open && isAdmin,
+  });
+
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (open && !d.open) {
+      setQuery("");
+      setActive(0);
+      d.showModal();
+    }
+    if (!open && d.open) d.close();
+  }, [open]);
+
+  const items = useMemo<Item[]>(() => {
+    const go = (path: string) => () => {
+      onClose();
+      navigate(path);
+    };
+    const pages = t("palette.pages");
+    const list: Item[] = [{ id: "dash", group: pages, label: t("nav.dashboard"), icon: <Gauge />, run: go("/") }];
+    if (isAdmin) {
+      list.push(
+        { id: "servers", group: pages, label: t("nav.servers"), icon: <ServerIcon />, run: go("/servers") },
+        { id: "audit", group: pages, label: t("nav.audit"), icon: <ScrollText />, run: go("/audit") },
+        { id: "add-server", group: t("palette.actions"), label: t("servers.add"), icon: <Plus />, run: go("/servers?add=1") },
+      );
+      for (const s of servers.data ?? []) {
+        list.push({ id: "s-" + s.id, group: t("nav.servers"), label: s.name, hint: s.hostname, icon: <ServerIcon />, run: go(`/servers/${s.id}`) });
+      }
+    }
+    list.push({ id: "security", group: pages, label: t("nav.security"), icon: <ShieldCheck />, run: go("/settings/security") });
+    return list;
+  }, [t, isAdmin, servers.data, navigate, onClose]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase();
+    if (!q) return items;
+    return items.filter((i) => (i.label + " " + (i.hint ?? "") + " " + i.group).toLocaleLowerCase().includes(q));
+  }, [items, query]);
+
+  useEffect(() => setActive(0), [query]);
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActive((a) => Math.min(a + 1, filtered.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActive((a) => Math.max(a - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      filtered[active]?.run();
+    }
+  };
+
+  let lastGroup = "";
+  return (
+    <dialog
+      ref={ref}
+      onClose={onClose}
+      onClick={(e) => e.target === ref.current && onClose()}
+      className="mx-auto mt-[12vh] w-[calc(100%-2rem)] max-w-xl overflow-hidden rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl backdrop:bg-black/40"
+    >
+      {open && (
+        <div onKeyDown={onKeyDown}>
+          <div className="flex items-center gap-3 border-b border-line px-4">
+            <Search className="size-5 text-muted" aria-hidden />
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("palette.placeholder")}
+              aria-label={t("palette.placeholder")}
+              role="combobox"
+              aria-expanded
+              aria-controls="palette-list"
+              aria-activedescendant={filtered[active] ? "pi-" + filtered[active].id : undefined}
+              className="h-14 flex-1 bg-transparent text-base outline-none placeholder:text-muted"
+            />
+            <kbd className="rounded border border-line px-1.5 font-mono text-[11px] text-muted">Esc</kbd>
+          </div>
+          <ul id="palette-list" role="listbox" className="max-h-[50vh] overflow-y-auto p-2">
+            {filtered.length === 0 && <li className="px-3 py-6 text-center text-muted">{t("palette.empty")}</li>}
+            {filtered.map((item, i) => {
+              const header = item.group !== lastGroup ? item.group : null;
+              lastGroup = item.group;
+              return (
+                <li key={item.id} role="presentation">
+                  {header && <p className="px-3 pt-2 pb-1 text-xs font-semibold tracking-wider text-muted uppercase">{header}</p>}
+                  <div
+                    id={"pi-" + item.id}
+                    role="option"
+                    aria-selected={i === active}
+                    onMouseMove={() => setActive(i)}
+                    onClick={item.run}
+                    className={cx(
+                      "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 [&>svg]:size-4 [&>svg]:text-muted",
+                      i === active && "bg-accent-soft",
+                    )}
+                  >
+                    {item.icon}
+                    <span className="truncate">{item.label}</span>
+                    {item.hint && <span className="truncate text-sm text-muted">{item.hint}</span>}
+                    {i === active && <CornerDownLeft className="ms-auto size-4 text-muted rtl:-scale-x-100" aria-hidden />}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </dialog>
+  );
+}
