@@ -9,6 +9,8 @@ import { Badge, Button, Card, Dialog, ErrorAlert, Field, Spinner, cx, type Tone 
 import { EmptyState } from "./ServerParts";
 import { SiteStateBadge } from "./SitesPage";
 import { useTasks } from "../components/Tasks";
+import { useMe } from "../lib/session";
+import { OwnerField } from "./CustomersPage";
 
 const textarea = "rounded-lg border border-line bg-surface px-3 py-2 font-mono text-sm text-ink";
 const select = "h-10 rounded-lg border border-line bg-surface px-3 text-ink";
@@ -249,6 +251,13 @@ function AddAppDialog({ open, onClose }: { open: boolean; onClose: () => void })
   const ready = (servers.data ?? []).filter((s) => s.enrolled_at).sort((a, b) => Number(b.online) - Number(a.online));
   const [server, setServer] = useState("");
   const [kind, setKind] = useState<App["kind"]>("image");
+  const [owner, setOwner] = useState("");
+  const me = useMe();
+  // Compose files can do anything Docker can, so only administrators run them, and only for themselves.
+  const composeAllowed = me.data?.role === "admin" && owner === "";
+  useEffect(() => {
+    if (!composeAllowed) setKind("image");
+  }, [composeAllowed]);
   const [name, setName] = useState("");
   const [form, setForm] = useState<AppForm>(emptyForm);
   const [busy, setBusy] = useState(false);
@@ -265,7 +274,7 @@ function AddAppDialog({ open, onClose }: { open: boolean; onClose: () => void })
     setBusy(true);
     setError("");
     try {
-      const app = await api.post<App>("/apps", { server_id: server, name, kind, ...requestBody(kind, form) });
+      const app = await api.post<App>("/apps", { server_id: server, name, kind, owner_id: owner, ...requestBody(kind, form) });
       qc.invalidateQueries({ queryKey: ["apps"] });
       onClose();
       setForm(emptyForm);
@@ -283,7 +292,7 @@ function AddAppDialog({ open, onClose }: { open: boolean; onClose: () => void })
       <form onSubmit={submit} className="grid gap-5">
         <ErrorAlert>{error}</ErrorAlert>
         <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t("apps.kind_label")}>
-          {(["image", "compose"] as const).map((k) => (
+          {(composeAllowed ? (["image", "compose"] as const) : (["image"] as const)).map((k) => (
             <label
               key={k}
               className={cx("flex cursor-pointer gap-3 rounded-lg border p-3", kind === k ? "border-accent bg-accent-soft" : "border-line hover:bg-sunk")}
@@ -337,6 +346,7 @@ function AddAppDialog({ open, onClose }: { open: boolean; onClose: () => void })
             </label>
           )}
         </div>
+        <OwnerField value={owner} onChange={setOwner} />
         <AppFields kind={kind} value={form} onChange={setForm} />
         <p className="text-sm text-muted">{t("apps.first_run")}</p>
         <div className="flex justify-end gap-2">
@@ -406,7 +416,10 @@ export function AppsPage() {
                       {a.kind === "image" ? a.image : t("apps.kind.compose")}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-muted">{a.server_name}</td>
+                  <td className="px-4 py-3 text-muted">
+                    {a.server_name}
+                    {a.owner_name && <div className="text-xs">{a.owner_name}</div>}
+                  </td>
                   <td className="px-4 py-3">
                     <AppStateBadge app={a} />
                   </td>

@@ -40,21 +40,26 @@ type App struct {
 	Message           *string   `json:"message"`
 	Generation        int64     `json:"generation"`
 	AppliedGeneration int64     `json:"applied_generation"`
+	OwnerID           *string   `json:"owner_id"`
+	OwnerName         *string   `json:"owner_name"`
+	DiskBytes         *int64    `json:"disk_bytes"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 const appColumns = `a.id, a.server_id, sv.name, a.name, a.kind, a.image, a.compose, a.service, a.container_port,
 	a.host_port, a.domain, a.tls, a.env, a.volumes, a.memory_mb, a.cpus::float8, a.public_ports, a.stopped,
-	a.delete_data, a.state, a.message, a.generation, a.applied_generation, a.created_at, a.updated_at`
+	a.delete_data, a.state, a.message, a.generation, a.applied_generation, a.created_at, a.updated_at,
+	a.owner_id, ow.name, a.disk_bytes`
 
-const appFrom = ` FROM apps a JOIN servers sv ON sv.id = a.server_id`
+const appFrom = ` FROM apps a JOIN servers sv ON sv.id = a.server_id LEFT JOIN users ow ON ow.id = a.owner_id`
 
 func scanApp(row pgx.Row) (App, error) {
 	var a App
 	err := row.Scan(&a.ID, &a.ServerID, &a.ServerName, &a.Name, &a.Kind, &a.Image, &a.Compose, &a.Service, &a.ContainerPort,
 		&a.HostPort, &a.Domain, &a.TLS, &a.Env, &a.Volumes, &a.MemoryMB, &a.CPUs, &a.PublicPorts, &a.Stopped,
-		&a.DeleteData, &a.State, &a.Message, &a.Generation, &a.AppliedGeneration, &a.CreatedAt, &a.UpdatedAt)
+		&a.DeleteData, &a.State, &a.Message, &a.Generation, &a.AppliedGeneration, &a.CreatedAt, &a.UpdatedAt,
+		&a.OwnerID, &a.OwnerName, &a.DiskBytes)
 	if a.Env == nil {
 		a.Env = []EnvVar{}
 	}
@@ -83,6 +88,7 @@ type NewApp struct {
 	ServerID  string
 	Name      string
 	Kind      string
+	OwnerID   *string
 	CreatedBy *string
 	AppSettings
 }
@@ -123,10 +129,10 @@ func (s *Store) CreateApp(ctx context.Context, n NewApp) (App, error) {
 	}
 	_, err = tx.Exec(ctx, `
 		INSERT INTO apps (id, server_id, name, kind, image, compose, service, container_port, host_port, domain, tls,
-			env, volumes, memory_mb, cpus, public_ports, created_by)
-		VALUES ($1, $3, $4, $5, $6, $7, $8, $2, `+hostPortSQL+`, $9, $10, $11, $12, $13, $14, $15, $16)`,
+			env, volumes, memory_mb, cpus, public_ports, created_by, owner_id)
+		VALUES ($1, $3, $4, $5, $6, $7, $8, $2, `+hostPortSQL+`, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
 		id, n.ContainerPort, n.ServerID, n.Name, n.Kind, n.Image, n.Compose, n.Service, n.Domain, n.TLS,
-		n.Env, n.Volumes, n.MemoryMB, n.CPUs, n.PublicPorts, n.CreatedBy)
+		n.Env, n.Volumes, n.MemoryMB, n.CPUs, n.PublicPorts, n.CreatedBy, n.OwnerID)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "apps_server_id_name_key" {
 		return App{}, ErrAppNameTaken
@@ -149,8 +155,13 @@ func (s *Store) GetApp(ctx context.Context, id string) (App, error) {
 
 // ListApps returns apps on one server, or on all servers when serverID is empty.
 func (s *Store) ListApps(ctx context.Context, serverID string) ([]App, error) {
+	return s.ListAppsOf(ctx, serverID, "")
+}
+
+// ListAppsOf is ListApps for one owner only, unless ownerID is empty.
+func (s *Store) ListAppsOf(ctx context.Context, serverID, ownerID string) ([]App, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+appColumns+appFrom+`
-		WHERE ($1 = '' OR a.server_id::text = $1) ORDER BY a.name, sv.name`, serverID)
+		WHERE ($1 = '' OR a.server_id::text = $1) AND ($2 = '' OR a.owner_id::text = $2) ORDER BY a.name, sv.name`, serverID, ownerID)
 	if err != nil {
 		return nil, err
 	}

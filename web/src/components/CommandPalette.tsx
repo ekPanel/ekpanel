@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { ArchiveRestore, Boxes, CornerDownLeft, Database as DatabaseIcon, Gauge, Globe, Plus, ScrollText, Search, Server as ServerIcon, ShieldCheck } from "lucide-react";
+import { ArchiveRestore, Boxes, CornerDownLeft, Package as PackageIcon, Users, Database as DatabaseIcon, Gauge, Globe, Plus, ScrollText, Search, Server as ServerIcon, ShieldCheck } from "lucide-react";
 import { api, type Database, type Server, type Site, type User } from "../lib/api";
 import { cx } from "./ui";
 
@@ -32,12 +32,12 @@ export function CommandPalette({ open, onClose, user }: { open: boolean; onClose
   const sites = useQuery({
     queryKey: ["sites", "all"],
     queryFn: () => api.get<Site[]>("/sites"),
-    enabled: open && isAdmin,
+    enabled: open,
   });
   const databases = useQuery({
     queryKey: ["databases", "all"],
     queryFn: () => api.get<Database[]>("/databases"),
-    enabled: open && isAdmin,
+    enabled: open,
   });
 
   useEffect(() => {
@@ -58,26 +58,31 @@ export function CommandPalette({ open, onClose, user }: { open: boolean; onClose
     };
     const pages = t("palette.pages");
     const list: Item[] = [{ id: "dash", group: pages, label: t("nav.dashboard"), icon: <Gauge />, run: go("/") }];
+    list.push(
+      { id: "sites", group: pages, label: t("nav.sites"), icon: <Globe />, run: go("/sites") },
+      { id: "databases", group: pages, label: t("nav.databases"), icon: <DatabaseIcon />, run: go("/databases") },
+      { id: "apps", group: pages, label: t("nav.apps"), icon: <Boxes />, run: go("/apps") },
+      { id: "add-site", group: t("palette.actions"), label: t("sites.add"), icon: <Plus />, run: go("/sites?add=1") },
+      { id: "add-db", group: t("palette.actions"), label: t("databases.add"), icon: <Plus />, run: go("/databases?add=1") },
+      { id: "add-app", group: t("palette.actions"), label: t("apps.add"), icon: <Plus />, run: go("/apps?add=1") },
+    );
+    for (const d of databases.data ?? []) {
+      list.push({ id: "d-" + d.id, group: t("nav.databases"), label: d.name, hint: d.server_name, icon: <DatabaseIcon />, run: go(`/databases/${d.id}`) });
+    }
+    for (const s of sites.data ?? []) {
+      list.push({ id: "w-" + s.id, group: t("nav.sites"), label: s.domain_display, hint: s.server_name, icon: <Globe />, run: go(`/sites/${s.id}`) });
+    }
     if (isAdmin) {
       list.push(
-        { id: "sites", group: pages, label: t("nav.sites"), icon: <Globe />, run: go("/sites") },
-        { id: "databases", group: pages, label: t("nav.databases"), icon: <DatabaseIcon />, run: go("/databases") },
-        { id: "apps", group: pages, label: t("nav.apps"), icon: <Boxes />, run: go("/apps") },
+        { id: "customers", group: pages, label: t("nav.customers"), icon: <Users />, run: go("/customers") },
+        { id: "packages", group: pages, label: t("nav.packages"), icon: <PackageIcon />, run: go("/packages") },
+        { id: "add-customer", group: t("palette.actions"), label: t("customers.add"), icon: <Plus />, run: go("/customers?add=1") },
         { id: "backups", group: pages, label: t("nav.backups"), icon: <ArchiveRestore />, run: go("/backups") },
         { id: "servers", group: pages, label: t("nav.servers"), icon: <ServerIcon />, run: go("/servers") },
         { id: "audit", group: pages, label: t("nav.audit"), icon: <ScrollText />, run: go("/audit") },
-        { id: "add-site", group: t("palette.actions"), label: t("sites.add"), icon: <Plus />, run: go("/sites?add=1") },
-        { id: "add-db", group: t("palette.actions"), label: t("databases.add"), icon: <Plus />, run: go("/databases?add=1") },
-        { id: "add-app", group: t("palette.actions"), label: t("apps.add"), icon: <Plus />, run: go("/apps?add=1") },
         { id: "add-backup", group: t("palette.actions"), label: t("backups.add"), icon: <Plus />, run: go("/backups?add=1") },
         { id: "add-server", group: t("palette.actions"), label: t("servers.add"), icon: <Plus />, run: go("/servers?add=1") },
       );
-      for (const d of databases.data ?? []) {
-        list.push({ id: "d-" + d.id, group: t("nav.databases"), label: d.name, hint: d.server_name, icon: <DatabaseIcon />, run: go(`/databases/${d.id}`) });
-      }
-      for (const s of sites.data ?? []) {
-        list.push({ id: "w-" + s.id, group: t("nav.sites"), label: s.domain_display, hint: s.server_name, icon: <Globe />, run: go(`/sites/${s.id}`) });
-      }
       for (const s of servers.data ?? []) {
         list.push({ id: "s-" + s.id, group: t("nav.servers"), label: s.name, hint: s.hostname, icon: <ServerIcon />, run: go(`/servers/${s.id}`) });
       }

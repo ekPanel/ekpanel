@@ -66,6 +66,16 @@ type siteRequest struct {
 	Kind       string   `json:"kind"`
 	PHPVersion *string  `json:"php_version"`
 	TLS        string   `json:"tls"`
+	OwnerID    string   `json:"owner_id"` // administrators: create the site for this customer
+}
+
+// phpAllowed checks a package's PHP versions. It writes the error response when refused.
+func phpAllowed(w http.ResponseWriter, pkg *store.Package, req *siteRequest) bool {
+	if pkg == nil || req.Kind != "php" || len(pkg.PHPVersions) == 0 || slices.Contains(pkg.PHPVersions, *req.PHPVersion) {
+		return true
+	}
+	writeError(w, http.StatusBadRequest, "php_version_not_allowed", "the package does not include this PHP version")
+	return false
 }
 
 // validateSiteSettings checks everything except the domain and server, which only
@@ -154,7 +164,7 @@ func (s *Server) handleListSites(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, []store.Site{})
 		return
 	}
-	list, err := s.store.ListSites(r.Context(), serverFilter)
+	list, err := s.store.ListSitesOf(r.Context(), serverFilter, ownerScope(r))
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -186,6 +196,10 @@ func (s *Server) handleCreateSite(w http.ResponseWriter, r *http.Request) {
 	if s.serverLookupFailed(w, r, err) {
 		return
 	}
+	place, ok := s.resolveOwner(w, r, req.OwnerID)
+	if !ok || !s.allowNew(w, r, place, "site", srv.ID) || !phpAllowed(w, place.Package, &req) {
+		return
+	}
 
 	user := ""
 	for range 10 {
@@ -208,7 +222,7 @@ func (s *Server) handleCreateSite(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	site, err := s.store.CreateSite(r.Context(), store.NewSite{
 		ServerID: srv.ID, Domain: domain, Aliases: req.Aliases, Kind: req.Kind, PHPVersion: req.PHPVersion,
-		TLS: req.TLS, LinuxUser: user, CreatedBy: &u.ID,
+		TLS: req.TLS, LinuxUser: user, OwnerID: place.OwnerID, CreatedBy: &u.ID,
 	})
 	if err != nil {
 		s.writeSiteStoreError(w, r, err)
@@ -235,7 +249,7 @@ func siteID(r *http.Request) string {
 }
 
 func (s *Server) handleGetSite(w http.ResponseWriter, r *http.Request) {
-	site, err := s.store.GetSite(r.Context(), siteID(r))
+	site, err := s.getSite(r, siteID(r))
 	if err != nil {
 		s.writeSiteStoreError(w, r, err)
 		return
@@ -249,7 +263,7 @@ func (s *Server) handleUpdateSite(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &req) {
 		return
 	}
-	current, err := s.store.GetSite(r.Context(), siteID(r))
+	current, err := s.getSite(r, siteID(r))
 	if err != nil {
 		s.writeSiteStoreError(w, r, err)
 		return
@@ -259,6 +273,14 @@ func (s *Server) handleUpdateSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !validateSiteSettings(w, current.Domain, &req) {
+		return
+	}
+	pkg, err := s.packageFor(r, current.OwnerID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if !phpAllowed(w, pkg, &req) {
 		return
 	}
 	site, err := s.store.UpdateSite(r.Context(), current.ID, store.SiteChange{
@@ -275,7 +297,7 @@ func (s *Server) handleUpdateSite(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeleteSite(w http.ResponseWriter, r *http.Request) {
-	site, err := s.store.GetSite(r.Context(), siteID(r))
+	site, err := s.getSite(r, siteID(r))
 	if err != nil {
 		s.writeSiteStoreError(w, r, err)
 		return
@@ -291,6 +313,22 @@ func (s *Server) handleDeleteSite(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, site)
 }
 
+// handlePHPVersions lists the PHP versions the caller may choose: a customer's package can
+// narrow them down.
 func (s *Server) handlePHPVersions(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"versions": agentproto.PHPVersions, "default": agentproto.DefaultPHPVersion})
+	versions, def := agentproto.PHPVersions, agentproto.DefaultPHPVersion
+	if !isAdmin(r) {
+		pkg, err := s.packageFor(r, &currentUser(r).ID)
+		if err != nil {
+			s.internalError(w, r, err)
+			return
+		}
+		if len(pkg.PHPVersions) > 0 {
+			versions = slices.DeleteFunc(slices.Clone(versions), func(v string) bool { return !slices.Contains(pkg.PHPVersions, v) })
+			if !slices.Contains(versions, def) && len(versions) > 0 {
+				def = versions[0]
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"versions": versions, "default": def})
 }

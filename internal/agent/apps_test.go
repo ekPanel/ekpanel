@@ -190,3 +190,29 @@ func TestApplyApp(t *testing.T) {
 		t.Fatal("the folder must go with the data")
 	}
 }
+
+func TestDiskUsage(t *testing.T) {
+	f := newFakeSystem(t)
+	home := filepath.Join(f.root, "home", "shop_ab12")
+	os.MkdirAll(filepath.Join(home, "public_html"), 0o755)
+	os.WriteFile(filepath.Join(home, "public_html", "big.bin"), make([]byte, 100<<10), 0o644)
+	os.Link(filepath.Join(home, "public_html", "big.bin"), filepath.Join(home, "public_html", "same.bin"))
+	os.Symlink("/", filepath.Join(home, "public_html", "root"))
+	res, opErr := diskUsage(context.Background(), f.system, agentproto.DiskUsageParams{
+		Sites: []agentproto.DiskUsageSite{{ID: siteID, User: "shop_ab12"}},
+		Apps:  []agentproto.DiskUsageApp{{ID: appID, Name: "notthere"}},
+	})
+	if opErr != nil {
+		t.Fatal(opErr)
+	}
+	got := res.Sites[siteID]
+	if got < 100<<10 || got > 200<<10 {
+		t.Fatalf("site uses %d bytes; want about 100 KB (hard link once, symlink not followed)", got)
+	}
+	if _, ok := res.Apps[appID]; ok {
+		t.Fatal("an app that is not set up has no usage")
+	}
+	if _, opErr := diskUsage(context.Background(), f.system, agentproto.DiskUsageParams{Sites: []agentproto.DiskUsageSite{{ID: siteID, User: "root"}}}); opErr == nil {
+		t.Fatal("measured root's home")
+	}
+}

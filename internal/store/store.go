@@ -46,15 +46,18 @@ type User struct {
 	Locale       string    `json:"locale"`
 	TOTPEnabled  bool      `json:"totp_enabled"`
 	CreatedAt    time.Time `json:"created_at"`
+	PackageID    *string   `json:"package_id"`
 	PasswordHash string    `json:"-"`
 	TOTPSecret   *string   `json:"-"`
+	// Set when an administrator is signed in as this user; only SessionUser fills it.
+	ImpersonatorID *string `json:"impersonator_id,omitempty"`
 }
 
-const userColumns = `id, email, name, role, locale, totp_enabled, created_at, password_hash, totp_secret`
+const userColumns = `id, email, name, role, locale, totp_enabled, created_at, password_hash, totp_secret, package_id`
 
 func scanUser(row pgx.Row) (User, error) {
 	var u User
-	err := row.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Locale, &u.TOTPEnabled, &u.CreatedAt, &u.PasswordHash, &u.TOTPSecret)
+	err := row.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Locale, &u.TOTPEnabled, &u.CreatedAt, &u.PasswordHash, &u.TOTPSecret, &u.PackageID)
 	return u, notFound(err)
 }
 
@@ -127,18 +130,34 @@ func (s *Store) CreateSession(ctx context.Context, tokenHash []byte, userID, ip,
 // SessionUser returns the user for a live session and slides its expiry forward.
 // The bookkeeping write happens at most every five minutes per session.
 func (s *Store) SessionUser(ctx context.Context, tokenHash []byte) (User, error) {
-	u, err := scanUser(s.pool.QueryRow(ctx, `
-		SELECT u.id, u.email, u.name, u.role, u.locale, u.totp_enabled, u.created_at, u.password_hash, u.totp_secret
+	var u User
+	err := s.pool.QueryRow(ctx, `
+		SELECT u.id, u.email, u.name, u.role, u.locale, u.totp_enabled, u.created_at, u.password_hash, u.totp_secret,
+			u.package_id, s.impersonator_id
 		FROM sessions s JOIN users u ON u.id = s.user_id
-		WHERE s.token_hash = $1 AND s.expires_at > now()`, tokenHash))
+		WHERE s.token_hash = $1 AND s.expires_at > now()`, tokenHash).Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Locale,
+		&u.TOTPEnabled, &u.CreatedAt, &u.PasswordHash, &u.TOTPSecret, &u.PackageID, &u.ImpersonatorID)
 	if err != nil {
-		return User{}, err
+		return User{}, notFound(err)
 	}
+	// Sessions of an administrator signed in as someone else never get longer.
 	_, err = s.pool.Exec(ctx, `
 		UPDATE sessions SET last_seen_at = now(), expires_at = now() + $2 * interval '1 second'
-		WHERE token_hash = $1 AND last_seen_at < now() - interval '5 minutes'`,
+		WHERE token_hash = $1 AND last_seen_at < now() - interval '5 minutes' AND impersonator_id IS NULL`,
 		tokenHash, int64(SessionTTL.Seconds()))
 	return u, err
+}
+
+// ImpersonationTTL is how long an administrator can stay signed in as a customer.
+const ImpersonationTTL = time.Hour
+
+// CreateImpersonationSession signs an administrator in as another user for a short time.
+func (s *Store) CreateImpersonationSession(ctx context.Context, tokenHash []byte, userID, impersonatorID, ip, userAgent string) error {
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO sessions (token_hash, user_id, impersonator_id, ip, user_agent, expires_at)
+		VALUES ($1, $2, $3, $4, $5, now() + $6 * interval '1 second')`,
+		tokenHash, userID, impersonatorID, ip, userAgent, int64(ImpersonationTTL.Seconds()))
+	return err
 }
 
 func (s *Store) DeleteSession(ctx context.Context, tokenHash []byte) error {

@@ -77,7 +77,7 @@ func newTestPanel(t *testing.T) *testPanel {
 	// trigger for the cleanup only.
 	_, err = pool.Exec(ctx, `
 		ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_update;
-		TRUNCATE users, sessions, servers, audit_log, tasks, server_metrics CASCADE;
+		TRUNCATE users, sessions, servers, audit_log, tasks, server_metrics, packages CASCADE;
 		ALTER TABLE audit_log ENABLE TRIGGER audit_log_no_update;`)
 	if err != nil {
 		t.Fatal(err)

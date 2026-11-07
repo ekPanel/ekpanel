@@ -51,4 +51,8 @@ ekPanel is in early development and has no stable release yet. Fixes go into the
   public addresses (which Docker opens past the firewall) are refused unless the user allows
   it. Compose files can still do anything Docker allows, so only administrators can add apps.
   App folders and variables are readable by root only.
+- Customers see and change only what they own; everything else answers "not found". Their
+  PHP and containers run in a cgroup slice with their package's memory and CPU limits, and
+  they cannot run Compose files. An administrator acting as a customer is recorded as
+  themselves in the audit log and cannot change the customer's password or two-factor setup.
 - Every change is written to an append-only audit log that the database refuses to modify.

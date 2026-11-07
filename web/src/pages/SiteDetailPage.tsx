@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ExternalLink, FolderOpen, Loader2, RotateCw, Trash2 } from "lucide-react";
+import { useMe } from "../lib/session";
 import { SiteSFTP } from "../components/SiteSFTP";
 import { WordPressCard } from "../components/WordPressCard";
 import { api, ApiError, errorMessage, type Server, type Site } from "../lib/api";
@@ -25,6 +26,7 @@ function Fact({ label, children, copy }: { label: string; children: ReactNode; c
 
 export function SiteDetailPage() {
   const { id = "" } = useParams();
+  const me = useMe();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -198,10 +200,15 @@ export function SiteDetailPage() {
                   </span>
                 </Fact>
                 <Fact label={t("sites.col.server")}>
-                  <Link to={`/servers/${s.server_id}`} className="text-accent hover:underline">
-                    {s.server_name}
-                  </Link>
+                  {me.data?.role === "admin" ? (
+                    <Link to={`/servers/${s.server_id}`} className="text-accent hover:underline">
+                      {s.server_name}
+                    </Link>
+                  ) : (
+                    s.server_name
+                  )}
                 </Fact>
+                {s.owner_name && <Fact label={t("customers.owner")}>{s.owner_name}</Fact>}
                 <Fact label={t("sites.linux_user")} copy={s.linux_user}>
                   <span className="font-mono" dir="ltr">{s.linux_user}</span>
                 </Fact>

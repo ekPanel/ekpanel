@@ -23,7 +23,9 @@
     "sites": "Websites",
     "databases": "Databases",
     "backups": "Backups",
-    "apps": "Apps"
+    "apps": "Apps",
+    "customers": "Customers",
+    "packages": "Packages"
   },
   "theme": {
     "label": "Theme",
@@ -80,7 +82,16 @@
       "body": "If you signed in on a computer you no longer use, sign out everywhere else. This device stays signed in.",
       "revoke": "Sign out all other devices",
       "revoked": "All other devices are signed out."
-    }
+    },
+    "password": {
+      "title": "Password",
+      "body": "Changing it signs you out on every other device.",
+      "current": "Current password",
+      "new": "New password",
+      "save": "Change password",
+      "saved": "Password changed"
+    },
+    "not_while_acting": "These settings belong to the customer. Go back to your own account to change yours."
   },
   "servers": {
     "add": "Add server",
@@ -169,7 +180,7 @@
   },
   "dashboard": {
     "greeting": "Hello, {{name}}",
-    "customer_intro": "Your websites and apps will appear here.",
+    "customer_intro": "Your websites, databases and apps, and what your package allows.",
     "no_servers_intro": "Let's connect your first server.",
     "all_good_one": "Everything is running. {{formatted}} server online.",
     "all_good_other": "Everything is running. {{formatted}} servers online.",
@@ -203,7 +214,8 @@
         "logout": "Signed out",
         "2fa_enabled": "Two-factor turned on",
         "2fa_disabled": "Two-factor turned off",
-        "sessions_revoked": "Other devices signed out"
+        "sessions_revoked": "Other devices signed out",
+        "password_changed": "Password changed"
       },
       "server": {
         "created": "Server added",
@@ -260,6 +272,19 @@
         "restarted": "App restarted",
         "update_started": "App update started",
         "deleted": "App deleted"
+      },
+      "package": {
+        "created": "Package created",
+        "updated": "Package changed",
+        "deleted": "Package deleted"
+      },
+      "customer": {
+        "created": "Customer added",
+        "updated": "Customer changed",
+        "password_reset": "Customer password reset",
+        "deleted": "Customer deleted",
+        "impersonated": "Signed in as customer",
+        "impersonation_ended": "Left customer account"
       }
     }
   },
@@ -361,7 +386,25 @@
     "invalid_limits": "Memory must be at least 16 MB and CPUs more than 0.",
     "app_name_taken": "This server already has an app with that name.",
     "app_not_found": "That app does not exist.",
-    "app_not_ready": "The app has not been set up on its server yet."
+    "app_not_ready": "The app has not been set up on its server yet.",
+    "limit_reached_site": "Your package allows no more websites.",
+    "limit_reached_database": "Your package allows no more databases.",
+    "limit_reached_app": "Your package allows no more apps.",
+    "quota_exceeded": "The disk space of the package is used up. Delete files to free some.",
+    "server_not_allowed": "This package cannot use that server.",
+    "php_version_not_allowed": "The package does not include this PHP version.",
+    "compose_not_allowed": "Customers can run Docker images, not Compose files.",
+    "image_not_allowed": "The package does not include this image.",
+    "sftp_not_allowed": "The package does not include SFTP.",
+    "customer_not_found": "That customer does not exist.",
+    "package_not_found": "Choose a package.",
+    "package_name_taken": "Another package has this name.",
+    "package_in_use": "Move its customers to another package first.",
+    "invalid_package": "Check the numbers: counts from 0, at least 1 MB of disk, 64 MB of memory and 5% CPU.",
+    "email_taken": "Another account uses this email address.",
+    "customer_has_resources": "Delete or move the customer's websites, databases and apps first.",
+    "already_impersonating": "Go back to your own account first.",
+    "not_impersonating": "You are signed in as yourself."
   },
   "not_found": {
     "title": "Page not found",
@@ -817,5 +860,65 @@
       "with_data": "Also delete all its data",
       "with_data_hint": "Removes the volumes and /srv/ekpanel/apps/{{name}}. This cannot be undone."
     }
+  },
+  "customers": {
+    "intro": "People who host with you. Each customer sees only their own websites, databases and apps, within the limits of their package.",
+    "empty": {
+      "title": "No customers yet",
+      "body": "Create a package first, then add customers. They sign in to this panel with their own account."
+    },
+    "add": "Add customer",
+    "edit": "Edit",
+    "create": "Create customer",
+    "package": "Package",
+    "needs_package": "Create a package before adding customers.",
+    "password_generated": "A password is generated and shown once. You can reset it later.",
+    "password_once": "The customer's password, shown only this once. Send it to them over a safe channel.",
+    "share_hint": "They can change it under Security after signing in.",
+    "sign_in_as": "Sign in as",
+    "reset_password": "New password",
+    "delete": "Delete customer",
+    "delete_title": "Delete {{name}}?",
+    "delete_body": "The account is removed. A customer who still owns something cannot be deleted.",
+    "delete_has": "They still have {{sites}} websites, {{databases}} databases and {{apps}} apps. Delete or move them first.",
+    "owner": "For",
+    "owner_admins": "Administrators (no package)",
+    "of": "{{have}} of {{limit}}",
+    "disk": "Disk space",
+    "used_no_limit": "{{used}} used, no limit",
+    "limit_memory": "{{size}} memory",
+    "your_package": "Your package: {{name}}",
+    "acting_as": "You are signed in as {{name}} ({{email}}). Everything you do is recorded under your own name.",
+    "back_to_admin": "Back to my account",
+    "limit_cpu_one": "{{cores}} CPU core",
+    "limit_cpu_other": "{{cores}} CPU cores"
+  },
+  "packages": {
+    "intro": "What each customer may use: how many websites, databases and apps, disk space, and memory and CPU for all their processes together.",
+    "empty": {
+      "title": "No packages yet",
+      "body": "A package sets a customer's limits. Make one, such as \"Starter\" or \"Business\", then add customers to it."
+    },
+    "add": "Add package",
+    "edit": "Edit package",
+    "create": "Create package",
+    "delete": "Delete package",
+    "name": "Name",
+    "counts_hint": "How many of each a customer may have. 0 for apps means no Docker apps.",
+    "disk": "Disk space (GB)",
+    "memory": "Memory (MB)",
+    "cpu": "CPU (cores)",
+    "limits_hint": "Memory and CPU cover all of a customer's PHP and app processes together. Empty means no limit.",
+    "php": "PHP versions",
+    "php_hint": "None ticked means every version.",
+    "servers": "Servers",
+    "servers_hint": "Where the customer may create things. None ticked means every server.",
+    "images": "Allowed Docker images",
+    "images_hint": "One per line: a name such as nginx (any tag), or a prefix ending in / such as ghcr.io/acme/. Empty means any image. Customers cannot use Compose files.",
+    "sftp": "SFTP access to their websites",
+    "includes": "Includes",
+    "resources": "Resources",
+    "includes_text": "{{sites}} websites · {{databases}} databases · {{apps}} apps",
+    "disk_unlimited": "Unlimited disk"
   }
 }

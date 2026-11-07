@@ -18,6 +18,9 @@ func AppSpec(a store.App) agentproto.AppSpec {
 		ID: a.ID, Generation: a.Generation, Name: a.Name, Kind: a.Kind, TLS: a.TLS, Volumes: a.Volumes,
 		PublicPorts: a.PublicPorts, Stopped: a.Stopped, Deleted: a.State == "deleting", DeleteData: a.DeleteData,
 	}
+	if a.OwnerID != nil {
+		spec.Owner = *a.OwnerID
+	}
 	deref := func(p *string) string {
 		if p == nil {
 			return ""

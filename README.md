@@ -34,6 +34,9 @@ email, DNS and game servers, with a modern UI in your own language.
 - **Docker apps**: run any image or Compose file, with a domain and free HTTPS, variables,
   kept folders, limits, logs and one-click image updates. App ports stay private to the
   server, so Docker cannot open holes in the firewall
+- **Customers and packages**: host other people. Each customer signs in to see only their own
+  websites, databases and apps, within a package's limits on counts, disk, memory and CPU;
+  memory and CPU are enforced by the kernel (cgroups) for their PHP and containers
 - **Firewall**: turn on ufw with SSH, web and agent ports always open, then open ports or
   block addresses from the server page
 - An append-only audit log of every change (the database itself refuses edits and deletes)

@@ -45,6 +45,23 @@ type appRequest struct {
 	MemoryMB      *int           `json:"memory_mb"`
 	CPUs          *float64       `json:"cpus"`
 	PublicPorts   bool           `json:"public_ports"`
+	OwnerID       string         `json:"owner_id"` // administrators: create the app for this customer
+}
+
+// customerAppRules applies a package to an app: customers run only images the package
+// allows, never Compose files (which can do anything Docker can, as root).
+func customerAppRules(w http.ResponseWriter, pkg *store.Package, kind string, set store.AppSettings) bool {
+	switch {
+	case pkg == nil:
+		return true
+	case kind != "image":
+		writeError(w, http.StatusForbidden, "compose_not_allowed", "customers can run images, not Compose files")
+	case !imageAllowed(pkg, *set.Image):
+		writeError(w, http.StatusForbidden, "image_not_allowed", "the package does not include this image")
+	default:
+		return true
+	}
+	return false
 }
 
 // appSettings validates everything that can change after an app is created, for an app of
@@ -179,7 +196,7 @@ func (s *Server) handleListApps(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, []store.App{})
 		return
 	}
-	list, err := s.store.ListApps(r.Context(), serverFilter)
+	list, err := s.store.ListAppsOf(r.Context(), serverFilter, ownerScope(r))
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -212,8 +229,13 @@ func (s *Server) handleCreateApp(w http.ResponseWriter, r *http.Request) {
 	if s.serverLookupFailed(w, r, err) {
 		return
 	}
+	place, ok := s.resolveOwner(w, r, req.OwnerID)
+	if !ok || !customerAppRules(w, place.Package, req.Kind, set) || !s.allowNew(w, r, place, "app", srv.ID) {
+		return
+	}
 	u := currentUser(r)
-	app, err := s.store.CreateApp(r.Context(), store.NewApp{ServerID: srv.ID, Name: req.Name, Kind: req.Kind, CreatedBy: &u.ID, AppSettings: set})
+	app, err := s.store.CreateApp(r.Context(), store.NewApp{ServerID: srv.ID, Name: req.Name, Kind: req.Kind, OwnerID: place.OwnerID,
+		CreatedBy: &u.ID, AppSettings: set})
 	if err != nil {
 		s.writeAppStoreError(w, r, err)
 		return
@@ -225,7 +247,7 @@ func (s *Server) handleCreateApp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetApp(w http.ResponseWriter, r *http.Request) {
-	app, err := s.store.GetApp(r.Context(), appID(r))
+	app, err := s.getApp(r, appID(r))
 	if err != nil {
 		s.writeAppStoreError(w, r, err)
 		return
@@ -239,13 +261,21 @@ func (s *Server) handleUpdateApp(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &req) {
 		return
 	}
-	app, err := s.store.GetApp(r.Context(), appID(r))
+	app, err := s.getApp(r, appID(r))
 	if err != nil {
 		s.writeAppStoreError(w, r, err)
 		return
 	}
 	set, ok := appSettings(w, app.Kind, req)
 	if !ok {
+		return
+	}
+	pkg, err := s.packageFor(r, app.OwnerID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if !customerAppRules(w, pkg, app.Kind, set) {
 		return
 	}
 	app, err = s.store.UpdateApp(r.Context(), app.ID, set)
@@ -261,7 +291,10 @@ func (s *Server) handleUpdateApp(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) setAppStopped(stopped bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		app, err := s.store.SetAppStopped(r.Context(), appID(r), stopped)
+		app, err := s.getApp(r, appID(r))
+		if err == nil {
+			app, err = s.store.SetAppStopped(r.Context(), app.ID, stopped)
+		}
 		if err != nil {
 			s.writeAppStoreError(w, r, err)
 			return
@@ -280,7 +313,7 @@ func (s *Server) setAppStopped(stopped bool) http.HandlerFunc {
 // handleDeleteApp removes the app's containers. Its volumes and folder are deleted too
 // only with ?data=delete.
 func (s *Server) handleDeleteApp(w http.ResponseWriter, r *http.Request) {
-	app, err := s.store.GetApp(r.Context(), appID(r))
+	app, err := s.getApp(r, appID(r))
 	if err != nil {
 		s.writeAppStoreError(w, r, err)
 		return
@@ -299,7 +332,7 @@ func (s *Server) handleDeleteApp(w http.ResponseWriter, r *http.Request) {
 // appCall runs one operation on an app's agent and passes its JSON answer through.
 func (s *Server) appCall(op string, timeout time.Duration, params func(*http.Request, store.App) agentproto.AppParams) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		app, err := s.store.GetApp(r.Context(), appID(r))
+		app, err := s.getApp(r, appID(r))
 		if err != nil {
 			s.writeAppStoreError(w, r, err)
 			return
@@ -348,7 +381,7 @@ func appLogParams(r *http.Request, a store.App) agentproto.AppParams {
 }
 
 func (s *Server) handleUpdateAppImages(w http.ResponseWriter, r *http.Request) {
-	app, err := s.store.GetApp(r.Context(), appID(r))
+	app, err := s.getApp(r, appID(r))
 	if err != nil {
 		s.writeAppStoreError(w, r, err)
 		return

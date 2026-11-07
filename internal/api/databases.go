@@ -42,6 +42,7 @@ type createDatabaseRequest struct {
 	Engine   string `json:"engine"`
 	Name     string `json:"name"`
 	Username string `json:"username"`
+	OwnerID  string `json:"owner_id"` // administrators: create the database for this customer
 }
 
 func (s *Server) writeDatabaseStoreError(w http.ResponseWriter, r *http.Request, err error) {
@@ -66,7 +67,7 @@ func (s *Server) handleListDatabases(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, []store.Database{})
 		return
 	}
-	list, err := s.store.ListDatabases(r.Context(), serverFilter)
+	list, err := s.store.ListDatabasesOf(r.Context(), serverFilter, ownerScope(r))
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -104,11 +105,15 @@ func (s *Server) handleCreateDatabase(w http.ResponseWriter, r *http.Request) {
 	if s.serverLookupFailed(w, r, err) {
 		return
 	}
+	place, ok := s.resolveOwner(w, r, req.OwnerID)
+	if !ok || !s.allowNew(w, r, place, "database", srv.ID) {
+		return
+	}
 	password := auth.NewDatabasePassword()
 	u := currentUser(r)
 	d, err := s.store.CreateDatabase(r.Context(), store.NewDatabase{
 		ServerID: srv.ID, Engine: req.Engine, Name: req.Name, Username: req.Username,
-		PasswordHash: passwordHashFor(req.Engine, password), CreatedBy: &u.ID,
+		PasswordHash: passwordHashFor(req.Engine, password), OwnerID: place.OwnerID, CreatedBy: &u.ID,
 	})
 	if err != nil {
 		s.writeDatabaseStoreError(w, r, err)
@@ -127,7 +132,7 @@ func databaseID(r *http.Request) string {
 }
 
 func (s *Server) handleGetDatabase(w http.ResponseWriter, r *http.Request) {
-	d, err := s.store.GetDatabase(r.Context(), databaseID(r))
+	d, err := s.getDatabase(r, databaseID(r))
 	if err != nil {
 		s.writeDatabaseStoreError(w, r, err)
 		return
@@ -138,7 +143,7 @@ func (s *Server) handleGetDatabase(w http.ResponseWriter, r *http.Request) {
 // handleResetDatabasePassword creates a new password; the old one stops working once the
 // agent applies it.
 func (s *Server) handleResetDatabasePassword(w http.ResponseWriter, r *http.Request) {
-	d, err := s.store.GetDatabase(r.Context(), databaseID(r))
+	d, err := s.getDatabase(r, databaseID(r))
 	if err != nil {
 		s.writeDatabaseStoreError(w, r, err)
 		return
@@ -159,7 +164,7 @@ func (s *Server) handleResetDatabasePassword(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *Server) handleDeleteDatabase(w http.ResponseWriter, r *http.Request) {
-	d, err := s.store.GetDatabase(r.Context(), databaseID(r))
+	d, err := s.getDatabase(r, databaseID(r))
 	if err != nil {
 		s.writeDatabaseStoreError(w, r, err)
 		return

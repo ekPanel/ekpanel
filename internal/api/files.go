@@ -29,7 +29,7 @@ type siteWithPassword struct {
 }
 
 func (s *Server) loadSite(w http.ResponseWriter, r *http.Request) (store.Site, bool) {
-	site, err := s.store.GetSite(r.Context(), siteID(r))
+	site, err := s.getSite(r, siteID(r))
 	if err != nil {
 		s.writeSiteStoreError(w, r, err)
 		return store.Site{}, false
@@ -49,6 +49,17 @@ func (s *Server) handleSetSFTP(w http.ResponseWriter, r *http.Request) {
 	site, ok := s.loadSite(w, r)
 	if !ok {
 		return
+	}
+	if req.Enabled {
+		pkg, err := s.packageFor(r, site.OwnerID)
+		if err != nil {
+			s.internalError(w, r, err)
+			return
+		}
+		if pkg != nil && !pkg.SFTP {
+			writeError(w, http.StatusForbidden, "sftp_not_allowed", "the package does not include SFTP")
+			return
+		}
 	}
 	var password string
 	var hash *string
@@ -190,6 +201,22 @@ func (s *Server) writeFileError(w http.ResponseWriter, r *http.Request, err erro
 var fileActions = map[string]bool{"list": true, "read": true, "write": true, "mkdir": true, "rename": true,
 	"delete": true, "empty_trash": true, "chmod": true, "extract": true, "compress": true}
 
+// growingFileActions can add data, so they stop when the owner's disk space is used up.
+var growingFileActions = map[string]bool{"write": true, "mkdir": true, "extract": true, "compress": true, "write_chunk": true}
+
+// refuseOverQuota writes the error response when the site's owner has no disk space left.
+func (s *Server) refuseOverQuota(w http.ResponseWriter, r *http.Request, site store.Site) bool {
+	over, err := s.ownerOverQuota(r, site.OwnerID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return true
+	}
+	if over {
+		writeError(w, http.StatusConflict, "quota_exceeded", "the disk space of the package is used up; delete files to free some")
+	}
+	return over
+}
+
 // mutating file actions are written to the audit log.
 var mutatingFileActions = map[string]bool{"write": true, "mkdir": true, "rename": true, "delete": true,
 	"empty_trash": true, "chmod": true, "extract": true, "compress": true}
@@ -208,6 +235,9 @@ func (s *Server) handleFiles(w http.ResponseWriter, r *http.Request) {
 	}
 	site, ok := s.loadSite(w, r)
 	if !ok {
+		return
+	}
+	if growingFileActions[p.Action] && s.refuseOverQuota(w, r, site) {
 		return
 	}
 	res, err := s.fileCall(r.Context(), site, p)
@@ -236,6 +266,9 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	site, ok := s.loadSite(w, r)
 	if !ok {
+		return
+	}
+	if offset == 0 && s.refuseOverQuota(w, r, site) {
 		return
 	}
 	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, agentproto.FileChunkSize))

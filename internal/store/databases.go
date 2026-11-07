@@ -26,20 +26,22 @@ type Database struct {
 	SizeBytes         *int64    `json:"size_bytes"`
 	Generation        int64     `json:"generation"`
 	AppliedGeneration int64     `json:"applied_generation"`
+	OwnerID           *string   `json:"owner_id"`
+	OwnerName         *string   `json:"owner_name"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
 	PasswordHash      string    `json:"-"`
 }
 
 const databaseColumns = `d.id, d.server_id, sv.name, d.engine, d.name, d.username, d.state, d.message, d.size_bytes,
-	d.generation, d.applied_generation, d.created_at, d.updated_at, d.password_hash`
+	d.generation, d.applied_generation, d.created_at, d.updated_at, d.password_hash, d.owner_id, ow.name`
 
-const databaseFrom = ` FROM databases d JOIN servers sv ON sv.id = d.server_id`
+const databaseFrom = ` FROM databases d JOIN servers sv ON sv.id = d.server_id LEFT JOIN users ow ON ow.id = d.owner_id`
 
 func scanDatabase(row pgx.Row) (Database, error) {
 	var d Database
 	err := row.Scan(&d.ID, &d.ServerID, &d.ServerName, &d.Engine, &d.Name, &d.Username, &d.State, &d.Message, &d.SizeBytes,
-		&d.Generation, &d.AppliedGeneration, &d.CreatedAt, &d.UpdatedAt, &d.PasswordHash)
+		&d.Generation, &d.AppliedGeneration, &d.CreatedAt, &d.UpdatedAt, &d.PasswordHash, &d.OwnerID, &d.OwnerName)
 	return d, notFound(err)
 }
 
@@ -49,15 +51,16 @@ type NewDatabase struct {
 	Name         string
 	Username     string
 	PasswordHash string
+	OwnerID      *string
 	CreatedBy    *string
 }
 
 func (s *Store) CreateDatabase(ctx context.Context, n NewDatabase) (Database, error) {
 	var id string
 	err := s.pool.QueryRow(ctx, `
-		INSERT INTO databases (server_id, engine, name, username, password_hash, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-		n.ServerID, n.Engine, n.Name, n.Username, n.PasswordHash, n.CreatedBy).Scan(&id)
+		INSERT INTO databases (server_id, engine, name, username, password_hash, owner_id, created_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+		n.ServerID, n.Engine, n.Name, n.Username, n.PasswordHash, n.OwnerID, n.CreatedBy).Scan(&id)
 	if isUniqueViolation(err) {
 		field := "database name"
 		var nameTaken bool
@@ -80,8 +83,13 @@ func (s *Store) GetDatabase(ctx context.Context, id string) (Database, error) {
 
 // ListDatabases returns databases on one server, or on all servers when serverID is empty.
 func (s *Store) ListDatabases(ctx context.Context, serverID string) ([]Database, error) {
+	return s.ListDatabasesOf(ctx, serverID, "")
+}
+
+// ListDatabasesOf is ListDatabases for one owner only, unless ownerID is empty.
+func (s *Store) ListDatabasesOf(ctx context.Context, serverID, ownerID string) ([]Database, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+databaseColumns+databaseFrom+`
-		WHERE ($1 = '' OR d.server_id::text = $1) ORDER BY d.name`, serverID)
+		WHERE ($1 = '' OR d.server_id::text = $1) AND ($2 = '' OR d.owner_id::text = $2) ORDER BY d.name`, serverID, ownerID)
 	if err != nil {
 		return nil, err
 	}

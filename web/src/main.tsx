@@ -19,6 +19,7 @@ import { DatabaseDetailPage, DatabasesPage } from "./pages/DatabasesPage";
 import { FileManagerPage } from "./pages/FileManagerPage";
 import { BackupRepoPage, BackupsPage } from "./pages/BackupsPage";
 import { AppDetailPage, AppsPage } from "./pages/AppsPage";
+import { CustomersPage, PackagesPage } from "./pages/CustomersPage";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true } },
@@ -72,16 +73,19 @@ const router = createBrowserRouter([
     children: [
       { path: "/", element: <DashboardPage /> },
       { path: "/settings/security", element: <SecurityPage /> },
+      // Customers use these too; the API shows them only what they own.
+      { path: "/sites", element: <SitesPage /> },
+      { path: "/sites/:id", element: <SiteDetailPage /> },
+      { path: "/sites/:id/files", element: <FileManagerPage /> },
+      { path: "/databases", element: <DatabasesPage /> },
+      { path: "/databases/:id", element: <DatabaseDetailPage /> },
+      { path: "/apps", element: <AppsPage /> },
+      { path: "/apps/:id", element: <AppDetailPage /> },
       {
         element: <AdminOnly />,
         children: [
-          { path: "/sites", element: <SitesPage /> },
-          { path: "/sites/:id", element: <SiteDetailPage /> },
-          { path: "/sites/:id/files", element: <FileManagerPage /> },
-          { path: "/databases", element: <DatabasesPage /> },
-          { path: "/databases/:id", element: <DatabaseDetailPage /> },
-          { path: "/apps", element: <AppsPage /> },
-          { path: "/apps/:id", element: <AppDetailPage /> },
+          { path: "/customers", element: <CustomersPage /> },
+          { path: "/packages", element: <PackagesPage /> },
           { path: "/backups", element: <BackupsPage /> },
           { path: "/backups/:id", element: <BackupRepoPage /> },
           { path: "/servers", element: <ServersPage /> },

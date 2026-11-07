@@ -36,21 +36,24 @@ type Site struct {
 	Message           *string   `json:"message"`
 	Generation        int64     `json:"generation"`
 	AppliedGeneration int64     `json:"applied_generation"`
+	OwnerID           *string   `json:"owner_id"`
+	OwnerName         *string   `json:"owner_name"`
+	DiskBytes         *int64    `json:"disk_bytes"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 const siteColumns = `st.id, st.server_id, sv.name, st.domain, st.aliases, st.kind, st.php_version, st.tls,
 	st.linux_user, st.state, st.message, st.generation, st.applied_generation, st.created_at, st.updated_at,
-	st.sftp_enabled, st.ssh_keys, st.sftp_password_hash, st.app, st.app_version`
+	st.sftp_enabled, st.ssh_keys, st.sftp_password_hash, st.app, st.app_version, st.owner_id, ow.name, st.disk_bytes`
 
-const siteFrom = ` FROM sites st JOIN servers sv ON sv.id = st.server_id`
+const siteFrom = ` FROM sites st JOIN servers sv ON sv.id = st.server_id LEFT JOIN users ow ON ow.id = st.owner_id`
 
 func scanSite(row pgx.Row) (Site, error) {
 	var s Site
 	err := row.Scan(&s.ID, &s.ServerID, &s.ServerName, &s.Domain, &s.Aliases, &s.Kind, &s.PHPVersion, &s.TLS,
 		&s.LinuxUser, &s.State, &s.Message, &s.Generation, &s.AppliedGeneration, &s.CreatedAt, &s.UpdatedAt,
-		&s.SFTPEnabled, &s.SSHKeys, &s.SFTPPasswordHash, &s.App, &s.AppVersion)
+		&s.SFTPEnabled, &s.SSHKeys, &s.SFTPPasswordHash, &s.App, &s.AppVersion, &s.OwnerID, &s.OwnerName, &s.DiskBytes)
 	return s, notFound(err)
 }
 
@@ -69,6 +72,7 @@ type NewSite struct {
 	PHPVersion *string
 	TLS        string
 	LinuxUser  string
+	OwnerID    *string
 	CreatedBy  *string
 }
 
@@ -98,9 +102,9 @@ func (s *Store) CreateSite(ctx context.Context, n NewSite) (Site, error) {
 	defer tx.Rollback(ctx)
 	var id string
 	err = tx.QueryRow(ctx, `
-		INSERT INTO sites (server_id, domain, aliases, kind, php_version, tls, linux_user, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-		n.ServerID, n.Domain, n.Aliases, n.Kind, n.PHPVersion, n.TLS, n.LinuxUser, n.CreatedBy).Scan(&id)
+		INSERT INTO sites (server_id, domain, aliases, kind, php_version, tls, linux_user, owner_id, created_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+		n.ServerID, n.Domain, n.Aliases, n.Kind, n.PHPVersion, n.TLS, n.LinuxUser, n.OwnerID, n.CreatedBy).Scan(&id)
 	if err != nil {
 		return Site{}, err
 	}
@@ -119,8 +123,14 @@ func (s *Store) GetSite(ctx context.Context, id string) (Site, error) {
 
 // ListSites returns sites on one server, or on all servers when serverID is empty.
 func (s *Store) ListSites(ctx context.Context, serverID string) ([]Site, error) {
+	return s.ListSitesOf(ctx, serverID, "")
+}
+
+// ListSitesOf is ListSites for one owner only, unless ownerID is empty.
+func (s *Store) ListSitesOf(ctx context.Context, serverID, ownerID string) ([]Site, error) {
 	return collectSites(s.pool.Query(ctx, `SELECT `+siteColumns+siteFrom+`
-		WHERE ($1 = '' OR st.server_id::text = $1) ORDER BY st.domain`, serverID))
+		WHERE ($1 = '' OR st.server_id::text = $1) AND ($2 = '' OR st.owner_id::text = $2) ORDER BY st.domain`,
+		serverID, ownerID))
 }
 
 type SiteChange struct {

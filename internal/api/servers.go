@@ -31,6 +31,10 @@ func (s *Server) view(srv store.Server) serverView {
 }
 
 func (s *Server) handleListServers(w http.ResponseWriter, r *http.Request) {
+	if !isAdmin(r) {
+		s.customerServers(w, r)
+		return
+	}
 	list, err := s.store.ListServers(r.Context())
 	if err != nil {
 		s.internalError(w, r, err)

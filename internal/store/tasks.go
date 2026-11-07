@@ -82,6 +82,7 @@ func (s *Store) GetTask(ctx context.Context, id string) (Task, error) {
 
 type TaskFilter struct {
 	ServerID   string // empty: all servers
+	CreatedBy  string // empty: anyone
 	ActiveOnly bool   // queued or running
 	Limit      int
 }
@@ -94,7 +95,8 @@ func (s *Store) ListTasks(ctx context.Context, f TaskFilter) ([]Task, error) {
 		SELECT `+taskColumns+` FROM tasks t LEFT JOIN servers s ON s.id = t.server_id
 		WHERE ($1 = '' OR t.server_id::text = $1)
 		  AND (NOT $2 OR t.status IN ('queued', 'running'))
-		ORDER BY t.created_at DESC LIMIT $3`, f.ServerID, f.ActiveOnly, f.Limit)
+		  AND ($4 = '' OR t.created_by::text = $4)
+		ORDER BY t.created_at DESC LIMIT $3`, f.ServerID, f.ActiveOnly, f.Limit, f.CreatedBy)
 	if err != nil {
 		return nil, err
 	}

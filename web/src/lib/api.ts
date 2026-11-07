@@ -8,6 +8,44 @@ export interface User {
   locale: string;
   totp_enabled: boolean;
   created_at: string;
+  package_id: string | null;
+  /** Set while an administrator is signed in as this user. */
+  impersonator_id?: string;
+}
+
+export interface Package {
+  id: string;
+  name: string;
+  max_sites: number;
+  max_databases: number;
+  max_apps: number;
+  disk_mb: number | null;
+  memory_mb: number | null;
+  cpu_percent: number | null;
+  php_versions: string[];
+  app_images: string[];
+  server_ids: string[];
+  sftp: boolean;
+  customers: number;
+  created_at: string;
+}
+
+export interface Usage {
+  sites: number;
+  databases: number;
+  apps: number;
+  disk_bytes: number;
+}
+
+export interface Customer extends User {
+  package_name: string;
+  usage: Usage;
+}
+
+/** Who owns a website, database or app; null means the administrators. */
+export interface Owned {
+  owner_id: string | null;
+  owner_name: string | null;
 }
 
 export interface Metrics {
@@ -93,7 +131,7 @@ export interface Task {
 
 export type SiteState = "pending" | "active" | "error" | "deleting";
 
-export interface Site {
+export interface Site extends Owned {
   id: string;
   server_id: string;
   server_name: string;
@@ -118,7 +156,7 @@ export interface Site {
   updated_at: string;
 }
 
-export interface Database {
+export interface Database extends Owned {
   id: string;
   server_id: string;
   server_name: string;
@@ -188,7 +226,7 @@ export interface BackupSnapshot {
   name: string;
 }
 
-export interface App {
+export interface App extends Owned {
   id: string;
   server_id: string;
   server_name: string;

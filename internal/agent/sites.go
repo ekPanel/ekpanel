@@ -155,6 +155,9 @@ func validateSite(sp agentproto.SiteSpec) error {
 	if !userRE.MatchString(sp.User) || slices.Contains(reserved, sp.User) {
 		return fmt.Errorf("invalid system user %q", sp.User)
 	}
+	if sp.Owner != "" && !uuidRE.MatchString(sp.Owner) {
+		return errors.New("invalid owner")
+	}
 	if sp.Deleted {
 		return nil
 	}
@@ -195,7 +198,7 @@ func stateApply(ctx context.Context, sys *system, p agentproto.StateApplyParams)
 	applyMu.Lock()
 	defer applyMu.Unlock()
 
-	a := &applier{sys: sys, results: map[string]*agentproto.SiteResult{}, reloadPHP: map[string]bool{}, siteVersion: map[string]string{}}
+	a := &applier{sys: sys, results: map[string]*agentproto.SiteResult{}, reloadPHP: map[fpmGroup]bool{}, siteGroup: map[string]fpmGroup{}}
 	var res agentproto.StateApplyResult
 	for _, sp := range p.Sites {
 		r := &agentproto.SiteResult{ID: sp.ID, Generation: sp.Generation, OK: true}
@@ -204,6 +207,9 @@ func stateApply(ctx context.Context, sys *system, p agentproto.StateApplyParams)
 	}
 	if err := a.prepare(ctx); err != nil {
 		return res, opError(agentproto.ErrFailed, "%v", err)
+	}
+	if err := a.applyOwners(ctx, p.Owners); err != nil {
+		return res, opError(agentproto.ErrFailed, "customer limits: %v", err)
 	}
 	for _, sp := range p.Sites {
 		if err := validateSite(sp); err != nil {
@@ -254,9 +260,9 @@ func stateApply(ctx context.Context, sys *system, p agentproto.StateApplyParams)
 
 type applier struct {
 	sys          *system
-	siteVersion  map[string]string // site ID -> PHP version, for sites that use PHP
+	siteGroup    map[string]fpmGroup // site ID -> its PHP-FPM master, for sites that use PHP
 	results      map[string]*agentproto.SiteResult
-	reloadPHP    map[string]bool   // PHP version -> true if it gained or changed a pool, false if it only lost pools
+	reloadPHP    map[fpmGroup]bool // master -> true if it gained or changed a pool, false if it only lost pools
 	caddyChanged map[string][]byte // site file path -> previous content (nil: did not exist)
 	caddySites   map[string]string // site file path -> site ID
 	sshdReady    *error            // result of installing the SFTP rules, once per run
@@ -313,7 +319,7 @@ func (a *applier) ensure(ctx context.Context, sp agentproto.SiteSpec) error {
 		return err
 	}
 	if sp.Kind == "php" {
-		a.siteVersion[sp.ID] = sp.PHPVersion
+		a.siteGroup[sp.ID] = groupFor(sp)
 		if err := a.ensurePHP(ctx, sp.PHPVersion); err != nil {
 			return err
 		}
@@ -500,25 +506,26 @@ php_value[post_max_size] = 64M
 php_value[max_execution_time] = 120
 `))
 
-// writePools writes the site's pool for its PHP version and removes it from every other
-// version (the site may have switched, or become static).
+// writePools writes the site's pool for its PHP master and removes it from every other
+// master (the site may have switched versions, changed owner, or become static).
 func (a *applier) writePools(sp agentproto.SiteSpec) error {
-	for _, v := range agentproto.PHPVersions {
-		path := poolPath(v, sp.ID)
-		if sp.Kind == "php" && v == sp.PHPVersion {
-			var buf bytes.Buffer
-			poolTemplate.Execute(&buf, map[string]string{"ID": sp.ID, "Pool": poolName(sp.ID), "User": sp.User, "Socket": socketPath(sp.ID, v)})
-			changed, _, err := a.writeIfChanged(path, buf.Bytes())
-			if err != nil {
-				return err
-			}
-			if changed {
-				a.reloadPHP[v] = true
-			}
-			continue
+	keep := ""
+	if sp.Kind == "php" {
+		g := groupFor(sp)
+		var buf bytes.Buffer
+		poolTemplate.Execute(&buf, map[string]string{"ID": sp.ID, "Pool": poolName(sp.ID), "User": sp.User, "Socket": g.socket(sp.ID)})
+		changed, _, err := a.writeIfChanged(g.poolPath(sp.ID), buf.Bytes())
+		if err != nil {
+			return err
 		}
-		if err := os.Remove(a.sys.path(path)); err == nil && !a.reloadPHP[v] {
-			a.reloadPHP[v] = false
+		if changed {
+			a.reloadPHP[g] = true
+		}
+		keep = a.sys.path(g.poolPath(sp.ID))
+	}
+	for path, g := range a.poolFiles(sp.ID) {
+		if path != keep {
+			a.removePool(path, g)
 		}
 	}
 	return nil
@@ -558,7 +565,7 @@ func (a *applier) writeCaddy(sp agentproto.SiteSpec) error {
 	var buf bytes.Buffer
 	caddyTemplate.Execute(&buf, map[string]any{
 		"ID": sp.ID, "Hosts": append([]string{sp.Domain}, sp.Aliases...), "Internal": sp.TLS == "internal",
-		"User": sp.User, "PHP": sp.Kind == "php", "Socket": socketPath(sp.ID, sp.PHPVersion),
+		"User": sp.User, "PHP": sp.Kind == "php", "Socket": groupFor(sp).socket(sp.ID),
 	})
 	path := caddySitePath(sp.ID)
 	changed, prev, err := a.writeIfChanged(path, buf.Bytes())
@@ -600,11 +607,12 @@ func (a *applier) waitForSockets(ctx context.Context) {
 		return
 	}
 	deadline := time.Now().Add(a.sys.socketWait)
-	for id, v := range a.siteVersion {
+	for id, g := range a.siteGroup {
 		if r := a.results[id]; r == nil || !r.OK {
 			continue
 		}
-		sock := a.sys.path(socketPath(id, v))
+		sock := a.sys.path(g.socket(id))
+		v := g.version
 		for {
 			if _, err := os.Stat(sock); err == nil {
 				break
@@ -629,10 +637,8 @@ func (a *applier) remove(ctx context.Context, sp agentproto.SiteSpec) error {
 		a.caddyChanged[path] = old
 		a.caddySites[path] = sp.ID
 	}
-	for _, v := range agentproto.PHPVersions {
-		if err := os.Remove(a.sys.path(poolPath(v, sp.ID))); err == nil && !a.reloadPHP[v] {
-			a.reloadPHP[v] = false
-		}
+	for path, g := range a.poolFiles(sp.ID) {
+		a.removePool(path, g)
 	}
 	os.Remove(a.sys.path(sshKeysDir + "/" + sp.User))
 	exists, err := a.managedUser(ctx, sp.User)
@@ -666,13 +672,10 @@ func (a *applier) removeOrphans(sites []agentproto.SiteSpec) {
 			a.caddyChanged[path] = old
 		}
 	}
-	for _, v := range agentproto.PHPVersions {
-		pools, _ := filepath.Glob(a.sys.path(fmt.Sprintf("/etc/php/%s/fpm/pool.d/ekpanel-*.conf", v)))
-		for _, p := range pools {
-			id := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(p), "ekpanel-"), ".conf")
-			if uuidRE.MatchString(id) && !known[id] && os.Remove(p) == nil && !a.reloadPHP[v] {
-				a.reloadPHP[v] = false
-			}
+	for path, g := range a.poolFiles("*") {
+		id := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(path), "ekpanel-"), ".conf")
+		if uuidRE.MatchString(id) && !known[id] {
+			a.removePool(path, g)
 		}
 	}
 }
@@ -685,17 +688,44 @@ func (a *applier) removeOrphans(sites []agentproto.SiteSpec) {
 // If Caddy rejects the new configuration, every changed site file is restored and those
 // sites report the error, so one bad site cannot take the web server down for the others.
 func (a *applier) finish(ctx context.Context) {
-	reloadPHP := func(gained bool) {
-		for v, g := range a.reloadPHP {
-			if g != gained {
-				continue
+	failGroup := func(g fpmGroup, err error) {
+		for id, sg := range a.siteGroup {
+			if sg == g {
+				a.fail(id, fmt.Errorf("PHP %s could not load the new settings: %w", g.version, err))
 			}
-			if _, err := a.sys.run(ctx, "systemctl", "reload-or-restart", "php"+v+"-fpm"); err != nil {
-				for id, version := range a.siteVersion {
-					if version == v {
-						a.fail(id, fmt.Errorf("PHP %s could not load the new settings: %w", v, err))
+		}
+	}
+	reloadPHP := func(gained bool) {
+		if gained {
+			// Customers' masters need their configuration and unit before they can start.
+			daemonReload := false
+			for g, gg := range a.reloadPHP {
+				if !gg {
+					continue
+				}
+				changed, err := a.prepareMaster(g)
+				if err != nil {
+					failGroup(g, err)
+				}
+				daemonReload = daemonReload || changed
+			}
+			if daemonReload {
+				if _, err := a.sys.run(ctx, "systemctl", "daemon-reload"); err != nil {
+					for g := range a.reloadPHP {
+						failGroup(g, err)
 					}
 				}
+			}
+		}
+		for g, gg := range a.reloadPHP {
+			if gg != gained || (!gained && a.retireMaster(ctx, g)) {
+				continue
+			}
+			if g.key != "" {
+				a.sys.run(ctx, "systemctl", "enable", g.unit())
+			}
+			if _, err := a.sys.run(ctx, "systemctl", "reload-or-restart", g.unit()); err != nil {
+				failGroup(g, err)
 			}
 		}
 	}

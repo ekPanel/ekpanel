@@ -7,6 +7,7 @@ import { api, ApiError, errorMessage, type Database, type DatabaseWithPassword, 
 import { formatBytes, formatDateTime } from "../lib/format";
 import { PageHeader } from "../components/AppShell";
 import { Badge, Button, Card, CopyButton, Dialog, ErrorAlert, Field, Spinner, cx, type Tone } from "../components/ui";
+import { OwnerField } from "./CustomersPage";
 import { EmptyState } from "./ServerParts";
 
 const engineLabel: Record<Database["engine"], string> = { mariadb: "MariaDB", postgresql: "PostgreSQL" };
@@ -80,8 +81,10 @@ export function AddDatabaseDialog({ open, onClose, serverId }: { open: boolean; 
   const { t } = useTranslation();
   const qc = useQueryClient();
   const servers = useQuery({ queryKey: ["servers"], queryFn: () => api.get<Server[]>("/servers"), enabled: open });
-  const ready = (servers.data ?? []).filter((s) => s.enrolled_at);
+  // Connected servers first, so the default choice is one that can act now.
+  const ready = (servers.data ?? []).filter((s) => s.enrolled_at).sort((a, b) => Number(b.online) - Number(a.online));
   const [server, setServer] = useState("");
+  const [owner, setOwner] = useState("");
   const [engine, setEngine] = useState<Database["engine"]>("mariadb");
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
@@ -110,7 +113,7 @@ export function AddDatabaseDialog({ open, onClose, serverId }: { open: boolean; 
     setBusy(true);
     setError("");
     try {
-      setResult(await api.post<DatabaseWithPassword>("/databases", { server_id: server, engine, name, username: username || name }));
+      setResult(await api.post<DatabaseWithPassword>("/databases", { server_id: server, engine, name, username: username || name, owner_id: owner }));
       qc.invalidateQueries({ queryKey: ["databases"] });
       qc.invalidateQueries({ queryKey: ["tasks"] });
     } catch (err) {
@@ -189,6 +192,7 @@ export function AddDatabaseDialog({ open, onClose, serverId }: { open: boolean; 
               </select>
             </label>
           )}
+          <OwnerField value={owner} onChange={setOwner} />
           <p className="text-sm text-muted">{t("databases.password_note")}</p>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>
@@ -248,7 +252,10 @@ export function DatabasesPage() {
                   <td className="px-4 py-3">{engineLabel[d.engine]}</td>
                   <td className="px-4 py-3 font-mono text-muted">{d.username}</td>
                   <td className="px-4 py-3 text-end tabular-nums">{d.size_bytes != null ? formatBytes(d.size_bytes, i18n.language) : "—"}</td>
-                  <td className="px-4 py-3 text-muted">{d.server_name}</td>
+                  <td className="px-4 py-3 text-muted">
+                    {d.server_name}
+                    {d.owner_name && <div className="text-xs">{d.owner_name}</div>}
+                  </td>
                   <td className="px-4 py-3">
                     <DatabaseStateBadge db={d} />
                   </td>

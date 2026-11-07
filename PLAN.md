@@ -394,3 +394,39 @@ Phase 1 is delivered in parts; each is tested in the VM and committed separately
 - [ ] Git deploys, builds (Dockerfile, Nixpacks), shell into a container and an app catalogue:
       phase 2 and 3
 
+## 11. Phase 2 progress
+
+Agreed order (2026-11-07): customers first, so every later part is built with ownership and
+limits from the start. Decisions: customers run Docker images only (no Compose files); disk
+limits are measured and enforced by the panel, real filesystem quotas come later as an option.
+
+**2a. Customers, packages and limits — done**
+- [x] Packages: number of websites, databases and apps; disk space; memory and CPU for all of a
+      customer's processes; PHP versions; servers; allowed Docker images; SFTP on or off
+- [x] Customer accounts with a generated password shown once; customers sign in to the same
+      panel and see only what they own. Administrators can create things for a customer
+- [x] Ownership is checked in one place for every route; anything a customer may not see is
+      "not found". A test walks 22 routes as another customer and expects 404 on each
+- [x] Real limits: each customer has a systemd slice (cgroup v2) with the package's memory and
+      CPU. Their PHP runs under a PHP-FPM master of their own inside it, and their containers
+      get the slice as cgroup parent. Changed limits apply live, without restarting anything.
+      A script over the memory limit costs only its own worker (`OOMPolicy=continue`)
+- [x] Disk use measured every 30 minutes (site folders, app folders and volumes, databases);
+      when it is used up, new websites, databases, apps and growing file actions stop
+- [x] "Sign in as" a customer for one hour: a banner shows it, account security stays with the
+      customer, and the audit log names the administrator with `as_customer`
+- [x] Everyone can change their own password; English and Bangla
+- [x] Tested in the VM: 256 MB package, a script asking for 400 MB was killed alone while the
+      customer's other requests kept working; 50% CPU gave 2.0 s of CPU for two 4-second loops;
+      container placed in the slice; package change applied live; 60 MB in a 50 MB package
+      blocked writes and new databases
+- [ ] Moving an existing website, database or app to another owner: later
+- [ ] Suspending a customer; email to new customers: with notifications (2c)
+- [ ] SFTP uploads are not stopped by the disk limit (the panel's own file actions are)
+
+**Next, in order**
+- [ ] 2b. Cron jobs: systemd timers per job, in the customer's slice, with run history
+- [ ] 2c. Logs, traffic and notifications (email, Telegram, Discord, Slack, webhook)
+- [ ] 2d. Web terminal for administrators and container shells
+- [ ] 2e. One-click service catalogue
+- [ ] 2f. Git deployments: builds, zero-downtime deploys, rollbacks, previews

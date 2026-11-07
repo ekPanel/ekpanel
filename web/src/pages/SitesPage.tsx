@@ -6,6 +6,7 @@ import { Globe, Loader2, Lock, Plus } from "lucide-react";
 import { api, errorMessage, type Server, type Site } from "../lib/api";
 import { PageHeader } from "../components/AppShell";
 import { Badge, Button, Card, Dialog, ErrorAlert, Field, Spinner, cx, type Tone } from "../components/ui";
+import { OwnerField } from "./CustomersPage";
 import { EmptyState } from "./ServerParts";
 import { useMe } from "../lib/session";
 import { adminNameFrom, defaultWordPressLocale, type WordPressCredentials } from "../components/WordPressCard";
@@ -122,9 +123,11 @@ export function AddSiteDialog({ open, onClose, serverId }: { open: boolean; onCl
   const navigate = useNavigate();
   const php = usePHPVersions();
   const servers = useQuery({ queryKey: ["servers"], queryFn: () => api.get<Server[]>("/servers"), enabled: open });
-  const ready = (servers.data ?? []).filter((s) => s.enrolled_at);
+  // Connected servers first, so the default choice is one that can act now.
+  const ready = (servers.data ?? []).filter((s) => s.enrolled_at).sort((a, b) => Number(b.online) - Number(a.online));
 
   const [server, setServer] = useState("");
+  const [owner, setOwner] = useState("");
   const [domain, setDomain] = useState("");
   const [www, setWww] = useState(true);
   const [extra, setExtra] = useState("");
@@ -166,6 +169,7 @@ export function AddSiteDialog({ open, onClose, serverId }: { open: boolean; onCl
         kind: settings.kind,
         php_version: settings.kind === "php" ? settings.php_version : null,
         tls: settings.tls,
+        owner_id: owner,
       });
       if (withWordPress && settings.kind === "php") {
         const email = me.data?.email ?? "";
@@ -218,6 +222,7 @@ export function AddSiteDialog({ open, onClose, serverId }: { open: boolean; onCl
               </select>
             </label>
           )}
+          <OwnerField value={owner} onChange={setOwner} />
           <SiteSettingsFields value={settings} onChange={setSettings} />
           {settings.kind === "php" && (
             <label className="flex items-start gap-2 rounded-lg border border-line p-3">
@@ -297,7 +302,10 @@ export function SitesPage() {
                     )}
                   </td>
                   <td className="px-4 py-3">{s.kind === "php" ? `PHP ${s.php_version}` : t("sites.kind.static")}</td>
-                  <td className="px-4 py-3 text-muted">{s.server_name}</td>
+                  <td className="px-4 py-3 text-muted">
+                    {s.server_name}
+                    {s.owner_name && <div className="text-xs">{s.owner_name}</div>}
+                  </td>
                   <td className="px-4 py-3">
                     <SiteStateBadge site={s} />
                   </td>

@@ -85,10 +85,14 @@ func (r *Runner) Run(ctx context.Context, workers int) {
 			r.work(ctx)
 		}()
 	}
-	wg.Add(2)
+	wg.Add(3)
 	go func() {
 		defer wg.Done()
 		r.driftLoop(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		r.usageLoop(ctx)
 	}()
 	go func() {
 		defer wg.Done()
@@ -247,6 +251,27 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		return sum, err
 	}
 	params := agentproto.StateApplyParams{Sites: make([]agentproto.SiteSpec, 0, len(sites))}
+	// Each customer with something here gets a slice with their package's limits. Things
+	// being deleted need no slice, so a customer's last delete also removes theirs.
+	packages := map[string]*store.Package{}
+	owner := func(id *string, state string) (string, *store.Package, error) {
+		if id == nil || state == "deleting" {
+			return "", nil, nil
+		}
+		if p, ok := packages[*id]; ok {
+			return *id, p, nil
+		}
+		c, err := r.store.GetCustomer(ctx, *id)
+		if err != nil {
+			return "", nil, err
+		}
+		p, err := r.store.GetPackage(ctx, *c.PackageID)
+		if err != nil {
+			return "", nil, err
+		}
+		packages[*id] = &p
+		return *id, &p, nil
+	}
 	for _, s := range sites {
 		spec := agentproto.SiteSpec{
 			ID: s.ID, Generation: s.Generation, Domain: s.Domain, Aliases: s.Aliases, Kind: s.Kind,
@@ -259,6 +284,14 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		if s.SFTPPasswordHash != nil {
 			spec.SFTPPasswordHash = *s.SFTPPasswordHash
 		}
+		id, pkg, err := owner(s.OwnerID, s.State)
+		if err != nil {
+			return sum, err
+		}
+		spec.Owner = id
+		if pkg != nil && !pkg.SFTP {
+			spec.SFTPEnabled = false // the package no longer includes SFTP
+		}
 		params.Sites = append(params.Sites, spec)
 	}
 	dbs, err := r.store.ListDatabases(ctx, serverID)
@@ -267,6 +300,9 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 	}
 	params.Databases = make([]agentproto.DatabaseSpec, 0, len(dbs))
 	for _, d := range dbs {
+		if _, _, err := owner(d.OwnerID, d.State); err != nil {
+			return sum, err
+		}
 		params.Databases = append(params.Databases, agentproto.DatabaseSpec{
 			ID: d.ID, Generation: d.Generation, Engine: d.Engine, Name: d.Name, User: d.Username,
 			PasswordHash: d.PasswordHash, Deleted: d.State == "deleting",
@@ -278,7 +314,24 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 	}
 	params.Apps = make([]agentproto.AppSpec, 0, len(apps))
 	for _, a := range apps {
-		params.Apps = append(params.Apps, AppSpec(a))
+		id, _, err := owner(a.OwnerID, a.State)
+		if err != nil {
+			return sum, err
+		}
+		spec := AppSpec(a)
+		spec.Owner = id
+		params.Apps = append(params.Apps, spec)
+	}
+	params.Owners = make([]agentproto.OwnerSpec, 0, len(packages))
+	for id, p := range packages {
+		o := agentproto.OwnerSpec{ID: id}
+		if p.MemoryMB != nil {
+			o.MemoryMB = *p.MemoryMB
+		}
+		if p.CPUPercent != nil {
+			o.CPUPercent = *p.CPUPercent
+		}
+		params.Owners = append(params.Owners, o)
 	}
 	fw, err := r.store.GetFirewall(ctx, serverID)
 	if err != nil {

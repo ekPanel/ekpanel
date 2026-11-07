@@ -9,6 +9,7 @@ import { useMe } from "../lib/session";
 import { PageHeader } from "../components/AppShell";
 import { Button, Card, ErrorAlert, Spinner } from "../components/ui";
 import { AddServerDialog, EmptyState, ServerStatus, UsageBars, serverState } from "./ServerParts";
+import { MyUsageCard } from "./CustomersPage";
 
 export function useServers(enabled = true) {
   return useQuery({
@@ -90,7 +91,7 @@ export function DashboardPage() {
       />
 
       <div className="grid gap-6">
-        <GettingStarted user={user} servers={list} />
+        {isAdmin ? <GettingStarted user={user} servers={list} /> : <MyUsageCard />}
 
         {isAdmin && servers.isPending && <Spinner />}
         {isAdmin && servers.error && <ErrorAlert>{t("errors.internal")}</ErrorAlert>}

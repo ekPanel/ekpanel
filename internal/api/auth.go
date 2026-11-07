@@ -7,8 +7,10 @@ import (
 	"encoding/base64"
 	"errors"
 	"image/png"
+	"maps"
 	"net/http"
 	"net/mail"
+	"slices"
 	"strings"
 	"time"
 
@@ -84,10 +86,10 @@ func requireUser(next http.Handler) http.Handler {
 	})
 }
 
-func requireRole(role string) func(http.Handler) http.Handler {
+func requireRole(roles ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return requireUser(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if currentUser(r).Role != role {
+			if !slices.Contains(roles, currentUser(r).Role) {
 				writeError(w, http.StatusForbidden, "forbidden", "you do not have permission for this")
 				return
 			}
@@ -96,10 +98,29 @@ func requireRole(role string) func(http.Handler) http.Handler {
 	}
 }
 
+func notImpersonating(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if currentUser(r).ImpersonatorID != nil {
+			writeError(w, http.StatusForbidden, "forbidden", "only the account's owner can do this")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (s *Server) audit(r *http.Request, action, target string, details map[string]any) {
 	var actor *string
 	if u := currentUser(r); u != nil {
 		actor = &u.ID
+		if u.ImpersonatorID != nil {
+			// The administrator did it, in the customer's account.
+			actor = u.ImpersonatorID
+			details = maps.Clone(details)
+			if details == nil {
+				details = map[string]any{}
+			}
+			details["as_customer"] = u.ID
+		}
 	}
 	s.auditAs(r, actor, action, target, details)
 }

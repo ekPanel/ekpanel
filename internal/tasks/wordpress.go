@@ -69,6 +69,7 @@ func (r *Runner) installWordPress(ctx context.Context, t store.Task) (any, error
 	hash := auth.MariaDBNativeHash(secrets["db"])
 	db, err := r.store.CreateDatabase(ctx, store.NewDatabase{
 		ServerID: site.ServerID, Engine: "mariadb", Name: dbName, Username: dbName, PasswordHash: hash, CreatedBy: t.CreatedBy,
+		OwnerID: site.OwnerID,
 	})
 	var taken store.ErrDatabaseNameTaken
 	if errors.As(err, &taken) {

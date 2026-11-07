@@ -91,6 +91,7 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 		f.ServerID = sid
 	}
 	f.Limit, _ = strconv.Atoi(q.Get("limit"))
+	f.CreatedBy = ownerScope(r) // customers see the tasks they started
 	list, err := s.store.ListTasks(r.Context(), f)
 	if err != nil {
 		s.internalError(w, r, err)

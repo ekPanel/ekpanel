@@ -42,6 +42,15 @@ func (s *Server) handleInstallWordPress(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusConflict, "app_installed", "an application is already installed on this site")
 		return
 	}
+	// WordPress brings its own database, which counts against the owner's package.
+	pkg, err := s.packageFor(r, site.OwnerID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if !s.allowNew(w, r, placement{OwnerID: site.OwnerID, Package: pkg}, "database", site.ServerID) {
+		return
+	}
 	u := currentUser(r)
 	o.SiteID = site.ID
 	o.Title = strings.TrimSpace(o.Title)

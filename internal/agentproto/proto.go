@@ -159,8 +159,9 @@ type SiteSpec struct {
 	Aliases    []string `json:"aliases"`
 	Kind       string   `json:"kind"` // "static" or "php"
 	PHPVersion string   `json:"php_version,omitempty"`
-	TLS        string   `json:"tls"`  // "auto" (public CA) or "internal" (self-signed)
-	User       string   `json:"user"` // Linux account owning the site
+	TLS        string   `json:"tls"`             // "auto" (public CA) or "internal" (self-signed)
+	User       string   `json:"user"`            // Linux account owning the site
+	Owner      string   `json:"owner,omitempty"` // customer ID; their processes run in their slice
 	Deleted    bool     `json:"deleted,omitempty"`
 
 	// SFTP sign-in for the site's account, locked into its home folder.
@@ -185,6 +186,8 @@ type StateApplyParams struct {
 	Sites     []SiteSpec     `json:"sites"`
 	Databases []DatabaseSpec `json:"databases"`
 	Apps      []AppSpec      `json:"apps"`
+	// Owners carries the limits of every customer that owns something on the server.
+	Owners []OwnerSpec `json:"owners"`
 	// Firewall is nil when ekPanel does not manage the server's firewall.
 	Firewall *FirewallSpec `json:"firewall,omitempty"`
 }
@@ -197,7 +200,8 @@ type AppSpec struct {
 	ID            string   `json:"id"`
 	Generation    int64    `json:"generation"`
 	Name          string   `json:"name"`
-	Kind          string   `json:"kind"` // "image" or "compose"
+	Kind          string   `json:"kind"`            // "image" or "compose"
+	Owner         string   `json:"owner,omitempty"` // customer ID; containers run in their slice
 	Image         string   `json:"image,omitempty"`
 	Compose       string   `json:"compose,omitempty"`
 	Service       string   `json:"service,omitempty"`
@@ -215,6 +219,14 @@ type AppSpec struct {
 	Stopped     bool `json:"stopped,omitempty"`
 	Deleted     bool `json:"deleted,omitempty"`
 	DeleteData  bool `json:"delete_data,omitempty"` // with Deleted: remove volumes and the app folder too
+}
+
+// OwnerSpec is a customer's limits, applied to a systemd slice that holds their PHP-FPM
+// and containers. Zero means no limit.
+type OwnerSpec struct {
+	ID         string `json:"id"`
+	MemoryMB   int    `json:"memory_mb,omitempty"`
+	CPUPercent int    `json:"cpu_percent,omitempty"` // 100 = one core
 }
 
 type EnvVar struct {
@@ -483,4 +495,30 @@ type AppStatusResult struct {
 type AppLogsResult struct {
 	Logs      string `json:"logs"`
 	Truncated bool   `json:"truncated,omitempty"`
+}
+
+// ---- Disk use ----
+
+// OpDiskUsage measures the disk space of sites (their home folder) and apps (their folder
+// and volumes), in bytes actually allocated.
+const OpDiskUsage = "usage.disk"
+
+type DiskUsageParams struct {
+	Sites []DiskUsageSite `json:"sites"`
+	Apps  []DiskUsageApp  `json:"apps"`
+}
+
+type DiskUsageSite struct {
+	ID   string `json:"id"`
+	User string `json:"user"`
+}
+
+type DiskUsageApp struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type DiskUsageResult struct {
+	Sites map[string]int64 `json:"sites"`
+	Apps  map[string]int64 `json:"apps"`
 }

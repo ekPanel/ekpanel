@@ -114,6 +114,12 @@ func Dispatch(ctx context.Context, op string, params json.RawMessage) (any, *age
 		default:
 			return appPull(ctx, realSystem, p)
 		}
+	case agentproto.OpDiskUsage:
+		var p agentproto.DiskUsageParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return diskUsage(ctx, realSystem, p)
 	case agentproto.OpServicesRestart:
 		var p agentproto.ServicesRestartParams
 		if err := json.Unmarshal(params, &p); err != nil {

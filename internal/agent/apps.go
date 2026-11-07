@@ -59,6 +59,9 @@ func validateApp(ap agentproto.AppSpec) error {
 	if !appNameRE.MatchString(ap.Name) {
 		return fmt.Errorf("invalid app name %q", ap.Name)
 	}
+	if ap.Owner != "" && !uuidRE.MatchString(ap.Owner) {
+		return errors.New("invalid owner")
+	}
 	if ap.Deleted {
 		return nil
 	}
@@ -199,6 +202,10 @@ func imageCompose(ap agentproto.AppSpec) []byte {
 	}
 	if ap.CPUs > 0 {
 		svc["cpus"] = ap.CPUs
+	}
+	if ap.Owner != "" {
+		// The customer's slice holds the limits of their package.
+		svc["cgroup_parent"] = customerSlice(ownerKey(ap.Owner))
 	}
 	doc := map[string]any{"services": map[string]any{agentproto.AppServiceName: svc}}
 	if len(vols) > 0 {
