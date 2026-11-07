@@ -1,6 +1,6 @@
 # Security policy
 
-HostPanel controls servers with root privileges, so we treat security reports as the highest
+ekPanel controls servers with root privileges, so we treat security reports as the highest
 priority.
 
 ## Reporting a vulnerability
@@ -17,7 +17,7 @@ credit reporters in the release notes unless you prefer otherwise.
 
 ## Supported versions
 
-HostPanel is in early development and has no stable release yet. Fixes go into the main branch.
+ekPanel is in early development and has no stable release yet. Fixes go into the `dev` branch.
 
 ## Design principles
 

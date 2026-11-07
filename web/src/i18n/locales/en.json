@@ -34,10 +34,10 @@
     "empty": "Nothing matches that."
   },
   "setup": {
-    "title": "Welcome to HostPanel",
+    "title": "Welcome to ekPanel",
     "subtitle": "Create the administrator account. You only do this once.",
     "token": "Setup token",
-    "token_hint": "The installer printed it. You can also find it in <code>/var/lib/hostpanel/setup-token</code> on the server.",
+    "token_hint": "The installer printed it. You can also find it in <code>/var/lib/ekpanel/setup-token</code> on the server.",
     "submit": "Create administrator"
   },
   "account": {
@@ -50,7 +50,7 @@
     "title": "Sign in",
     "subtitle": "Manage your servers, sites and apps.",
     "code_subtitle": "One more step to keep your account safe.",
-    "code_help": "Open your authenticator app and enter the 6-digit code for HostPanel.",
+    "code_help": "Open your authenticator app and enter the 6-digit code for ekPanel.",
     "verify": "Verify",
     "submit": "Sign in"
   },

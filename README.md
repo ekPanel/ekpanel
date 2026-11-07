@@ -1,4 +1,4 @@
-# HostPanel
+# ekPanel
 
 **An open-source hosting control panel for everyone, everywhere.** One panel for classic web
 hosting (like cPanel and aaPanel), Git and Docker app deployment (like Coolify), and later
@@ -7,7 +7,7 @@ email, DNS and game servers, with a modern UI in your own language.
 > **Status: early development (phase 0 of 6).** Do not use it for production hosting yet.
 > See [PLAN.md](PLAN.md) for the full roadmap.
 
-> "HostPanel" is a working name and may change before the first release.
+> **ek** (এক) is Bangla for "one": one panel for everything.
 
 ## What works today
 
@@ -28,10 +28,10 @@ every phase.
 ## How it fits together
 
 ```
-Browser ──HTTPS──► hostpanel (Go: API + embedded web UI) ──► PostgreSQL
+Browser ──HTTPS──► ekpanel (Go: API + embedded web UI) ──► PostgreSQL
                           ▲
                           │ WebSocket, opened by each agent
-              hostpanel-agent on every managed server (Go, single binary)
+              ekpanel-agent on every managed server (Go, single binary)
 ```
 
 The panel stores what should exist; agents do the work on each server and report back.
@@ -89,6 +89,6 @@ vulnerabilities privately as described in [SECURITY.md](SECURITY.md), never in p
 
 ## License
 
-HostPanel is free software under the [GNU Affero General Public License v3.0](LICENSE)
+ekPanel is free software under the [GNU Affero General Public License v3.0](LICENSE)
 (`AGPL-3.0-only`). You can use, study, change and share it. If you run a modified version as
 a service for others, you must offer them your changes under the same license.

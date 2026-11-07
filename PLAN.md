@@ -4,7 +4,7 @@
 > **Coolify / Dokploy** (Git + Docker app deployment) and **Pterodactyl** (game/process servers),
 > with a modern UI, a real API, and multi-server support.
 
-Working name: **HostPanel** (placeholder; see section 8).
+Name: **ekPanel**. *ek* (এক) is Bangla for "one": one panel for everything.
 
 ---
 
@@ -218,6 +218,8 @@ A hosting panel runs as root on customers' servers, so it is a prime target.
 
 Decided (2026-11-07):
 
+- **Name: ekPanel** (binaries `ekpanel` and `ekpanel-agent`, paths `/etc/ekpanel` and
+  `/var/lib/ekpanel`, environment variables `EKPANEL_*`).
 - **Open source**, built for people all over the world to use and contribute to.
 - **Multilingual from day one.** English is the source language; Bangla is the first full
   translation. Rules every feature follows:
@@ -232,18 +234,13 @@ Decided (2026-11-07):
 - **Stack** as in section 3: Go panel and agent, React + TypeScript UI, PostgreSQL.
 - **Phase 1 order**: PHP/WordPress hosting first, then Docker apps.
 - <a id="license"></a>**License: AGPL-3.0-only** for the panel and agent. Companies that run
-  HostPanel as a hosted service must share their changes (the model used by Plausible and
+  ekPanel as a hosted service must share their changes (the model used by Plausible and
   Grafana); MIT/Apache would allow closed forks. All current dependencies (MIT, BSD, Apache-2.0,
   OFL fonts) are compatible.
 - **Branches**: all work happens on `dev`; `prod` holds production code and changes only
   through a pull request from `dev`.
 - **Test server**: a local Ubuntu 24.04 VM (QEMU/KVM) on the development machine, stopped
   when not in use.
-
-Still open:
-
-1. **Name.** "HostPanel" is a working name (binaries `hostpanel`, `hostpanel-agent`, Go module
-   `hostpanel`). Renaming now is a search-and-replace; it gets costly after the first release.
 
 ## 9. Phase 0 progress
 

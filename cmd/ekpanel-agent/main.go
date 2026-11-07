@@ -1,7 +1,7 @@
-// Command hostpanel-agent runs on every managed server and connects it to the panel.
+// Command ekpanel-agent runs on every managed server and connects it to the panel.
 //
-//	hostpanel-agent enroll --panel https://panel.example.com --token <one-time token>
-//	hostpanel-agent run
+//	ekpanel-agent enroll --panel https://panel.example.com --token <one-time token>
+//	ekpanel-agent run
 package main
 
 import (
@@ -13,12 +13,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"hostpanel/internal/agent"
+	"ekpanel/internal/agent"
 )
 
 var version = "dev"
 
-const defaultConfig = "/etc/hostpanel/agent.json"
+const defaultConfig = "/etc/ekpanel/agent.json"
 
 func main() {
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
@@ -42,16 +42,16 @@ func main() {
 		os.Exit(2)
 	}
 	if err != nil {
-		log.Error("hostpanel-agent", "err", err)
+		log.Error("ekpanel-agent", "err", err)
 		os.Exit(1)
 	}
 }
 
 func usage() {
 	fmt.Fprintln(os.Stderr, `usage:
-  hostpanel-agent enroll --panel URL --token TOKEN [--config PATH]
-  hostpanel-agent run [--config PATH]
-  hostpanel-agent version`)
+  ekpanel-agent enroll --panel URL --token TOKEN [--config PATH]
+  ekpanel-agent run [--config PATH]
+  ekpanel-agent version`)
 }
 
 func enroll(ctx context.Context, args []string) error {
@@ -69,7 +69,7 @@ func enroll(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Enrolled as server %s. Credential saved to %s.\nStart the agent with: hostpanel-agent run --config %s\n",
+	fmt.Printf("Enrolled as server %s. Credential saved to %s.\nStart the agent with: ekpanel-agent run --config %s\n",
 		cfg.ServerID, *config, *config)
 	return nil
 }

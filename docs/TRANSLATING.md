@@ -1,6 +1,6 @@
-# Translating HostPanel
+# Translating ekPanel
 
-HostPanel should feel native in every language, not only in English. Translations are plain
+ekPanel should feel native in every language, not only in English. Translations are plain
 JSON files, so you do not need to know how to program.
 
 ## Add a new language

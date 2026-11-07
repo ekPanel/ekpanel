@@ -1,4 +1,4 @@
-# Contributing to HostPanel
+# Contributing to ekPanel
 
 Thank you for helping. Contributions of every size are welcome: code, translations, docs,
 bug reports and design feedback.
@@ -28,7 +28,7 @@ VM with QEMU/KVM, without root:
 ```bash
 scripts/test-vm.sh create                         # first time: downloads Ubuntu (~600 MB)
 make panel agent
-scripts/test-vm.sh copy bin/hostpanel bin/hostpanel-agent deploy/install.sh
+scripts/test-vm.sh copy bin/ekpanel bin/ekpanel-agent deploy/install.sh
 scripts/test-vm.sh ssh 'sudo ./install.sh --local-dir .'
 # the panel is now at https://127.0.0.1:8443 (self-signed certificate)
 scripts/test-vm.sh stop                           # or destroy, to delete its disk
@@ -43,8 +43,8 @@ a pull request from `dev`. Open your pull requests against `dev`.
 
 | Path | What it is |
 | --- | --- |
-| `cmd/hostpanel` | the panel binary |
-| `cmd/hostpanel-agent` | the agent binary that runs on managed servers |
+| `cmd/ekpanel` | the panel binary |
+| `cmd/ekpanel-agent` | the agent binary that runs on managed servers |
 | `internal/api` | HTTP API, sessions, CSRF protection, agent endpoints |
 | `internal/store` | PostgreSQL queries |
 | `internal/db/migrations` | schema migrations, applied in name order at startup |
@@ -71,11 +71,11 @@ a pull request from `dev`. Open your pull requests against `dev`.
 
 ## License of contributions
 
-HostPanel is licensed under [AGPL-3.0-only](LICENSE). By opening a pull request you agree
+ekPanel is licensed under [AGPL-3.0-only](LICENSE). By opening a pull request you agree
 that your contribution is released under the same license.
 
 ## Reporting bugs
 
 Open an issue with what you did, what you expected and what happened, plus the panel and agent
-versions (`hostpanel version`, `hostpanel-agent version`) and the server's OS. For security
+versions (`ekpanel version`, `ekpanel-agent version`) and the server's OS. For security
 problems, follow [SECURITY.md](SECURITY.md) instead.

@@ -1,4 +1,4 @@
-module hostpanel
+module ekpanel
 
 go 1.26.0
 

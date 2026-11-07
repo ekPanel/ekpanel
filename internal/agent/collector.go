@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"hostpanel/internal/agentproto"
+	"ekpanel/internal/agentproto"
 )
 
 // Collector reads /proc and statfs. It keeps the previous CPU and network counters,

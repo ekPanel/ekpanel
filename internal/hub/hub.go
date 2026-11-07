@@ -5,7 +5,7 @@ package hub
 import (
 	"sync"
 
-	"hostpanel/internal/agentproto"
+	"ekpanel/internal/agentproto"
 )
 
 // historySize keeps about 20 minutes of samples at the agent's 2-second interval.

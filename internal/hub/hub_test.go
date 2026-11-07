@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"hostpanel/internal/agentproto"
+	"ekpanel/internal/agentproto"
 )
 
 func TestHistoryRingKeepsNewestInOrder(t *testing.T) {

@@ -14,8 +14,8 @@ import (
 
 	"github.com/pquerna/otp"
 
-	"hostpanel/internal/auth"
-	"hostpanel/internal/store"
+	"ekpanel/internal/auth"
+	"ekpanel/internal/store"
 )
 
 type ctxKey int
@@ -28,9 +28,9 @@ const (
 func (s *Server) cookieName() string {
 	if s.opts.SecureCookies {
 		// The __Host- prefix makes browsers refuse the cookie unless it is Secure, host-only and Path=/.
-		return "__Host-hostpanel_session"
+		return "__Host-ekpanel_session"
 	}
-	return "hostpanel_session"
+	return "ekpanel_session"
 }
 
 func (s *Server) setSessionCookie(w http.ResponseWriter, token string, maxAge int) {
@@ -349,7 +349,7 @@ func (s *Server) handleTOTPSetup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "totp_already_enabled", "two-factor authentication is already on")
 		return
 	}
-	secret, url, err := auth.NewTOTP("HostPanel", u.Email)
+	secret, url, err := auth.NewTOTP("ekPanel", u.Email)
 	if err != nil {
 		s.internalError(w, r, err)
 		return

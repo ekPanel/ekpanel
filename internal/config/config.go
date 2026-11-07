@@ -1,4 +1,4 @@
-// Package config loads panel settings from flags and HOSTPANEL_* environment variables.
+// Package config loads panel settings from flags and EKPANEL_* environment variables.
 package config
 
 import (
@@ -25,14 +25,14 @@ type Config struct {
 // Load parses args (without the program name) on top of environment defaults.
 func Load(args []string) (*Config, error) {
 	c := &Config{
-		Listen:        env("HOSTPANEL_LISTEN", "127.0.0.1:8080"),
-		DatabaseURL:   env("HOSTPANEL_DATABASE_URL", ""),
-		DevDB:         envBool("HOSTPANEL_DEV_DB", false),
-		DataDir:       env("HOSTPANEL_DATA_DIR", "/var/lib/hostpanel"),
-		SecureCookies: envBool("HOSTPANEL_SECURE_COOKIES", true),
+		Listen:        env("EKPANEL_LISTEN", "127.0.0.1:8080"),
+		DatabaseURL:   env("EKPANEL_DATABASE_URL", ""),
+		DevDB:         envBool("EKPANEL_DEV_DB", false),
+		DataDir:       env("EKPANEL_DATA_DIR", "/var/lib/ekpanel"),
+		SecureCookies: envBool("EKPANEL_SECURE_COOKIES", true),
 	}
 
-	fs := flag.NewFlagSet("hostpanel", flag.ContinueOnError)
+	fs := flag.NewFlagSet("ekpanel", flag.ContinueOnError)
 	fs.StringVar(&c.Listen, "listen", c.Listen, "address to listen on")
 	fs.StringVar(&c.DatabaseURL, "database-url", c.DatabaseURL, "PostgreSQL connection URL")
 	fs.BoolVar(&c.DevDB, "dev-db", c.DevDB, "run an embedded PostgreSQL in the data dir (development only)")

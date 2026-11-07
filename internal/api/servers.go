@@ -13,9 +13,9 @@ import (
 	"github.com/coder/websocket"
 	"github.com/go-chi/chi/v5"
 
-	"hostpanel/internal/agentproto"
-	"hostpanel/internal/auth"
-	"hostpanel/internal/store"
+	"ekpanel/internal/agentproto"
+	"ekpanel/internal/auth"
+	"ekpanel/internal/store"
 )
 
 // serverView is a server plus its live state, as the UI lists it.

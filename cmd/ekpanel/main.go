@@ -1,4 +1,4 @@
-// Command hostpanel runs the control panel: web UI, API and the endpoint agents connect to.
+// Command ekpanel runs the control panel: web UI, API and the endpoint agents connect to.
 package main
 
 import (
@@ -14,13 +14,13 @@ import (
 	"syscall"
 	"time"
 
-	"hostpanel/internal/api"
-	"hostpanel/internal/auth"
-	"hostpanel/internal/config"
-	"hostpanel/internal/db"
-	"hostpanel/internal/hub"
-	"hostpanel/internal/store"
-	"hostpanel/internal/webui"
+	"ekpanel/internal/api"
+	"ekpanel/internal/auth"
+	"ekpanel/internal/config"
+	"ekpanel/internal/db"
+	"ekpanel/internal/hub"
+	"ekpanel/internal/store"
+	"ekpanel/internal/webui"
 )
 
 // version is set at build time with -ldflags "-X main.version=...".
@@ -38,7 +38,7 @@ func main() {
 		err = run(log, os.Args[1:])
 	}
 	if err != nil {
-		log.Error("hostpanel", "err", err)
+		log.Error("ekpanel", "err", err)
 		os.Exit(1)
 	}
 }
@@ -46,7 +46,7 @@ func main() {
 // addServer registers a server from the command line and prints its one-time enrolment
 // token. The installer uses it to connect the panel's own server before any admin exists.
 //
-//	hostpanel add-server --name "This server" [panel flags such as --database-url]
+//	ekpanel add-server --name "This server" [panel flags such as --database-url]
 func addServer(args []string) error {
 	name := "This server"
 	var rest []string
@@ -145,7 +145,7 @@ func run(log *slog.Logger, args []string) error {
 
 	errc := make(chan error, 1)
 	go func() {
-		log.Info("hostpanel listening", "addr", cfg.Listen, "version", version)
+		log.Info("ekpanel listening", "addr", cfg.Listen, "version", version)
 		errc <- srv.ListenAndServe()
 	}()
 

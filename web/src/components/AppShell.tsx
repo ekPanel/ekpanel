@@ -18,7 +18,7 @@ export function Logo({ className }: { className?: string }) {
         <rect x="8" y="9" width="16" height="5" rx="1.5" fill="var(--accent-ink)" />
         <rect x="8" y="18" width="16" height="5" rx="1.5" fill="var(--accent-ink)" opacity=".7" />
       </svg>
-      HostPanel
+      ekPanel
     </span>
   );
 }

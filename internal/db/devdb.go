@@ -28,9 +28,9 @@ func StartDevDB(dir, cacheDir string, logs io.Writer) (*DevDB, error) {
 	cfg := embeddedpostgres.DefaultConfig().
 		Version(embeddedpostgres.V17).
 		Port(uint32(port)).
-		Database("hostpanel").
-		Username("hostpanel").
-		Password("hostpanel").
+		Database("ekpanel").
+		Username("ekpanel").
+		Password("ekpanel").
 		RuntimePath(filepath.Join(dir, "runtime")).
 		DataPath(filepath.Join(dir, "data")).
 		BinariesPath(filepath.Join(dir, "bin")).
@@ -40,7 +40,7 @@ func StartDevDB(dir, cacheDir string, logs io.Writer) (*DevDB, error) {
 	if err := pg.Start(); err != nil {
 		return nil, fmt.Errorf("start embedded postgres: %w", err)
 	}
-	url := fmt.Sprintf("postgres://hostpanel:hostpanel@127.0.0.1:%d/hostpanel?sslmode=disable", port)
+	url := fmt.Sprintf("postgres://ekpanel:ekpanel@127.0.0.1:%d/ekpanel?sslmode=disable", port)
 	return &DevDB{pg: pg, URL: url}, nil
 }
 

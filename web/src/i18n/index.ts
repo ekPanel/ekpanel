@@ -15,7 +15,7 @@ export type LanguageCode = (typeof languages)[number]["code"];
 // Scripts written right to left. The layout mirrors automatically for these.
 const rtlLanguages = new Set(["ar", "fa", "he", "ur", "ps", "sd", "yi", "dv", "ug", "ckb"]);
 
-const STORAGE_KEY = "hostpanel.lang";
+const STORAGE_KEY = "ekpanel.lang";
 
 function isSupported(code: string): code is LanguageCode {
   return languages.some((l) => l.code === code);

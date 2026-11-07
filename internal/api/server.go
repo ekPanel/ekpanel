@@ -10,8 +10,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"hostpanel/internal/hub"
-	"hostpanel/internal/store"
+	"ekpanel/internal/hub"
+	"ekpanel/internal/store"
 )
 
 type Options struct {

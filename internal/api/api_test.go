@@ -18,24 +18,24 @@ import (
 	"github.com/coder/websocket"
 	"github.com/pquerna/otp/totp"
 
-	"hostpanel/internal/agent"
-	"hostpanel/internal/agentproto"
-	"hostpanel/internal/api"
-	"hostpanel/internal/db"
-	"hostpanel/internal/hub"
-	"hostpanel/internal/store"
+	"ekpanel/internal/agent"
+	"ekpanel/internal/agentproto"
+	"ekpanel/internal/api"
+	"ekpanel/internal/db"
+	"ekpanel/internal/hub"
+	"ekpanel/internal/store"
 )
 
 var databaseURL string
 
 // TestMain runs one embedded PostgreSQL for the package. The first run downloads it.
 func TestMain(m *testing.M) {
-	dir, err := os.MkdirTemp("", "hostpanel-api-test")
+	dir, err := os.MkdirTemp("", "ekpanel-api-test")
 	if err != nil {
 		panic(err)
 	}
 	cache, _ := os.UserCacheDir()
-	dev, err := db.StartDevDB(dir, filepath.Join(cache, "hostpanel", "embedded-postgres"), io.Discard)
+	dev, err := db.StartDevDB(dir, filepath.Join(cache, "ekpanel", "embedded-postgres"), io.Discard)
 	if err != nil {
 		panic(err)
 	}

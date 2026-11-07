@@ -16,7 +16,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	"hostpanel/internal/agentproto"
+	"ekpanel/internal/agentproto"
 )
 
 // Config is what enrolment writes to disk and what `run` reads back.
@@ -30,7 +30,7 @@ func LoadConfig(path string) (Config, error) {
 	var c Config
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return c, fmt.Errorf("read agent config (run `hostpanel-agent enroll` first): %w", err)
+		return c, fmt.Errorf("read agent config (run `ekpanel-agent enroll` first): %w", err)
 	}
 	if err := json.Unmarshal(b, &c); err != nil {
 		return c, fmt.Errorf("parse %s: %w", path, err)
