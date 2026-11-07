@@ -55,6 +55,7 @@ func New(st *store.Store, h *hub.Hub, log *slog.Logger) *Runner {
 	r.handlers[KindWordPressInstall] = r.installWordPress
 	r.handlers[KindBackupRun] = r.runBackup
 	r.handlers[KindBackupRestore] = r.restoreBackup
+	r.handlers[KindAppUpdate] = r.appUpdate
 	return r
 }
 
@@ -271,6 +272,14 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			PasswordHash: d.PasswordHash, Deleted: d.State == "deleting",
 		})
 	}
+	apps, err := r.store.ListApps(ctx, serverID)
+	if err != nil {
+		return sum, err
+	}
+	params.Apps = make([]agentproto.AppSpec, 0, len(apps))
+	for _, a := range apps {
+		params.Apps = append(params.Apps, AppSpec(a))
+	}
 	fw, err := r.store.GetFirewall(ctx, serverID)
 	if err != nil {
 		return sum, err
@@ -296,6 +305,9 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			r.log.Error("record apply failure", "server", serverID, "err", ferr)
 		}
 		if ferr := r.store.FailUnappliedDatabases(ctx, serverID, opErr.Message); ferr != nil {
+			r.log.Error("record apply failure", "server", serverID, "err", ferr)
+		}
+		if ferr := r.store.FailUnappliedApps(ctx, serverID, opErr.Message); ferr != nil {
 			r.log.Error("record apply failure", "server", serverID, "err", ferr)
 		}
 	}
@@ -326,6 +338,16 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			sum.Failed++
 		}
 	}
+	for _, ar := range res.Apps {
+		if err := r.store.ApplyAppResult(ctx, ar.ID, ar.Generation, ar.OK, ar.Error); err != nil {
+			return sum, err
+		}
+		if ar.OK {
+			sum.Applied++
+		} else {
+			sum.Failed++
+		}
+	}
 	if res.Firewall != nil {
 		st := store.FirewallStatus{Active: res.Firewall.Active, SSHPorts: res.Firewall.SSHPorts, Error: res.Firewall.Error, At: time.Now()}
 		if err := r.store.RecordFirewallStatus(ctx, serverID, st); err != nil {
@@ -336,8 +358,8 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		}
 	}
 	if sum.Failed > 0 {
-		return sum, fmt.Errorf("%d of %d items could not be applied; see each website or database for the reason",
-			sum.Failed, len(res.Sites)+len(res.Databases))
+		return sum, fmt.Errorf("%d of %d items could not be applied; see each website, database or app for the reason",
+			sum.Failed, len(res.Sites)+len(res.Databases)+len(res.Apps))
 	}
 	return sum, nil
 }

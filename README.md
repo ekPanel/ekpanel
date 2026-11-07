@@ -31,13 +31,16 @@ email, DNS and game servers, with a modern UI in your own language.
 - **Backups**: encrypted, deduplicated backups of every website and database to the server
   or S3-compatible storage, on a schedule with retention, and one-click restores. The
   encryption key is shown once and stays on the server
+- **Docker apps**: run any image or Compose file, with a domain and free HTTPS, variables,
+  kept folders, limits, logs and one-click image updates. App ports stay private to the
+  server, so Docker cannot open holes in the firewall
 - **Firewall**: turn on ufw with SSH, web and agent ports always open, then open ports or
   block addresses from the server page
 - An append-only audit log of every change (the database itself refuses edits and deletes)
 - A web UI in **English** and **বাংলা (Bangla)**, ready for right-to-left languages, with
   light/dark themes, a `Ctrl+K` command palette and phone-friendly layouts
 
-Coming next, in order: Docker apps, then Git deploys, an app store, customers and packages. [PLAN.md](PLAN.md) lists
+Coming next, in order: then Git deploys, an app store, customers and packages. [PLAN.md](PLAN.md) lists
 every phase.
 
 ## How it fits together

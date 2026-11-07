@@ -22,7 +22,8 @@
     "sign_out": "Sign out",
     "sites": "Websites",
     "databases": "Databases",
-    "backups": "Backups"
+    "backups": "Backups",
+    "apps": "Apps"
   },
   "theme": {
     "label": "Theme",
@@ -250,6 +251,15 @@
         "mode_changed": "Firewall setting changed",
         "rule_added": "Firewall rule added",
         "rule_removed": "Firewall rule removed"
+      },
+      "app": {
+        "created": "App created",
+        "updated": "App changed",
+        "started": "App started",
+        "stopped": "App stopped",
+        "restarted": "App restarted",
+        "update_started": "App update started",
+        "deleted": "App deleted"
       }
     }
   },
@@ -285,7 +295,7 @@
     "agent_failed": "The server reported an error.",
     "agent_unknown_op": "The agent is too old for this. Update the agent.",
     "agent_invalid_params": "The panel sent the agent something it could not read.",
-    "invalid_service": "That is not a service name.",
+    "invalid_service": "Enter the name of the service in the Compose file that listens on this port.",
     "invalid_range": "That time range is not available.",
     "invalid_csr": "The agent sent an invalid certificate request.",
     "agent_no_systemd": "This server does not run systemd (for example a container), so its services cannot be shown or restarted.",
@@ -339,7 +349,19 @@
     "firewall_blocks_you": "That would block your own address and cut you off from this panel.",
     "invalid_note": "Keep the note under 200 characters.",
     "too_many_firewall_rules": "A server can have up to 200 firewall rules.",
-    "firewall_rule_not_found": "That rule does not exist."
+    "firewall_rule_not_found": "That rule does not exist.",
+    "invalid_app_name": "Use 2–32 lowercase letters, digits and dashes, starting with a letter.",
+    "invalid_app_kind": "An app runs either an image or a Compose file.",
+    "invalid_image": "Enter an image such as nginx:1.27 or ghcr.io/owner/app:latest.",
+    "invalid_compose": "Paste a Compose file of up to 256 KB.",
+    "invalid_port": "The port must be between 1 and 65535.",
+    "domain_needs_port": "A domain needs the port the app listens on.",
+    "invalid_env": "Each variable is NAME=value on its own line; names use letters, digits and _, and appear once.",
+    "invalid_volume": "A kept folder is a path inside the container, such as /data.",
+    "invalid_limits": "Memory must be at least 16 MB and CPUs more than 0.",
+    "app_name_taken": "This server already has an app with that name.",
+    "app_not_found": "That app does not exist.",
+    "app_not_ready": "The app has not been set up on its server yet."
   },
   "not_found": {
     "title": "Page not found",
@@ -378,7 +400,8 @@
       "server_reconcile": "Apply server settings",
       "site_install_wordpress": "Install WordPress",
       "backup_run": "Back up to {{name}}",
-      "backup_restore": "Restore from backup"
+      "backup_restore": "Restore from backup",
+      "app_update": "Update {{name}}"
     }
   },
   "sites": {
@@ -717,5 +740,82 @@
     "rule_allow": "Port {{ports}} ({{proto}}) open to {{source}}",
     "rule_deny": "Block everything from {{source}}",
     "rule_deny_ports": "Block port {{ports}} ({{proto}}) from {{source}}"
+  },
+  "apps": {
+    "intro": "Run any Docker image or Compose file. Ports stay private to the server; a domain with free HTTPS points at the app.",
+    "add": "Add app",
+    "create": "Create app",
+    "empty": {
+      "title": "Run your first app",
+      "body": "Start any Docker image, such as Uptime Kuma or n8n, or paste a Compose file. ekPanel installs Docker on first use."
+    },
+    "kind_label": "App type",
+    "kind": {
+      "image": "Docker image",
+      "compose": "Compose file"
+    },
+    "kind_hint": {
+      "image": "One container from an image, with variables and kept folders.",
+      "compose": "Several services described in a docker-compose.yml."
+    },
+    "presets": "Quick start:",
+    "name": "Name",
+    "name_hint": "Lowercase letters, digits and dashes. Used for the folder and containers.",
+    "image": "Image",
+    "image_hint": "From Docker Hub or any registry, for example nginx:alpine or ghcr.io/owner/app:1.2",
+    "compose": "Compose file",
+    "compose_hint": "Ports are kept private: publish them on 127.0.0.1, or use the port setting below for the domain.",
+    "service": "Service for the domain",
+    "service_hint": "The service in the Compose file that listens on the port.",
+    "port": "Port inside the container",
+    "port_hint": "The port the app listens on. Leave empty if it serves nothing over HTTP.",
+    "domain": "Domain",
+    "domain_hint": "Optional. Point its DNS at the server; HTTPS is set up for it.",
+    "env": "Environment variables",
+    "env_hint_image": "One NAME=value per line, like a .env file. Lines starting with # are skipped.",
+    "env_hint_compose": "One NAME=value per line. The Compose file reads them as ${NAME}.",
+    "volumes": "Folders to keep",
+    "volumes_hint": "Paths inside the container, one per line. Their contents survive updates and restarts.",
+    "advanced": "Limits and advanced settings",
+    "memory": "Memory limit (MB)",
+    "cpus": "CPU limit (cores)",
+    "no_limit": "No limit",
+    "public_ports": "Allow ports published on public addresses",
+    "public_ports_hint": "Docker opens such ports past the firewall. Turn this on only for services that must be reached directly, such as a mail or game server.",
+    "first_run": "The first app on a server installs Docker, which takes a minute or two. Images download on the server.",
+    "col": {
+      "app": "App",
+      "source": "Image"
+    },
+    "stopped": "Stopped",
+    "open": "Open",
+    "start": "Start",
+    "stop": "Stop",
+    "restart": "Restart",
+    "pull": "Update image",
+    "listens": "Port",
+    "folder": "Folder",
+    "containers": "Containers",
+    "not_ready": "Setting up the app on the server…",
+    "no_containers": "No containers. If the app is stopped, start it.",
+    "logs": "Logs",
+    "lines": "Number of lines",
+    "last_lines_one": "Last {{count, number}} line",
+    "last_lines_other": "Last {{count, number}} lines",
+    "refresh": "Refresh",
+    "no_logs": "No log output yet.",
+    "settings": "Settings",
+    "save": "Save and apply",
+    "reset": "Undo changes",
+    "delete": {
+      "title": "Delete this app",
+      "body": "Stops and removes its containers. You choose whether its data goes too.",
+      "button": "Delete app",
+      "button_data": "Delete app and data",
+      "confirm_title": "Delete {{name}}?",
+      "keeps": "The containers are removed. By default the data (volumes and the app folder) stays on the server, and an app created later with the same name uses it again.",
+      "with_data": "Also delete all its data",
+      "with_data_hint": "Removes the volumes and /srv/ekpanel/apps/{{name}}. This cannot be undone."
+    }
   }
 }

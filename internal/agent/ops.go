@@ -99,6 +99,21 @@ func Dispatch(ctx context.Context, op string, params json.RawMessage) (any, *age
 			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
 		}
 		return backupRemove(realSystem, p)
+	case agentproto.OpAppStatus, agentproto.OpAppLogs, agentproto.OpAppRestart, agentproto.OpAppPull:
+		var p agentproto.AppParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		switch op {
+		case agentproto.OpAppStatus:
+			return appStatus(ctx, realSystem, p)
+		case agentproto.OpAppLogs:
+			return appLogs(ctx, realSystem, p)
+		case agentproto.OpAppRestart:
+			return appRestart(ctx, realSystem, p)
+		default:
+			return appPull(ctx, realSystem, p)
+		}
 	case agentproto.OpServicesRestart:
 		var p agentproto.ServicesRestartParams
 		if err := json.Unmarshal(params, &p); err != nil {

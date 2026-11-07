@@ -148,7 +148,8 @@ function AddBackupDialog({ open, onClose }: { open: boolean; onClose: () => void
     queryFn: () => api.get<Server[]>("/servers"),
     enabled: open,
   });
-  const ready = (servers.data ?? []).filter((s) => s.enrolled_at);
+  // Connected servers first, so the default choice is one that can act now.
+  const ready = (servers.data ?? []).filter((s) => s.enrolled_at).sort((a, b) => Number(b.online) - Number(a.online));
   const [server, setServer] = useState("");
   const [name, setName] = useState("");
   const [kind, setKind] = useState<"local" | "s3">("local");

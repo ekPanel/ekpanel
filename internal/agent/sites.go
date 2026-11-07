@@ -221,9 +221,29 @@ func stateApply(ctx context.Context, sys *system, p agentproto.StateApplyParams)
 		}
 	}
 	a.removeOrphans(p.Sites)
+	for _, ap := range p.Apps {
+		a.results[ap.ID] = &agentproto.SiteResult{ID: ap.ID, Generation: ap.Generation, OK: true}
+		var err error
+		switch {
+		case validateApp(ap) != nil:
+			err = validateApp(ap)
+		case ap.Deleted:
+			err = a.removeApp(ctx, ap)
+		default:
+			err = a.ensureApp(ctx, ap)
+		}
+		if err != nil {
+			a.fail(ap.ID, err)
+		}
+	}
+	a.removeAppOrphans(p.Apps)
 	a.finish(ctx)
 	for i := range res.Sites {
 		res.Sites[i] = *a.results[res.Sites[i].ID]
+	}
+	for _, ap := range p.Apps {
+		r := a.results[ap.ID]
+		res.Apps = append(res.Apps, agentproto.AppResult{ID: r.ID, Generation: r.Generation, OK: r.OK, Error: r.Error})
 	}
 	res.Databases = applyDatabases(ctx, sys, p.Databases)
 	if p.Firewall != nil {
@@ -240,6 +260,7 @@ type applier struct {
 	caddyChanged map[string][]byte // site file path -> previous content (nil: did not exist)
 	caddySites   map[string]string // site file path -> site ID
 	sshdReady    *error            // result of installing the SFTP rules, once per run
+	dockerReady  *error            // result of installing Docker, once per run
 }
 
 func (a *applier) fail(id string, err error) {

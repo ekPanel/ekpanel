@@ -1329,3 +1329,150 @@ func TestFirewall(t *testing.T) {
 		t.Fatalf("unmanaged must send no firewall, sent %+v", spec)
 	}
 }
+
+func TestApps(t *testing.T) {
+	p := newTestPanel(t)
+	c := newClient(t, p.web.URL)
+	setUp(t, c)
+	serverID, cfg, _, _ := enrolled(t, p, c, "web-1")
+	tlsCfg, _ := cfg.TLSConfig()
+	conn, _, err := dialAgent(t, p, tlsCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.CloseNow()
+	applied := make(chan []agentproto.AppSpec, 20)
+	fakeAgent(t, conn, func(op string, raw json.RawMessage) (any, *agentproto.OpError) {
+		switch op {
+		case agentproto.OpStateApply:
+			var in agentproto.StateApplyParams
+			json.Unmarshal(raw, &in)
+			applied <- in.Apps
+			res := agentproto.StateApplyResult{}
+			for _, a := range in.Apps {
+				res.Apps = append(res.Apps, agentproto.AppResult{ID: a.ID, Generation: a.Generation, OK: true})
+			}
+			return res, nil
+		case agentproto.OpAppLogs:
+			var in agentproto.AppParams
+			json.Unmarshal(raw, &in)
+			return agentproto.AppLogsResult{Logs: in.Name + " says hello"}, nil
+		}
+		return nil, &agentproto.OpError{Code: agentproto.ErrUnknownOp}
+	})
+	lastApps := func(name string) agentproto.AppSpec {
+		t.Helper()
+		for {
+			select {
+			case apps := <-applied:
+				for _, a := range apps {
+					if a.Name == name && len(applied) == 0 {
+						return a
+					}
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatalf("no state.apply with %s", name)
+			}
+		}
+	}
+	type appView struct {
+		ID            string  `json:"id"`
+		HostPort      *int    `json:"host_port"`
+		State         string  `json:"state"`
+		Domain        *string `json:"domain"`
+		DomainDisplay string  `json:"domain_display"`
+	}
+	var e errBody
+	base := map[string]any{"server_id": serverID, "name": "uptime", "kind": "image", "image": "louislam/uptime-kuma:1"}
+	with := func(k string, v any) map[string]any {
+		m := map[string]any{}
+		for a, b := range base {
+			m[a] = b
+		}
+		m[k] = v
+		return m
+	}
+	for _, bad := range []struct {
+		body map[string]any
+		code string
+	}{
+		{with("name", "Bad Name"), "invalid_app_name"},
+		{with("image", "nginx latest"), "invalid_image"},
+		{with("domain", "status.example.com"), "domain_needs_port"},
+		{with("env", []map[string]string{{"key": "1BAD", "value": "x"}}), "invalid_env"},
+		{with("env", []map[string]string{{"key": "A", "value": "1"}, {"key": "A", "value": "2"}}), "invalid_env"},
+		{with("volumes", []string{"relative/path"}), "invalid_volume"},
+		{with("kind", "vm"), "invalid_app_kind"},
+		{with("container_port", 70000), "invalid_port"},
+		{with("memory_mb", 1), "invalid_limits"},
+	} {
+		if st := c.do("POST", "/api/v1/apps", bad.body, &e); st != http.StatusBadRequest || e.Code != bad.code {
+			t.Errorf("%v: %d %s, want %s", bad.body, st, e.Code, bad.code)
+		}
+	}
+
+	good := with("container_port", 3001)
+	good["domain"] = "স্ট্যাটাস.example.com"
+	good["env"] = []map[string]string{{"key": "TZ", "value": "Asia/Dhaka"}}
+	good["volumes"] = []string{"/app/data/", "/app/data"}
+	var app appView
+	if st := c.do("POST", "/api/v1/apps", good, &app); st != http.StatusCreated || app.HostPort == nil || *app.HostPort != 20000 {
+		t.Fatalf("create: %d %+v", st, app)
+	}
+	if !strings.HasPrefix(*app.Domain, "xn--") || app.DomainDisplay != "স্ট্যাটাস.example.com" {
+		t.Fatalf("domain %v / %s", *app.Domain, app.DomainDisplay)
+	}
+	spec := lastApps("uptime")
+	if spec.HostPort != 20000 || spec.ContainerPort != 3001 || spec.Service != agentproto.AppServiceName || len(spec.Volumes) != 1 || spec.Env[0].Value != "Asia/Dhaka" {
+		t.Fatalf("spec %+v", spec)
+	}
+	eventually(t, "app active", func() bool {
+		c.do("GET", "/api/v1/apps/"+app.ID, nil, &app)
+		return app.State == "active"
+	})
+
+	if st := c.do("POST", "/api/v1/apps", good, &e); st != http.StatusConflict || e.Code != "app_name_taken" {
+		t.Errorf("same name: %d %s", st, e.Code)
+	}
+	c.do("POST", "/api/v1/sites", map[string]any{"server_id": serverID, "domain": "blog.example.com", "kind": "static"}, nil)
+	clash := with("name", "blog")
+	clash["container_port"], clash["domain"] = 80, "blog.example.com"
+	if st := c.do("POST", "/api/v1/apps", clash, &e); st != http.StatusConflict || e.Code != "hostname_taken" {
+		t.Errorf("domain of a site: %d %s", st, e.Code)
+	}
+
+	var second appView
+	compose := map[string]any{"server_id": serverID, "name": "wiki", "kind": "compose", "compose": "services:\n  web:\n    image: nginx\n",
+		"service": "web", "container_port": 80}
+	if st := c.do("POST", "/api/v1/apps", compose, &second); st != http.StatusCreated || *second.HostPort != 20001 {
+		t.Fatalf("second app: %d %+v", st, second)
+	}
+	if spec := lastApps("wiki"); spec.Kind != "compose" || spec.Service != "web" || spec.HostPort != 20001 {
+		t.Fatalf("compose spec %+v", spec)
+	}
+
+	// Changing settings keeps the port.
+	good["env"] = []map[string]string{{"key": "TZ", "value": "UTC"}}
+	c.do("PUT", "/api/v1/apps/"+app.ID, good, &app)
+	if spec := lastApps("uptime"); spec.HostPort != 20000 || spec.Env[0].Value != "UTC" || spec.Generation != 2 {
+		t.Fatalf("after update %+v", spec)
+	}
+	c.do("POST", "/api/v1/apps/"+app.ID+"/stop", nil, nil)
+	if spec := lastApps("uptime"); !spec.Stopped {
+		t.Fatal("stop not sent")
+	}
+	var logs agentproto.AppLogsResult
+	if st := c.do("GET", "/api/v1/apps/"+app.ID+"/logs?tail=50", nil, &logs); st != http.StatusOK || logs.Logs != "uptime says hello" {
+		t.Fatalf("logs: %d %+v", st, logs)
+	}
+
+	c.do("DELETE", "/api/v1/apps/"+app.ID+"?data=delete", nil, nil)
+	if spec := lastApps("uptime"); !spec.Deleted || !spec.DeleteData {
+		t.Fatalf("delete spec %+v", spec)
+	}
+	eventually(t, "app removed", func() bool {
+		return c.do("GET", "/api/v1/apps/"+app.ID, nil, nil) == http.StatusNotFound
+	})
+	// Its port and domain are free again.
+	c.do("POST", "/api/v1/apps", with("name", "again"), nil)
+}

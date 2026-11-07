@@ -10,7 +10,9 @@ import (
 // ErrHostnameTaken means another site already answers to one of the requested host names.
 type ErrHostnameTaken struct{ Hostname string }
 
-func (e ErrHostnameTaken) Error() string { return e.Hostname + " is already used by another site" }
+func (e ErrHostnameTaken) Error() string {
+	return e.Hostname + " is already used by another site or app"
+}
 
 type Site struct {
 	ID         string   `json:"id"`
@@ -215,11 +217,11 @@ func (s *Store) FailUnappliedSites(ctx context.Context, serverID, message string
 	return err
 }
 
-// ServersWithSites lists servers that host at least one site or database, or whose
+// ServersWithSites lists servers that host at least one site, database or app, or whose
 // firewall ekPanel manages.
 func (s *Store) ServersWithSites(ctx context.Context) ([]string, error) {
 	rows, err := s.pool.Query(ctx, `SELECT server_id::text FROM sites UNION SELECT server_id::text FROM databases
-		UNION SELECT id::text FROM servers WHERE firewall <> 'unmanaged'`)
+		UNION SELECT server_id::text FROM apps UNION SELECT id::text FROM servers WHERE firewall <> 'unmanaged'`)
 	if err != nil {
 		return nil, err
 	}

@@ -188,6 +188,43 @@ export interface BackupSnapshot {
   name: string;
 }
 
+export interface App {
+  id: string;
+  server_id: string;
+  server_name: string;
+  name: string;
+  kind: "image" | "compose";
+  image: string | null;
+  compose: string | null;
+  service: string | null;
+  container_port: number | null;
+  host_port: number | null;
+  domain: string | null;
+  domain_display: string;
+  tls: "auto" | "internal";
+  env: { key: string; value: string }[];
+  volumes: string[];
+  memory_mb: number | null;
+  cpus: number | null;
+  public_ports: boolean;
+  stopped: boolean;
+  state: "pending" | "active" | "error" | "deleting";
+  message: string | null;
+  generation: number;
+  applied_generation: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AppContainer {
+  service: string;
+  name: string;
+  image: string;
+  state: string;
+  status: string;
+  health?: string;
+}
+
 export interface FirewallRule {
   id: string;
   action: "allow" | "deny";

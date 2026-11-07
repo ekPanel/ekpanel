@@ -368,4 +368,29 @@ Phase 1 is delivered in parts; each is tested in the VM and committed separately
       and agent still reachable
 - [ ] Single-file restore and download of a backup: later. Restore to another server: later
 - [ ] Firewall: rate limiting and fail2ban-style blocking: phase 4 (security center)
-- [ ] 1f. Docker apps (image and Compose)
+**1f. Docker apps — done**
+- [x] Run any Docker image (with variables, kept folders, memory and CPU limits) or any
+      Compose file. Every app is a Compose project in `/srv/ekpanel/apps/<name>` (root only),
+      kept in line by the same desired-state engine as sites: drift runs bring removed
+      containers back, and a stopped app stays stopped
+- [x] Docker and Compose v2 come from the distribution's packages on first use; container
+      logs are capped (10 MB × 3) before Docker first starts
+- [x] Ports stay private: the app's port is published on 127.0.0.1 only, and a domain with
+      free HTTPS (Caddy) points at it. Compose files that publish ports on public addresses or
+      use the host network are refused unless the user allows it, because Docker opens such
+      ports past the firewall
+- [x] Variables never appear on a command line: image apps get them in the generated Compose
+      file (written as JSON, so no value can change its structure, `$` kept literally); Compose
+      apps read them as `${NAME}`
+- [x] Containers and their state, logs (last 100–5000 lines), restart, stop/start, and
+      "update image" (pull and recreate) as a task
+- [x] Delete keeps volumes and the app folder by default; deleting the data too is a separate
+      choice. Host names stay unique across sites and apps
+- [x] Quick start for Uptime Kuma, n8n and Nginx; English and Bangla
+- [x] Tested in the VM (Docker 29, Compose 2.40 from Ubuntu): Docker installed with the first
+      app in 37 s; HTTPS domain to nginx; kept folder survived recreation; public port refused
+      and nothing listened on it; Compose app with two services and `${VAR}`; stop, start,
+      restart, logs, image update; both kinds of delete
+- [ ] Git deploys, builds (Dockerfile, Nixpacks), shell into a container and an app catalogue:
+      phase 2 and 3
+

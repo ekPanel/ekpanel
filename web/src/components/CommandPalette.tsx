@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { ArchiveRestore, CornerDownLeft, Database as DatabaseIcon, Gauge, Globe, Plus, ScrollText, Search, Server as ServerIcon, ShieldCheck } from "lucide-react";
+import { ArchiveRestore, Boxes, CornerDownLeft, Database as DatabaseIcon, Gauge, Globe, Plus, ScrollText, Search, Server as ServerIcon, ShieldCheck } from "lucide-react";
 import { api, type Database, type Server, type Site, type User } from "../lib/api";
 import { cx } from "./ui";
 
@@ -62,11 +62,13 @@ export function CommandPalette({ open, onClose, user }: { open: boolean; onClose
       list.push(
         { id: "sites", group: pages, label: t("nav.sites"), icon: <Globe />, run: go("/sites") },
         { id: "databases", group: pages, label: t("nav.databases"), icon: <DatabaseIcon />, run: go("/databases") },
+        { id: "apps", group: pages, label: t("nav.apps"), icon: <Boxes />, run: go("/apps") },
         { id: "backups", group: pages, label: t("nav.backups"), icon: <ArchiveRestore />, run: go("/backups") },
         { id: "servers", group: pages, label: t("nav.servers"), icon: <ServerIcon />, run: go("/servers") },
         { id: "audit", group: pages, label: t("nav.audit"), icon: <ScrollText />, run: go("/audit") },
         { id: "add-site", group: t("palette.actions"), label: t("sites.add"), icon: <Plus />, run: go("/sites?add=1") },
         { id: "add-db", group: t("palette.actions"), label: t("databases.add"), icon: <Plus />, run: go("/databases?add=1") },
+        { id: "add-app", group: t("palette.actions"), label: t("apps.add"), icon: <Plus />, run: go("/apps?add=1") },
         { id: "add-backup", group: t("palette.actions"), label: t("backups.add"), icon: <Plus />, run: go("/backups?add=1") },
         { id: "add-server", group: t("palette.actions"), label: t("servers.add"), icon: <Plus />, run: go("/servers?add=1") },
       );
