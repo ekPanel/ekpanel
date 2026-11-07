@@ -70,6 +70,7 @@ type command struct {
 	name   string
 	args   []string
 	env    []string
+	dir    string // working folder; "" for the agent's
 	stdin  io.Reader
 	stdout io.Writer
 	stderr io.Writer
@@ -79,6 +80,7 @@ func execCommand(ctx context.Context, c command) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, c.name, c.args...)
 	cmd.Env = append(append(os.Environ(), "DEBIAN_FRONTEND=noninteractive"), c.env...)
 	cmd.Stdin = c.stdin
+	cmd.Dir = c.dir
 	var out []byte
 	var err error
 	if c.stdout != nil && c.stderr != nil {
@@ -121,7 +123,7 @@ var realSystem = &system{
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("GET %s: %s", url, resp.Status)
 		}
-		return io.ReadAll(io.LimitReader(resp.Body, 64<<20))
+		return io.ReadAll(io.LimitReader(resp.Body, 256<<20))
 	},
 	osID: func() (string, string) {
 		b, _ := os.ReadFile("/etc/os-release")
@@ -612,7 +614,7 @@ var caddyTemplate = template.Must(template.New("caddy").Funcs(template.FuncMap{"
 {{- end}}
 {{join .Hosts ", "}} {
 {{- template "tls" .}}
-	root * /home/{{.User}}/public_html
+	root * /home/{{.User}}/public_html{{if .DocRoot}}/{{.DocRoot}}{{end}}
 	encode zstd gzip
 	@hidden {
 		path */.*
@@ -717,6 +719,7 @@ func (a *applier) writeCaddy(sp agentproto.SiteSpec) error {
 		"ID": sp.ID, "Domain": sp.Domain, "Hosts": hosts, "AliasHosts": aliases, "Internal": sp.TLS == "internal",
 		"Cert": cert, "Key": key, "User": sp.User, "PHP": sp.Kind == "php", "Socket": groupFor(sp).socket(sp.ID),
 		"Hotlink": hotlinkRule(sp), "Redirects": caddyRedirects(sp.Web), "BlockXMLRPC": sp.Web.BlockXMLRPC, "NoUploadsPHP": sp.Web.NoUploadsPHP,
+		"DocRoot": sp.Web.DocRoot,
 	})
 	path := caddySitePath(sp.ID)
 	changed, prev, err := a.writeIfChanged(path, buf.Bytes())

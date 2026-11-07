@@ -270,7 +270,10 @@ func untarAll(archive []byte, prefix, dest string) error {
 		if err != nil {
 			return err
 		}
-		rel, ok := strings.CutPrefix(h.Name, prefix)
+		if h.Typeflag == tar.TypeXGlobalHeader {
+			continue // archive-wide metadata, not a file
+		}
+		rel, ok := strings.CutPrefix(strings.TrimPrefix(h.Name, "./"), prefix)
 		if !ok {
 			return fmt.Errorf("unexpected path %q", h.Name)
 		}

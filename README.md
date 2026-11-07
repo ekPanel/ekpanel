@@ -36,6 +36,8 @@ email, DNS and game servers, with a modern UI in your own language.
   once and never stored, only the database engine's own hash
 - **One-click WordPress** in 14 languages, with its own database. The admin password is shown
   once and never stored
+- **More PHP apps** in one click: Joomla, Drupal, Moodle and Laravel, each with its own
+  database and a one-time admin password
 - **WordPress toolkit**: every WordPress site in one list (also ones installed by hand), core,
   plugin and theme updates that are undone by themselves if the site shows an error
   afterwards, daily automatic updates by rules, maintenance mode, hardening (no code editing

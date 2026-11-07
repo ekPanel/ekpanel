@@ -694,9 +694,24 @@ Agreed (2026-11-07):
       and REST API kept working; a staging copy made, a post written there pushed to live,
       live kept its address and search engine setting, no staging address left behind
 
-**3d-2. PHP app installer**
-- [ ] Laravel, Joomla, Drupal, PrestaShop, Moodle …: pinned, checked downloads; database made
-      for them; their own command-line installers
+**3d-2. PHP app installer — done**
+- [x] Joomla 6.2.0 and Moodle 5.2.4 from their release archives, checked against the SHA-256
+      their publishers list; Drupal 11 (with Drush) and Laravel 13 made with a pinned, checked
+      Composer 2.11.1 (their packages come from Packagist)
+- [x] Into an empty PHP website, each with a MariaDB database of its own (counted in the
+      package), a one-time admin password (none for Laravel), and the PHP version each needs
+      checked first. The installers' passwords travel in the environment, which only the
+      site's account can read, never as arguments other accounts could see
+- [x] The site serves the app's public folder (a document root setting for every site:
+      Drupal web/, Moodle and Laravel public/), Moodle gets max_input_vars 5000, its data
+      folder outside the website and a cron job every minute
+- [x] A failed install leaves public_html and the database empty again, ready to retry
+- [x] Tested in the VM: all four installed and answered (home, admin or login pages); each
+      admin password matched the hash in the app's database; Moodle's cron ran
+- [x] Found and fixed while testing: Joomla's table prefix must start with a letter; Moodle
+      5.3 needs MariaDB 11.4 (Ubuntu 24.04 has 10.11), so 5.2 is installed; the agent's
+      downloads were limited to 64 MB; Drush's command files are shell wrappers
+- [ ] PrestaShop: version 9 publishes no download with a checksum yet
 
 **3e. Security — done** (malware scans and country blocking are 3e-2)
 - [x] CrowdSec per server, turned on from the panel: installed from CrowdSec's own package
@@ -739,4 +754,4 @@ Agreed (2026-11-07):
       (AXFR/NOTIFY); guidance for glue records
 
 **Next**
-- [ ] 3d-2. PHP app installer, 3e-2. Malware and countries, or 3g. Built-in DNS
+- [ ] 3e-2. Malware and countries, or 3g. Built-in DNS

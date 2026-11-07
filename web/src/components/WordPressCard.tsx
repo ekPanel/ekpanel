@@ -71,7 +71,7 @@ export function WordPressCard({ site }: { site: Site }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  if (site.kind !== "php" && !site.app) return null;
+  if ((site.kind !== "php" && !site.app) || (site.app && site.app !== "wordpress")) return null;
 
   if (site.app === "wordpress") {
     return <WordPressToolkit site={site}>{creds.data && <WordPressCredentialsBox creds={creds.data} />}</WordPressToolkit>;

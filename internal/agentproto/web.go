@@ -25,7 +25,12 @@ type SiteWeb struct {
 	// guessing), and PHP files under wp-content/uploads (where only media belongs).
 	BlockXMLRPC  bool `json:"block_xmlrpc,omitempty"`
 	NoUploadsPHP bool `json:"no_uploads_php,omitempty"`
+	// DocRoot is a folder inside public_html served as the website's root (such as
+	// "public" for Laravel); "" serves public_html itself.
+	DocRoot string `json:"doc_root,omitempty"`
 }
+
+var docRootRE = regexp.MustCompile(`^[a-z0-9_-]{1,40}(/[a-z0-9_-]{1,40}){0,2}$`)
 
 // Redirect sends requests for a path elsewhere. From is an exact path, or a prefix ending
 // in "/*"; with KeepPath, what follows the prefix is added to To.
@@ -131,6 +136,9 @@ var PHPSettings = map[string]PHPSetting{
 
 // Validate checks every value of w.
 func (w SiteWeb) Validate() error {
+	if w.DocRoot != "" && !docRootRE.MatchString(w.DocRoot) {
+		return errors.New("the document root must be a folder inside public_html, such as public")
+	}
 	if len(w.Redirects) > maxRedirects {
 		return fmt.Errorf("at most %d redirects", maxRedirects)
 	}

@@ -81,6 +81,7 @@ func New(st *store.Store, h *hub.Hub, log *slog.Logger) *Runner {
 	r.handlers[KindWordPressStaging] = r.wordPressStaging
 	r.handlers[KindWordPressCopy] = r.wordPressCopy
 	r.handlers[KindWordPressScan] = r.wordPressScan
+	r.handlers[KindPHPAppInstall] = r.installPHPApp
 	return r
 }
 

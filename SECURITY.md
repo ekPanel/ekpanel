@@ -77,6 +77,12 @@ ekPanel is in early development and has no stable release yet. Fixes go into the
   manage only their zones, which only get their own websites and apps. ekPanel changes or
   deletes only DNS records it made, and none that someone changed since. Caddy trusts the
   CF-Connecting-IP header only from Cloudflare's published address ranges.
+- PHP applications: Joomla and Moodle archives are checked against their published SHA-256,
+  and Composer (for Drupal and Laravel) is a pinned, checked version; the packages Composer
+  fetches come from Packagist. Installers run as the site's account, and admin and
+  database passwords reach them through the environment (readable by that account only),
+  not as command-line arguments. Configuration files with database passwords are readable
+  by the site's account only.
 - FTP accepts TLS sessions only, and only the logins ekPanel lists for websites with FTP
   turned on (no system accounts, no anonymous access), each locked into its site's home
   folder. Its port and passive ports are open only while a site uses FTP.

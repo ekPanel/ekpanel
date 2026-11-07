@@ -261,7 +261,8 @@
         "wordpress_pull": "Staging refreshed from live",
         "ftp_enabled": "FTP turned on",
         "ftp_disabled": "FTP turned off",
-        "ftp_password_reset": "FTP password reset"
+        "ftp_password_reset": "FTP password reset",
+        "app_install": "Application install started"
       },
       "database": {
         "created": "Database created",
@@ -558,7 +559,10 @@
     "agent_crowdsec_off": "CrowdSec is not running on this server.",
     "agent_allowlisted": "That address is on the allowlist.",
     "ftp_not_allowed": "Your package does not include FTP.",
-    "ftp_disabled": "Turn on FTP first."
+    "ftp_disabled": "Turn on FTP first.",
+    "unknown_app": "Choose an application.",
+    "app_needs_php": "This application needs a PHP site.",
+    "app_needs_newer_php": "This application needs a newer PHP version."
   },
   "not_found": {
     "title": "Page not found",
@@ -605,7 +609,8 @@
       "site_wordpress_update": "Update WordPress",
       "site_wordpress_staging": "Make staging copy",
       "site_wordpress_copy": "Copy staging and live",
-      "site_wordpress_scan": "Look for WordPress"
+      "site_wordpress_scan": "Look for WordPress",
+      "site_install_app": "Install {{app}}"
     }
   },
   "sites": {
@@ -1029,6 +1034,26 @@
     "installed_hint": "Plugins and updates work directly from WordPress; no FTP details are needed.",
     "with_site": "Install WordPress",
     "with_site_hint": "Creates a database and installs WordPress as soon as the site is ready."
+  },
+  "phpapps": {
+    "title": "Other applications",
+    "intro": "Install a content system, learning platform or framework into this empty website, with its own database.",
+    "about": {
+      "joomla": "Websites and portals with many extensions.",
+      "drupal": "Structured content for larger sites (made with Composer).",
+      "moodle": "Courses, quizzes and classes for schools and training.",
+      "laravel": "A fresh Laravel app to build on (made with Composer)."
+    },
+    "needs_php": "Needs PHP {{version}} or newer; change the site's PHP version first.",
+    "choose": "Choose an application",
+    "install": "Install {{name}}",
+    "note": "public_html must be empty. A database is made for {{name}}; installing takes a few minutes.",
+    "installing": "Installing {{name}}… this takes a few minutes.",
+    "failed": "The install failed: {{reason}}",
+    "open_admin": "Open {{name}} admin",
+    "doc_root": "The website serves {{folder}}.",
+    "moodle_note": "Moodle's background tasks run from a cron job every minute, added for you. Uploaded files are kept in moodledata, outside the website.",
+    "laravel_note": "Settings are in public_html/.env. Upload your code with SFTP or Git, then run its migrations from the terminal."
   },
   "wptools": {
     "intro": "Every WordPress site in one place: updates that undo themselves if they break the site, automatic update rules, hardening and staging copies. WordPress installed by hand is found too.",

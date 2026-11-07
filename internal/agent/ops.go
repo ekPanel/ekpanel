@@ -189,6 +189,12 @@ func Dispatch(ctx context.Context, op string, params json.RawMessage) (any, *age
 			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
 		}
 		return securityAutoUpdates(ctx, realSystem, p)
+	case agentproto.OpPHPAppInstall:
+		var p agentproto.PHPAppInstallParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return installPHPApp(ctx, realSystem, p)
 	case agentproto.OpMailCheck:
 		var p agentproto.MailCheckParams
 		if err := json.Unmarshal(params, &p); err != nil {

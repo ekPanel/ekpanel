@@ -9,6 +9,7 @@ import { LogsCard, TrafficCard } from "../components/WebInsights";
 import { CertificateCard, HotlinkCard, PHPSettingsCard, RedirectsCard } from "../components/SiteRules";
 import { SiteFTP, SiteSFTP } from "../components/SiteSFTP";
 import { WordPressCard } from "../components/WordPressCard";
+import { PHPAppCard } from "../components/PHPAppCard";
 import { api, ApiError, errorMessage, type Server, type Site } from "../lib/api";
 import { formatDateTime } from "../lib/format";
 import { PageHeader } from "../components/AppShell";
@@ -161,6 +162,7 @@ export function SiteDetailPage() {
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           <div className="grid content-start gap-6">
           {!deleting && <WordPressCard site={s} />}
+          {!deleting && <PHPAppCard site={s} />}
           {!deleting && <CronCard siteId={s.id} />}
           {!deleting && <TrafficCard base={`/sites/${s.id}`} />}
           {!deleting && <LogsCard base={`/sites/${s.id}`} php />}

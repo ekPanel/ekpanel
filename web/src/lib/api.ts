@@ -212,7 +212,7 @@ export interface Site extends Owned {
   linux_user: string;
   sftp_enabled: boolean;
   ftp_enabled: boolean;
-  app: "wordpress" | null;
+  app: "wordpress" | "joomla" | "drupal" | "moodle" | "laravel" | null;
   app_version: string | null;
   ssh_keys: string[];
   state: SiteState;
@@ -235,6 +235,7 @@ export interface SiteWeb {
   redirects?: { from: string; to: string; code: number; keep_path?: boolean }[];
   hotlink?: { extensions: string[]; allowed?: string[] } | null;
   php?: Record<string, string>;
+  doc_root?: string;
   block_xmlrpc?: boolean;
   no_uploads_php?: boolean;
 }
