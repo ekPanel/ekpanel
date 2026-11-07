@@ -103,6 +103,7 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/sites/{id}/sftp", s.handleSetSFTP)
 			r.Post("/sites/{id}/sftp/password", s.handleResetSFTPPassword)
 			r.Put("/sites/{id}/ssh-keys", s.handleSetSSHKeys)
+			r.Post("/sites/{id}/wordpress", s.handleInstallWordPress)
 			r.Post("/sites/{id}/files", s.handleFiles)
 			r.Post("/sites/{id}/files/upload", s.handleUpload)
 			r.Get("/sites/{id}/files/download", s.handleDownload)

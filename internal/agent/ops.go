@@ -63,6 +63,12 @@ func Dispatch(ctx context.Context, op string, params json.RawMessage) (any, *age
 			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
 		}
 		return runFiles(ctx, realSystem, p)
+	case agentproto.OpWordPressInstall:
+		var p agentproto.WordPressInstallParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return installWordPress(ctx, realSystem, p)
 	case agentproto.OpServicesRestart:
 		var p agentproto.ServicesRestartParams
 		if err := json.Unmarshal(params, &p); err != nil {

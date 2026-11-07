@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ExternalLink, FolderOpen, Loader2, RotateCw, Trash2 } from "lucide-react";
 import { SiteSFTP } from "../components/SiteSFTP";
+import { WordPressCard } from "../components/WordPressCard";
 import { api, ApiError, errorMessage, type Server, type Site } from "../lib/api";
 import { formatDateTime } from "../lib/format";
 import { PageHeader } from "../components/AppShell";
@@ -153,6 +154,8 @@ export function SiteDetailPage() {
         )}
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+          <div className="grid content-start gap-6">
+          {!deleting && <WordPressCard site={s} />}
           <Card className="p-6">
             <h2 className="mb-5 text-lg font-semibold">{t("sites.settings")}</h2>
             {settings && (
@@ -180,6 +183,7 @@ export function SiteDetailPage() {
               </form>
             )}
           </Card>
+          </div>
 
           <div className="grid content-start gap-6">
             {!deleting && <SiteSFTP site={s} server={server.data} />}

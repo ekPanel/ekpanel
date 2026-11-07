@@ -249,3 +249,27 @@ type FilesResult struct {
 	Path    string      `json:"path,omitempty"` // where something was put (trash, archive)
 	Count   int         `json:"count,omitempty"`
 }
+
+// ---- Applications ----
+
+// OpWordPressInstall installs WordPress into an empty site with WP-CLI, running as the
+// site's account. Passwords travel only in this message and reach WP-CLI through stdin.
+const OpWordPressInstall = "wordpress.install"
+
+type WordPressInstallParams struct {
+	User          string `json:"user"`
+	Domain        string `json:"domain"`
+	PHPVersion    string `json:"php_version"`
+	DBName        string `json:"db_name"`
+	DBUser        string `json:"db_user"`
+	DBPassword    string `json:"db_password"`
+	Title         string `json:"title"`
+	AdminUser     string `json:"admin_user"`
+	AdminPassword string `json:"admin_password"`
+	AdminEmail    string `json:"admin_email"`
+	Locale        string `json:"locale"` // WordPress locale such as en_US or bn_BD
+}
+
+type WordPressInstallResult struct {
+	Version string `json:"version"`
+}

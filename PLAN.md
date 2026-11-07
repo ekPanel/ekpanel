@@ -328,6 +328,18 @@ Phase 1 is delivered in parts; each is tested in the VM and committed separately
 - [x] Site home folders are now root-owned with the site's group (required by the chroot);
       existing sites are converted automatically on the next reconcile
 - [ ] Per-user disk quotas: phase 2 (with packages)
-- [ ] 1d. One-click WordPress
+**1d. One-click WordPress — done**
+- [x] One click on a PHP site, or a checkbox when adding a site: creates a MariaDB database
+      (`wp_<site account>`), downloads WordPress with WP-CLI, writes `wp-config.php`,
+      installs, and sets up the admin account; about 25 seconds in the test VM
+- [x] 14 WordPress languages offered in their own scripts; the default follows the panel
+      language (Bangla panel → bn_BD WordPress)
+- [x] The admin and database passwords exist only in memory: the API returns the admin
+      password once, the task row never holds it, and WP-CLI receives both through stdin.
+      If the panel restarts before the task runs, the task fails cleanly
+- [x] WP-CLI is downloaded once and checked against its published SHA-512
+- [x] `wp-config.php` is readable only by the site's account (600); `FS_METHOD direct`, so
+      plugins and updates need no FTP details; installs only into an empty folder
+- [ ] WordPress toolkit (staging, bulk updates, hardening): phase 3
 - [ ] 1e. Backups and restore (restic), basic firewall
 - [ ] 1f. Docker apps (image and Compose)

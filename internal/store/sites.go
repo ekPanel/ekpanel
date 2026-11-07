@@ -28,6 +28,8 @@ type Site struct {
 	SFTPEnabled       bool      `json:"sftp_enabled"`
 	SSHKeys           []string  `json:"ssh_keys"`
 	SFTPPasswordHash  *string   `json:"-"`
+	App               *string   `json:"app"`
+	AppVersion        *string   `json:"app_version"`
 	State             string    `json:"state"`
 	Message           *string   `json:"message"`
 	Generation        int64     `json:"generation"`
@@ -38,7 +40,7 @@ type Site struct {
 
 const siteColumns = `st.id, st.server_id, sv.name, st.domain, st.aliases, st.kind, st.php_version, st.tls,
 	st.linux_user, st.state, st.message, st.generation, st.applied_generation, st.created_at, st.updated_at,
-	st.sftp_enabled, st.ssh_keys, st.sftp_password_hash`
+	st.sftp_enabled, st.ssh_keys, st.sftp_password_hash, st.app, st.app_version`
 
 const siteFrom = ` FROM sites st JOIN servers sv ON sv.id = st.server_id`
 
@@ -46,7 +48,7 @@ func scanSite(row pgx.Row) (Site, error) {
 	var s Site
 	err := row.Scan(&s.ID, &s.ServerID, &s.ServerName, &s.Domain, &s.Aliases, &s.Kind, &s.PHPVersion, &s.TLS,
 		&s.LinuxUser, &s.State, &s.Message, &s.Generation, &s.AppliedGeneration, &s.CreatedAt, &s.UpdatedAt,
-		&s.SFTPEnabled, &s.SSHKeys, &s.SFTPPasswordHash)
+		&s.SFTPEnabled, &s.SSHKeys, &s.SFTPPasswordHash, &s.App, &s.AppVersion)
 	return s, notFound(err)
 }
 
@@ -166,6 +168,12 @@ func (s *Store) SetSiteSFTP(ctx context.Context, id string, enabled bool, passwo
 		return Site{}, ErrNotFound
 	}
 	return s.GetSite(ctx, id)
+}
+
+// SetSiteApp records the application installed on a site.
+func (s *Store) SetSiteApp(ctx context.Context, id, app, version string) error {
+	_, err := s.pool.Exec(ctx, `UPDATE sites SET app = $2, app_version = $3, updated_at = now() WHERE id = $1`, id, app, version)
+	return err
 }
 
 // MarkSiteDeleting asks the agent to remove the site; the row goes once it confirms.

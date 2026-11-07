@@ -79,7 +79,7 @@ var realSystem = &system{
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("GET %s: %s", url, resp.Status)
 		}
-		return io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		return io.ReadAll(io.LimitReader(resp.Body, 64<<20))
 	},
 	osID: func() (string, string) {
 		b, _ := os.ReadFile("/etc/os-release")

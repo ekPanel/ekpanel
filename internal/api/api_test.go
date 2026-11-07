@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -978,5 +979,107 @@ func TestSFTPAndFiles(t *testing.T) {
 	resp.Body.Close()
 	if string(body) != "hello!" || !strings.Contains(resp.Header.Get("Content-Disposition"), `filename=hello.txt`) {
 		t.Fatalf("download = %q %q", body, resp.Header.Get("Content-Disposition"))
+	}
+}
+
+func TestWordPressInstall(t *testing.T) {
+	p := newTestPanel(t)
+	c := newClient(t, p.web.URL)
+	setUp(t, c)
+	serverID, cfg, _, _ := enrolled(t, p, c, "web-1")
+	tlsCfg, _ := cfg.TLSConfig()
+	conn, _, err := dialAgent(t, p, tlsCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.CloseNow()
+	dbHashes := map[string]string{}
+	var mu sync.Mutex
+	wpCalls := make(chan agentproto.WordPressInstallParams, 2)
+	fakeAgent(t, conn, func(op string, params json.RawMessage) (any, *agentproto.OpError) {
+		switch op {
+		case agentproto.OpStateApply:
+			var in agentproto.StateApplyParams
+			json.Unmarshal(params, &in)
+			var out agentproto.StateApplyResult
+			for _, s := range in.Sites {
+				out.Sites = append(out.Sites, agentproto.SiteResult{ID: s.ID, Generation: s.Generation, OK: true})
+			}
+			mu.Lock()
+			for _, d := range in.Databases {
+				dbHashes[d.Name] = d.PasswordHash
+				out.Databases = append(out.Databases, agentproto.DatabaseResult{ID: d.ID, Generation: d.Generation, OK: true})
+			}
+			mu.Unlock()
+			return out, nil
+		case agentproto.OpWordPressInstall:
+			var in agentproto.WordPressInstallParams
+			json.Unmarshal(params, &in)
+			wpCalls <- in
+			return agentproto.WordPressInstallResult{Version: "6.9"}, nil
+		}
+		return nil, &agentproto.OpError{Code: agentproto.ErrUnknownOp}
+	})
+
+	var static, site struct {
+		ID         string  `json:"id"`
+		LinuxUser  string  `json:"linux_user"`
+		App        *string `json:"app"`
+		AppVersion *string `json:"app_version"`
+	}
+	c.do("POST", "/api/v1/sites", map[string]any{"server_id": serverID, "domain": "static.example.com", "kind": "static"}, &static)
+	var e errBody
+	if st := c.do("POST", "/api/v1/sites/"+static.ID+"/wordpress", map[string]any{"admin_user": "admin"}, &e); st != http.StatusConflict || e.Code != "wordpress_needs_php" {
+		t.Fatalf("static site: %d %s", st, e.Code)
+	}
+
+	c.do("POST", "/api/v1/sites", map[string]any{"server_id": serverID, "domain": "blog.example.com", "kind": "php", "php_version": "8.4"}, &site)
+	if st := c.do("POST", "/api/v1/sites/"+site.ID+"/wordpress", map[string]any{"admin_user": "admin --role=evil"}, &e); st != http.StatusBadRequest {
+		t.Fatalf("bad admin user: %d", st)
+	}
+	var started struct {
+		Task          store.Task `json:"task"`
+		AdminPassword string     `json:"admin_password"`
+		AdminURL      string     `json:"admin_url"`
+	}
+	if st := c.do("POST", "/api/v1/sites/"+site.ID+"/wordpress", map[string]any{"admin_user": "owner", "title": "আমার ব্লগ", "locale": "bn_BD"}, &started); st != http.StatusAccepted || len(started.AdminPassword) != 24 {
+		t.Fatalf("start: %d %+v", st, started)
+	}
+	if started.AdminURL != "https://blog.example.com/wp-admin/" {
+		t.Fatalf("admin url %s", started.AdminURL)
+	}
+
+	var call agentproto.WordPressInstallParams
+	select {
+	case call = <-wpCalls:
+	case <-time.After(10 * time.Second):
+		t.Fatal("install never reached the agent")
+	}
+	wantDB := "wp_" + site.LinuxUser
+	mu.Lock()
+	dbHash := dbHashes[wantDB]
+	mu.Unlock()
+	if call.AdminPassword != started.AdminPassword || call.DBName != wantDB || call.Title != "আমার ব্লগ" || call.Locale != "bn_BD" || call.AdminEmail != "admin@example.com" {
+		t.Fatalf("agent got %+v", call)
+	}
+	if dbHash != auth.MariaDBNativeHash(call.DBPassword) {
+		t.Fatal("the database password given to WordPress must match the database's hash")
+	}
+
+	eventually(t, "install task succeeded and site marked", func() bool {
+		c.do("GET", "/api/v1/sites/"+site.ID, nil, &site)
+		return site.App != nil && *site.App == "wordpress" && site.AppVersion != nil && *site.AppVersion == "6.9"
+	})
+	// No password is ever stored in the task.
+	var list []map[string]any
+	c.do("GET", "/api/v1/tasks?server_id="+serverID, nil, &list)
+	for _, task := range list {
+		b, _ := json.Marshal(task)
+		if strings.Contains(string(b), started.AdminPassword) || strings.Contains(string(b), call.DBPassword) {
+			t.Fatalf("password stored in task %s", b)
+		}
+	}
+	if st := c.do("POST", "/api/v1/sites/"+site.ID+"/wordpress", map[string]any{"admin_user": "owner"}, &e); st != http.StatusConflict || e.Code != "app_installed" {
+		t.Fatalf("second install: %d %s", st, e.Code)
 	}
 }

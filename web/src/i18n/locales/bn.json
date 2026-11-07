@@ -219,7 +219,8 @@
         "sftp_enabled": "SFTP চালু",
         "sftp_disabled": "SFTP বন্ধ",
         "sftp_password_reset": "SFTP পাসওয়ার্ড রিসেট",
-        "ssh_keys_changed": "SSH key পরিবর্তন"
+        "ssh_keys_changed": "SSH key পরিবর্তন",
+        "wordpress_install": "WordPress ইনস্টল শুরু"
       },
       "database": {
         "created": "ডাটাবেস তৈরি",
@@ -302,7 +303,13 @@
     "invalid_upload": "আপলোডের অনুরোধ সঠিক ছিল না।",
     "sftp_disabled": "আগে SFTP চালু করুন।",
     "invalid_ssh_key": "একটা SSH key সঠিক নয়। public key (.pub ফাইল) পেস্ট করুন।",
-    "too_many_ssh_keys": "একটা সাইটে সর্বোচ্চ ২০টি SSH key থাকতে পারে।"
+    "too_many_ssh_keys": "একটা সাইটে সর্বোচ্চ ২০টি SSH key থাকতে পারে।",
+    "wordpress_needs_php": "WordPress-এর জন্য PHP সাইট লাগে। আগে সাইটটাকে PHP করুন।",
+    "app_installed": "এই সাইটে আগেই একটা অ্যাপ ইনস্টল করা আছে।",
+    "invalid_wp_admin_user": "অ্যাডমিন ইউজার নামে ৩–৬০টি অক্ষর, সংখ্যা আর . _ @ - ব্যবহার করুন।",
+    "invalid_wp_title": "শিরোনাম এক লাইনে সর্বোচ্চ ১০০ অক্ষর হতে পারে।",
+    "invalid_wp_locale": "তালিকা থেকে একটা ভাষা বেছে নিন।",
+    "agent_not_empty": "ওয়েবসাইটের ফোল্ডারে আগে থেকেই ফাইল আছে। আগে সেগুলো সরান বা মুছুন।"
   },
   "not_found": {
     "title": "পাতাটা পাওয়া যায়নি",
@@ -338,7 +345,8 @@
     },
     "kinds": {
       "service_restart": "{{name}} রিস্টার্ট",
-      "server_reconcile": "সার্ভারের সেটিংস চালু করা"
+      "server_reconcile": "সার্ভারের সেটিংস চালু করা",
+      "site_install_wordpress": "WordPress ইনস্টল"
     }
   },
   "sites": {
@@ -522,5 +530,22 @@
     "keys_other": "SSH key ({{count, number}})",
     "keys_hint": "পাসওয়ার্ড ছাড়া ঢুকতে public key (id_ed25519.pub) পেস্ট করুন, প্রতি লাইনে একটা।",
     "save_keys": "key সেভ করুন"
+  },
+  "wordpress": {
+    "title": "WordPress ইনস্টল করুন",
+    "intro": "নিজস্ব MariaDB ডাটাবেসসহ নতুন WordPress, প্রায় এক মিনিটে প্রস্তুত। ekPanel ডাটাবেস তৈরি করবে, WordPress ডাউনলোড করবে, wp-config.php লিখবে আর আপনার অ্যাডমিন অ্যাকাউন্ট বানাবে।",
+    "site_title": "সাইটের শিরোনাম",
+    "admin_user": "অ্যাডমিন ইউজার নাম",
+    "admin_email": "অ্যাডমিন ইমেইল",
+    "language": "WordPress-এর ভাষা",
+    "install": "WordPress ইনস্টল করুন",
+    "installing": "WordPress ইনস্টল হচ্ছে। প্রায় এক মিনিট লাগবে; চাইলে এই পাতা থেকে চলে যেতে পারেন।",
+    "failed": "আগের ইনস্টল শেষ হয়নি: {{reason}}",
+    "empty_note": "ওয়েবসাইটের ফোল্ডার খালি থাকতে হবে (ekPanel-এর স্বাগত পাতা থাকলে সমস্যা নেই), যাতে আপনার কোনো ফাইলের উপর লেখা না হয়।",
+    "password_once": "আপনার WordPress অ্যাডমিন পাসওয়ার্ড শুধু একবার দেখানো হবে। এখনই কপি করুন; ekPanel এটা রাখে না।",
+    "open_admin": "WordPress অ্যাডমিন খুলুন",
+    "installed_hint": "প্লাগইন আর আপডেট সরাসরি WordPress থেকেই কাজ করবে; FTP তথ্য লাগবে না।",
+    "with_site": "WordPress ইনস্টল করুন",
+    "with_site_hint": "সাইট প্রস্তুত হলেই একটা ডাটাবেস তৈরি করে WordPress ইনস্টল করবে।"
   }
 }

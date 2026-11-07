@@ -219,7 +219,8 @@
         "sftp_enabled": "SFTP turned on",
         "sftp_disabled": "SFTP turned off",
         "sftp_password_reset": "SFTP password reset",
-        "ssh_keys_changed": "SSH keys changed"
+        "ssh_keys_changed": "SSH keys changed",
+        "wordpress_install": "WordPress install started"
       },
       "database": {
         "created": "Database created",
@@ -302,7 +303,13 @@
     "invalid_upload": "The upload request was not valid.",
     "sftp_disabled": "Turn on SFTP first.",
     "invalid_ssh_key": "One of the SSH keys is not valid. Paste the public key (the .pub file).",
-    "too_many_ssh_keys": "A site can have at most 20 SSH keys."
+    "too_many_ssh_keys": "A site can have at most 20 SSH keys.",
+    "wordpress_needs_php": "WordPress needs a PHP site. Switch the site to PHP first.",
+    "app_installed": "An application is already installed on this site.",
+    "invalid_wp_admin_user": "Use 3–60 letters, digits and . _ @ - for the admin user name.",
+    "invalid_wp_title": "The title must be up to 100 characters on one line.",
+    "invalid_wp_locale": "Choose a language from the list.",
+    "agent_not_empty": "The website folder already has files. Move or delete them first."
   },
   "not_found": {
     "title": "Page not found",
@@ -338,7 +345,8 @@
     },
     "kinds": {
       "service_restart": "Restart {{name}}",
-      "server_reconcile": "Apply server settings"
+      "server_reconcile": "Apply server settings",
+      "site_install_wordpress": "Install WordPress"
     }
   },
   "sites": {
@@ -522,5 +530,22 @@
     "keys_other": "SSH keys ({{count, number}})",
     "keys_hint": "Sign in without a password: paste public keys (id_ed25519.pub), one per line.",
     "save_keys": "Save keys"
+  },
+  "wordpress": {
+    "title": "Install WordPress",
+    "intro": "A fresh WordPress with its own MariaDB database, ready in about a minute. ekPanel creates the database, downloads WordPress, writes wp-config.php and sets up your admin account.",
+    "site_title": "Site title",
+    "admin_user": "Admin user name",
+    "admin_email": "Admin email",
+    "language": "WordPress language",
+    "install": "Install WordPress",
+    "installing": "Installing WordPress. This takes about a minute; you can leave this page.",
+    "failed": "The last install did not finish: {{reason}}",
+    "empty_note": "The website folder must be empty (the ekPanel welcome page is fine), so none of your files are overwritten.",
+    "password_once": "Your WordPress admin password is shown only once. Copy it now; ekPanel does not keep it.",
+    "open_admin": "Open WordPress admin",
+    "installed_hint": "Plugins and updates work directly from WordPress; no FTP details are needed.",
+    "with_site": "Install WordPress",
+    "with_site_hint": "Creates a database and installs WordPress as soon as the site is ready."
   }
 }

@@ -107,6 +107,8 @@ export interface Site {
   tls: "auto" | "internal";
   linux_user: string;
   sftp_enabled: boolean;
+  app: "wordpress" | null;
+  app_version: string | null;
   ssh_keys: string[];
   state: SiteState;
   message: string | null;

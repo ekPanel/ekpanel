@@ -18,8 +18,9 @@ import (
 
 // Kinds of task. Each has a handler registered in New.
 const (
-	KindServiceRestart  = "service.restart"
-	KindServerReconcile = "server.reconcile"
+	KindServiceRestart   = "service.restart"
+	KindServerReconcile  = "server.reconcile"
+	KindWordPressInstall = "site.install_wordpress"
 )
 
 // lease is how long a worker may hold a task before it is considered crashed.
@@ -39,12 +40,14 @@ type Runner struct {
 	log      *slog.Logger
 	handlers map[string]Handler
 	wake     chan struct{}
+	vault    *vault
 }
 
 func New(st *store.Store, h *hub.Hub, log *slog.Logger) *Runner {
-	r := &Runner{store: st, hub: h, log: log, wake: make(chan struct{}, 1), handlers: map[string]Handler{}}
+	r := &Runner{store: st, hub: h, log: log, wake: make(chan struct{}, 1), handlers: map[string]Handler{}, vault: newVault()}
 	r.handlers[KindServiceRestart] = r.serviceRestart
 	r.handlers[KindServerReconcile] = r.serverReconcile
+	r.handlers[KindWordPressInstall] = r.installWordPress
 	return r
 }
 

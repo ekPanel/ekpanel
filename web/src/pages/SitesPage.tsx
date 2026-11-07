@@ -7,6 +7,8 @@ import { api, errorMessage, type Server, type Site } from "../lib/api";
 import { PageHeader } from "../components/AppShell";
 import { Badge, Button, Card, Dialog, ErrorAlert, Field, Spinner, cx, type Tone } from "../components/ui";
 import { EmptyState } from "./ServerParts";
+import { useMe } from "../lib/session";
+import { adminNameFrom, defaultWordPressLocale, type WordPressCredentials } from "../components/WordPressCard";
 
 // ---- Shared pieces ----
 
@@ -115,7 +117,7 @@ export function parseLines(text: string): string[] {
 // ---- Add dialog ----
 
 export function AddSiteDialog({ open, onClose, serverId }: { open: boolean; onClose: () => void; serverId?: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const php = usePHPVersions();
@@ -127,6 +129,8 @@ export function AddSiteDialog({ open, onClose, serverId }: { open: boolean; onCl
   const [www, setWww] = useState(true);
   const [extra, setExtra] = useState("");
   const [settings, setSettings] = useState<SiteSettings>({ kind: "php", php_version: "", tls: "auto" });
+  const [withWordPress, setWithWordPress] = useState(false);
+  const me = useMe();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -163,6 +167,13 @@ export function AddSiteDialog({ open, onClose, serverId }: { open: boolean; onCl
         php_version: settings.kind === "php" ? settings.php_version : null,
         tls: settings.tls,
       });
+      if (withWordPress && settings.kind === "php") {
+        const email = me.data?.email ?? "";
+        const r = await api.post<WordPressCredentials>(`/sites/${site.id}/wordpress`, {
+          admin_user: adminNameFrom(email), admin_email: email, locale: defaultWordPressLocale(i18n.language),
+        });
+        qc.setQueryData(["wp-credentials", site.id], r);
+      }
       qc.invalidateQueries({ queryKey: ["sites"] });
       qc.invalidateQueries({ queryKey: ["tasks"] });
       onClose();
@@ -208,6 +219,15 @@ export function AddSiteDialog({ open, onClose, serverId }: { open: boolean; onCl
             </label>
           )}
           <SiteSettingsFields value={settings} onChange={setSettings} />
+          {settings.kind === "php" && (
+            <label className="flex items-start gap-2 rounded-lg border border-line p-3">
+              <input type="checkbox" checked={withWordPress} onChange={(e) => setWithWordPress(e.target.checked)} className="mt-1 accent-[var(--accent)]" />
+              <span className="grid gap-0.5">
+                <span className="font-medium">{t("wordpress.with_site")}</span>
+                <span className="text-sm text-muted">{t("wordpress.with_site_hint")}</span>
+              </span>
+            </label>
+          )}
           <details className="group">
             <summary className="cursor-pointer text-sm font-medium text-accent">{t("sites.more_domains")}</summary>
             <label className="mt-3 grid gap-1.5">
@@ -269,6 +289,7 @@ export function SitesPage() {
                       {s.tls === "auto" && <Lock className="size-3.5 text-ok" aria-label={t("sites.tls.auto")} />}
                       <bdi>{s.domain_display}</bdi>
                     </Link>
+                    {s.app === "wordpress" && <span className="ms-2 rounded bg-sunk px-1.5 py-0.5 text-xs text-muted">WordPress</span>}
                     {s.aliases_display.length > 0 && (
                       <div className="truncate text-muted">
                         <bdi>{s.aliases_display.join(", ")}</bdi>

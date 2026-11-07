@@ -24,13 +24,15 @@ email, DNS and game servers, with a modern UI in your own language.
   pool. Changes apply with zero downtime and broken configuration repairs itself
 - **Databases**: MariaDB and PostgreSQL with an account per database. Passwords are shown
   once and never stored, only the database engine's own hash
+- **One-click WordPress** in 14 languages, with its own database. The admin password is shown
+  once and never stored
 - **Files**: a browser file manager with uploads, code editor, zip/unzip and trash, and SFTP
   per site. Both are locked into the site's own folder
 - An append-only audit log of every change (the database itself refuses edits and deletes)
 - A web UI in **English** and **বাংলা (Bangla)**, ready for right-to-left languages, with
   light/dark themes, a `Ctrl+K` command palette and phone-friendly layouts
 
-Coming next, in order: one-click WordPress, backups,
+Coming next, in order: backups,
 Docker apps, then Git deploys, an app store, customers and packages. [PLAN.md](PLAN.md) lists
 every phase.
 
