@@ -16,6 +16,7 @@ import { AuditPage, SecurityPage } from "./pages/AccountPages";
 import { SitesPage } from "./pages/SitesPage";
 import { SiteDetailPage } from "./pages/SiteDetailPage";
 import { DatabaseDetailPage, DatabasesPage } from "./pages/DatabasesPage";
+import { FileManagerPage } from "./pages/FileManagerPage";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true } },
@@ -74,6 +75,7 @@ const router = createBrowserRouter([
         children: [
           { path: "/sites", element: <SitesPage /> },
           { path: "/sites/:id", element: <SiteDetailPage /> },
+          { path: "/sites/:id/files", element: <FileManagerPage /> },
           { path: "/databases", element: <DatabasesPage /> },
           { path: "/databases/:id", element: <DatabaseDetailPage /> },
           { path: "/servers", element: <ServersPage /> },

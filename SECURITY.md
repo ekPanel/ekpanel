@@ -35,6 +35,9 @@ ekPanel is in early development and has no stable release yet. Fixes go into the
 - Database passwords are never stored: the panel keeps only MariaDB's native hash or
   PostgreSQL's SCRAM-SHA-256 verifier. The agent never adopts or drops a database it did not
   create, and customer PostgreSQL accounts cannot connect to the panel's database.
+- File manager actions run in a worker process that is chrooted into the site's folder and
+  runs as the site's account. SFTP accounts are chrooted too, have no shell, and keep their
+  SSH keys in a root-owned file they cannot change.
 - Web server configuration is validated before it is loaded; a rejected change is rolled
   back so one site cannot take others down.
 - State-changing requests are protected against CSRF (`Sec-Fetch-Site`, `Origin` and

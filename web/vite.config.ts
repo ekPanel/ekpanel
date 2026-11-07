@@ -14,6 +14,8 @@ export default defineConfig({
         target: panel,
         changeOrigin: true,
         ws: true,
+        // Development only: lets the dev server talk to a test panel with a self-signed certificate.
+        secure: false,
         configure: (proxy) => {
           proxy.on("proxyReq", (req) => req.setHeader("origin", panel));
           proxy.on("proxyReqWs", (req) => req.setHeader("origin", panel));

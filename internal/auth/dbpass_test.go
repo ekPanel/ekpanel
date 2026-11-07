@@ -38,3 +38,20 @@ func TestPostgresSCRAMVerifier(t *testing.T) {
 		t.Fatal("each verifier needs its own salt")
 	}
 }
+
+func TestLinuxPasswordHash(t *testing.T) {
+	h, err := LinuxPasswordHash("open sesame")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !regexp.MustCompile(`^\$6\$rounds=100000\$[./A-Za-z0-9]{16}\$[./A-Za-z0-9]{86}$`).MatchString(h) {
+		t.Fatalf("unexpected format %q", h)
+	}
+	if !CheckLinuxPassword(h, "open sesame") || CheckLinuxPassword(h, "open sesam") {
+		t.Fatal("verification wrong")
+	}
+	// Reference value from the SHA-crypt specification (Drepper), test vector 1.
+	if !CheckLinuxPassword("$6$saltstring$svn8UoSVapNtMuq1ukKS4tPQd8iKwSMHWjl/O817G3uBnIFNjnQJuesI68u4OTLiBFdcbYEdFCoEOfaS35inz1", "Hello world!") {
+		t.Fatal("SHA-crypt specification vector does not verify")
+	}
+}

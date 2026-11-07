@@ -35,6 +35,9 @@ func main() {
 		err = enroll(ctx, os.Args[2:])
 	case "run":
 		err = run(ctx, log, os.Args[2:])
+	case "files":
+		// Internal: one file manager action, started by the agent itself (see agent.RunFileWorker).
+		agent.RunFileWorker(os.Stdin, os.Stdout)
 	case "version":
 		fmt.Println(version)
 	default:

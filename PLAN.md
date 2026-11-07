@@ -313,7 +313,21 @@ Phase 1 is delivered in parts; each is tested in the VM and committed separately
 - [x] UI: databases list, add dialog with the one-time password and connection details,
       database page (connect info, size, password reset, delete), cards on the server page
 - [ ] Database browser in the panel (Adminer-style), import and export: later
-- [ ] 1c. File manager and SFTP
+**1c. File manager and SFTP — done**
+- [x] File manager: browse, upload in 512 KB pieces (drag and drop, progress, replace),
+      download, code editor (CodeMirror, loaded on demand, Ctrl+S), new file/folder, rename,
+      permissions, zip/unzip (.zip, .tar, .tar.gz), trash with restore and empty
+- [x] Every file action runs in a separate worker that chroots into the site's home folder
+      and drops to the site's account, so symlinks or `..` cannot reach other files (tested
+      with links to /etc/shadow, /root and ../../etc/passwd); zip slip is refused, links in
+      archives are never created, extraction is capped at 10 GB and 200,000 entries
+- [x] SFTP per site: OpenSSH `internal-sftp` chrooted to the home folder, no shell, no
+      forwarding; password shown once and stored only as SHA-512 crypt (100,000 rounds);
+      SSH keys normalized (options such as `command=` stripped) in a root-owned file;
+      sshd settings are checked with `sshd -t` before reload and removed if rejected
+- [x] Site home folders are now root-owned with the site's group (required by the chroot);
+      existing sites are converted automatically on the next reconcile
+- [ ] Per-user disk quotas: phase 2 (with packages)
 - [ ] 1d. One-click WordPress
 - [ ] 1e. Backups and restore (restic), basic firewall
 - [ ] 1f. Docker apps (image and Compose)

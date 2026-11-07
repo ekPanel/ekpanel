@@ -19,12 +19,17 @@ type fakeSystem struct {
 	users     map[string][]string // user -> groups
 	installed map[string]bool     // dpkg packages
 	badCaddy  bool                // make `caddy validate` fail
+	badSSHD   bool                // make `sshd -t` fail
 }
 
 func newFakeSystem(t *testing.T) *fakeSystem {
 	f := &fakeSystem{users: map[string][]string{}, installed: map[string]bool{"php8.4-fpm": true}}
 	f.system = &system{
-		root:  t.TempDir(),
+		root: t.TempDir(),
+		runInput: func(_ context.Context, input, name string, args ...string) ([]byte, error) {
+			f.calls = append(f.calls, name+" "+strings.Join(args, " ")+" <<< "+strings.TrimSpace(input))
+			return nil, nil
+		},
 		osID:  func() (string, string) { return "ubuntu", "noble" },
 		fetch: func(context.Context, string) ([]byte, error) { return []byte("key"), nil },
 		run: func(_ context.Context, name string, args ...string) ([]byte, error) {
@@ -43,6 +48,16 @@ func newFakeSystem(t *testing.T) *fakeSystem {
 				user := args[len(args)-1]
 				f.users[user] = []string{user, sitesGroup}
 				os.MkdirAll(filepath.Join(f.root, "home", user), 0o755)
+			case "usermod":
+				if args[0] == "-aG" {
+					f.users[args[2]] = append(f.users[args[2]], args[1])
+				}
+			case "gpasswd":
+				f.users[args[1]] = slices.DeleteFunc(f.users[args[1]], func(g string) bool { return g == args[2] })
+			case "sshd":
+				if f.badSSHD {
+					return nil, errors.New("line 3: Bad configuration option")
+				}
 			case "userdel":
 				delete(f.users, args[len(args)-1])
 			case "dpkg-query":
@@ -64,6 +79,8 @@ func newFakeSystem(t *testing.T) *fakeSystem {
 			return nil, nil
 		},
 	}
+	os.MkdirAll(filepath.Join(f.root, "usr/sbin"), 0o755)
+	os.WriteFile(filepath.Join(f.root, "usr/sbin/sshd"), nil, 0o755)
 	return f
 }
 
@@ -264,5 +281,81 @@ func TestOrphanConfigIsRemovedButDataKept(t *testing.T) {
 	}
 	if f.ran("userdel") || !f.exists("/home/example_ab12/public_html/index.html") {
 		t.Fatal("an orphan's files and account must be kept")
+	}
+}
+
+func TestHomeIsRootOwnedForChroot(t *testing.T) {
+	f := newFakeSystem(t)
+	apply(t, f, phpSite())
+	if !f.ran("chown root:example_ab12 /home/example_ab12") || !f.ran("chown example_ab12:example_ab12 /home/example_ab12/public_html") {
+		t.Fatalf("ownership wrong: %v", f.calls)
+	}
+	if !f.exists("/home/example_ab12/.trash") {
+		t.Fatal("trash folder missing")
+	}
+}
+
+func TestSFTPEnableKeysAndDisable(t *testing.T) {
+	f := newFakeSystem(t)
+	sp := phpSite()
+	sp.SFTPEnabled = true
+	sp.SFTPPasswordHash = "$6$rounds=100000$abcdefghijklmnop$" + strings.Repeat("A", 86)
+	sp.SSHKeys = []string{`command="rm -rf /",no-pty ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFJiNUh2lSu0HKrMBqDhBTLTtc3P6gVjsyhP6UkCQBkW laptop`}
+	if res := apply(t, f, sp); !res[0].OK {
+		t.Fatal(res[0].Error)
+	}
+	conf := f.read(t, sshdDropIn)
+	for _, want := range []string{"Match Group ekpanel-sftp", "ChrootDirectory %h", "ForceCommand internal-sftp", "AuthorizedKeysFile /etc/ekpanel/ssh/%u", "Match all"} {
+		if !strings.Contains(conf, want) {
+			t.Errorf("sshd config lacks %q", want)
+		}
+	}
+	if !f.ran("sshd -t") || !f.ran("systemctl try-reload-or-restart ssh") || !f.ran("usermod -aG ekpanel-sftp example_ab12") {
+		t.Fatalf("calls: %v", f.calls)
+	}
+	if !f.ran("chpasswd --encrypted <<< example_ab12:$6$rounds=100000$") {
+		t.Fatalf("password not set through stdin: %v", f.calls)
+	}
+	keys := f.read(t, sshKeysDir+"/example_ab12")
+	if strings.Contains(keys, "command=") || !strings.HasPrefix(keys, "ssh-ed25519 AAAA") || !strings.Contains(keys, "laptop") {
+		t.Fatalf("key options must be stripped: %q", keys)
+	}
+
+	sp.SFTPEnabled, sp.Generation = false, 2
+	if res := apply(t, f, sp); !res[0].OK {
+		t.Fatal(res[0].Error)
+	}
+	if !f.ran("gpasswd -d example_ab12 ekpanel-sftp") || f.exists(sshKeysDir+"/example_ab12") || !f.ran("chpasswd --encrypted <<< example_ab12:*") {
+		t.Fatalf("disable incomplete: %v", f.calls)
+	}
+}
+
+func TestSSHDRejectionRollsBack(t *testing.T) {
+	f := newFakeSystem(t)
+	f.badSSHD = true
+	sp := phpSite()
+	sp.SFTPEnabled = true
+	if res := apply(t, f, sp); res[0].OK || !strings.Contains(res[0].Error, "sshd rejected") {
+		t.Fatalf("want rejection, got %+v", res[0])
+	}
+	if f.exists(sshdDropIn) || f.ran("systemctl try-reload-or-restart ssh") {
+		t.Fatal("rejected sshd settings must be removed and never loaded")
+	}
+}
+
+func TestSFTPInputValidation(t *testing.T) {
+	f := newFakeSystem(t)
+	for _, mutate := range []func(*agentproto.SiteSpec){
+		func(s *agentproto.SiteSpec) { s.SFTPPasswordHash = "plain-password" },
+		func(s *agentproto.SiteSpec) { s.SFTPPasswordHash = "$6$x$y:root::0:" },
+		func(s *agentproto.SiteSpec) { s.SSHKeys = []string{"not a key"} },
+		func(s *agentproto.SiteSpec) { s.SSHKeys = []string{"ssh-ed25519 AAAA\\nssh-rsa evil"} },
+	} {
+		sp := phpSite()
+		sp.SFTPEnabled = true
+		mutate(&sp)
+		if res := apply(t, f, sp); res[0].OK {
+			t.Errorf("accepted %+v", sp)
+		}
 	}
 }

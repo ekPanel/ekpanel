@@ -215,12 +215,27 @@
       "site": {
         "created": "Website created",
         "updated": "Website changed",
-        "deleted": "Website deleted"
+        "deleted": "Website deleted",
+        "sftp_enabled": "SFTP turned on",
+        "sftp_disabled": "SFTP turned off",
+        "sftp_password_reset": "SFTP password reset",
+        "ssh_keys_changed": "SSH keys changed"
       },
       "database": {
         "created": "Database created",
         "password_reset": "Database password reset",
         "deleted": "Database deleted"
+      },
+      "files": {
+        "write": "File saved",
+        "mkdir": "Folder created",
+        "rename": "Moved or renamed",
+        "delete": "Deleted",
+        "empty_trash": "Trash emptied",
+        "chmod": "Permissions changed",
+        "extract": "Archive extracted",
+        "compress": "Archive created",
+        "upload": "File uploaded"
       }
     }
   },
@@ -275,7 +290,19 @@
     "database_name_taken": "This server already has a database with that name.",
     "database_user_taken": "This server already has a database user with that name.",
     "database_not_found": "That database does not exist. It may have been deleted.",
-    "database_deleting": "This database is being deleted."
+    "database_deleting": "This database is being deleted.",
+    "file_not_found": "That file or folder does not exist (any more).",
+    "file_exists": "Something with that name already exists here.",
+    "file_not_allowed": "That is not allowed. Protected folders cannot be moved or deleted.",
+    "file_too_large": "That is too large.",
+    "file_bad_offset": "The upload got out of step. Upload the file again.",
+    "file_failed": "The server could not do that.",
+    "file_invalid_params": "That request was not valid.",
+    "invalid_file_action": "Unknown file action.",
+    "invalid_upload": "The upload request was not valid.",
+    "sftp_disabled": "Turn on SFTP first.",
+    "invalid_ssh_key": "One of the SSH keys is not valid. Paste the public key (the .pub file).",
+    "too_many_ssh_keys": "A site can have at most 20 SSH keys."
   },
   "not_found": {
     "title": "Page not found",
@@ -431,5 +458,69 @@
       "confirm": "Type {{name}} to confirm",
       "button": "Delete database"
     }
+  },
+  "files": {
+    "title": "Files",
+    "location": "Location",
+    "home": "Home folder",
+    "trash": "Trash",
+    "trash_hint": "Deleted files wait here. Restore puts an item back into public_html; deleting from the trash is permanent.",
+    "trash_empty": "The trash is empty.",
+    "empty_trash": "Empty trash",
+    "upload": "Upload",
+    "new_folder": "New folder",
+    "new_file": "New file",
+    "refresh": "Refresh",
+    "selected_one": "{{count, number}} selected",
+    "selected_other": "{{count, number}} selected",
+    "download": "Download",
+    "rename": "Rename",
+    "restore": "Restore",
+    "extract": "Extract",
+    "compress": "Compress",
+    "delete": "Delete",
+    "delete_forever": "Delete forever",
+    "clear_selection": "Clear selection",
+    "select_all": "Select all",
+    "name": "Name",
+    "size": "Size",
+    "modified": "Modified",
+    "permissions": "Permissions",
+    "empty": "This folder is empty. Drop files here to upload them.",
+    "drop_hint": "Tip: drag files from your computer onto the list to upload them.",
+    "exists": "A file with this name already exists.",
+    "replace": "Replace it",
+    "clear_uploads": "Clear finished uploads",
+    "edit": "Edit",
+    "save": "Save",
+    "saved": "Saved",
+    "modified_unsaved": "Unsaved changes",
+    "unsaved": "You have unsaved changes. Close without saving?",
+    "binary": "This file is not text, so it cannot be edited here. Download it instead.",
+    "chmod_hint": "Three digits: owner, group, others. 644 for files and 755 for folders suit most sites.",
+    "dialog": {
+      "mkdir": "New folder",
+      "newfile": "New file",
+      "rename": "Rename",
+      "compress": "Compress into a .zip file",
+      "chmod": "Change permissions",
+      "ok": "OK"
+    }
+  },
+  "sftp": {
+    "title": "SFTP access",
+    "on": "On",
+    "off": "Off",
+    "intro": "Use FileZilla, WinSCP or any SFTP app to manage this site's files. The account only sees this site's folder and cannot run commands.",
+    "host": "Server",
+    "server_ip": "your server's IP address",
+    "turn_on": "Turn on SFTP",
+    "turn_off": "Turn off",
+    "new_password": "New password",
+    "password_once": "Copy this password now. It is shown only once and ekPanel does not keep it.",
+    "keys_one": "SSH key ({{count, number}})",
+    "keys_other": "SSH keys ({{count, number}})",
+    "keys_hint": "Sign in without a password: paste public keys (id_ed25519.pub), one per line.",
+    "save_keys": "Save keys"
   }
 }

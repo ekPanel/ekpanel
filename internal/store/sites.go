@@ -25,6 +25,9 @@ type Site struct {
 	PHPVersion        *string   `json:"php_version"`
 	TLS               string    `json:"tls"`
 	LinuxUser         string    `json:"linux_user"`
+	SFTPEnabled       bool      `json:"sftp_enabled"`
+	SSHKeys           []string  `json:"ssh_keys"`
+	SFTPPasswordHash  *string   `json:"-"`
 	State             string    `json:"state"`
 	Message           *string   `json:"message"`
 	Generation        int64     `json:"generation"`
@@ -34,14 +37,16 @@ type Site struct {
 }
 
 const siteColumns = `st.id, st.server_id, sv.name, st.domain, st.aliases, st.kind, st.php_version, st.tls,
-	st.linux_user, st.state, st.message, st.generation, st.applied_generation, st.created_at, st.updated_at`
+	st.linux_user, st.state, st.message, st.generation, st.applied_generation, st.created_at, st.updated_at,
+	st.sftp_enabled, st.ssh_keys, st.sftp_password_hash`
 
 const siteFrom = ` FROM sites st JOIN servers sv ON sv.id = st.server_id`
 
 func scanSite(row pgx.Row) (Site, error) {
 	var s Site
 	err := row.Scan(&s.ID, &s.ServerID, &s.ServerName, &s.Domain, &s.Aliases, &s.Kind, &s.PHPVersion, &s.TLS,
-		&s.LinuxUser, &s.State, &s.Message, &s.Generation, &s.AppliedGeneration, &s.CreatedAt, &s.UpdatedAt)
+		&s.LinuxUser, &s.State, &s.Message, &s.Generation, &s.AppliedGeneration, &s.CreatedAt, &s.UpdatedAt,
+		&s.SFTPEnabled, &s.SSHKeys, &s.SFTPPasswordHash)
 	return s, notFound(err)
 }
 
@@ -141,6 +146,24 @@ func (s *Store) UpdateSite(ctx context.Context, id string, c SiteChange) (Site, 
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return Site{}, err
+	}
+	return s.GetSite(ctx, id)
+}
+
+// SetSiteSFTP changes SFTP access and marks the site for re-applying. passwordHash nil
+// keeps the current one; keys nil keeps the current keys.
+func (s *Store) SetSiteSFTP(ctx context.Context, id string, enabled bool, passwordHash *string, clearPassword bool, keys []string) (Site, error) {
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE sites SET sftp_enabled = $2,
+			sftp_password_hash = CASE WHEN $4 THEN NULL WHEN $3::text IS NOT NULL THEN $3 ELSE sftp_password_hash END,
+			ssh_keys = COALESCE($5, ssh_keys),
+			generation = generation + 1, state = 'pending', message = NULL, updated_at = now()
+		WHERE id = $1 AND state <> 'deleting'`, id, enabled, passwordHash, clearPassword, keys)
+	if err != nil {
+		return Site{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		return Site{}, ErrNotFound
 	}
 	return s.GetSite(ctx, id)
 }

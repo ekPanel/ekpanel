@@ -221,6 +221,10 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		if s.PHPVersion != nil {
 			spec.PHPVersion = *s.PHPVersion
 		}
+		spec.SFTPEnabled, spec.SSHKeys = s.SFTPEnabled, s.SSHKeys
+		if s.SFTPPasswordHash != nil {
+			spec.SFTPPasswordHash = *s.SFTPPasswordHash
+		}
 		params.Sites = append(params.Sites, spec)
 	}
 	dbs, err := r.store.ListDatabases(ctx, serverID)

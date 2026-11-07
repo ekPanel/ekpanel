@@ -2,7 +2,8 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ExternalLink, Loader2, RotateCw, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, FolderOpen, Loader2, RotateCw, Trash2 } from "lucide-react";
+import { SiteSFTP } from "../components/SiteSFTP";
 import { api, ApiError, errorMessage, type Server, type Site } from "../lib/api";
 import { formatDateTime } from "../lib/format";
 import { PageHeader } from "../components/AppShell";
@@ -107,6 +108,12 @@ export function SiteDetailPage() {
         actions={
           <>
             <SiteStateBadge site={s} />
+            {!deleting && (
+              <Link to={`/sites/${s.id}/files`} className="inline-flex h-8 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm font-medium hover:bg-sunk">
+                <FolderOpen className="size-4" aria-hidden />
+                {t("files.title")}
+              </Link>
+            )}
             {s.state === "active" && (
               <a href={`https://${s.domain}`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm font-medium hover:bg-sunk">
                 {t("sites.visit")}
@@ -175,6 +182,7 @@ export function SiteDetailPage() {
           </Card>
 
           <div className="grid content-start gap-6">
+            {!deleting && <SiteSFTP site={s} server={server.data} />}
             <Card className="p-6">
               <h2 className="mb-4 text-lg font-semibold">{t("sites.details")}</h2>
               <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2.5 text-sm">

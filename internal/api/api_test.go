@@ -829,3 +829,154 @@ func TestDatabasesLifecycle(t *testing.T) {
 		return c.do("GET", "/api/v1/databases/"+id, nil, nil) == http.StatusNotFound
 	})
 }
+
+func TestSFTPAndFiles(t *testing.T) {
+	p := newTestPanel(t)
+	c := newClient(t, p.web.URL)
+	setUp(t, c)
+	serverID, cfg, _, _ := enrolled(t, p, c, "web-1")
+	tlsCfg, _ := cfg.TLSConfig()
+	conn, _, err := dialAgent(t, p, tlsCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.CloseNow()
+	specs := make(chan agentproto.SiteSpec, 50)
+	fileCalls := make(chan agentproto.FilesParams, 50)
+	fakeAgent(t, conn, func(op string, params json.RawMessage) (any, *agentproto.OpError) {
+		switch op {
+		case agentproto.OpStateApply:
+			var in agentproto.StateApplyParams
+			json.Unmarshal(params, &in)
+			var out agentproto.StateApplyResult
+			for _, s := range in.Sites {
+				specs <- s
+				out.Sites = append(out.Sites, agentproto.SiteResult{ID: s.ID, Generation: s.Generation, OK: true})
+			}
+			return out, nil
+		case agentproto.OpFiles:
+			var f agentproto.FilesParams
+			json.Unmarshal(params, &f)
+			fileCalls <- f
+			switch f.Action {
+			case "list":
+				return agentproto.FilesResult{Entries: []agentproto.FileEntry{{Name: "index.html", Type: "file", Size: 5}}}, nil
+			case "read_chunk": // a 6-byte file served in two pieces
+				if f.Offset == 0 {
+					return agentproto.FilesResult{Data: []byte("hel"), Size: 6}, nil
+				}
+				return agentproto.FilesResult{Data: []byte("lo!"), Size: 6, EOF: true}, nil
+			case "write_chunk":
+				return agentproto.FilesResult{Size: f.Offset + int64(len(f.Data))}, nil
+			}
+		}
+		return nil, &agentproto.OpError{Code: agentproto.ErrUnknownOp}
+	})
+
+	var site struct {
+		ID string `json:"id"`
+	}
+	c.do("POST", "/api/v1/sites", map[string]any{"server_id": serverID, "domain": "files.example.com", "kind": "static"}, &site)
+	lastSpec := func() agentproto.SiteSpec {
+		var last agentproto.SiteSpec
+		deadline := time.After(5 * time.Second)
+		for {
+			select {
+			case s := <-specs:
+				last = s
+				if len(specs) == 0 {
+					return last
+				}
+			case <-deadline:
+				t.Fatal("no state.apply")
+			}
+		}
+	}
+
+	// SFTP on: a password is returned once; the agent receives only its crypt hash.
+	var on struct {
+		Password string `json:"password"`
+		Site     struct {
+			SFTPEnabled bool `json:"sftp_enabled"`
+		} `json:"site"`
+	}
+	if st := c.do("POST", "/api/v1/sites/"+site.ID+"/sftp", map[string]bool{"enabled": true}, &on); st != http.StatusOK || len(on.Password) != 24 || !on.Site.SFTPEnabled {
+		t.Fatalf("enable sftp: %d %+v", st, on)
+	}
+	spec := lastSpec()
+	for spec.SFTPPasswordHash == "" {
+		spec = lastSpec()
+	}
+	if !spec.SFTPEnabled || !auth.CheckLinuxPassword(spec.SFTPPasswordHash, on.Password) || strings.Contains(spec.SFTPPasswordHash, on.Password) {
+		t.Fatalf("agent got %+v", spec)
+	}
+	var raw map[string]any
+	c.do("GET", "/api/v1/sites/"+site.ID, nil, &raw)
+	if _, leaked := raw["sftp_password_hash"]; leaked {
+		t.Fatal("password hash exposed by the API")
+	}
+
+	var e errBody
+	if st := c.do("PUT", "/api/v1/sites/"+site.ID+"/ssh-keys", map[string]any{"keys": []string{"ssh-dss AAAA bad"}}, &e); st != http.StatusBadRequest || e.Code != "invalid_ssh_key" {
+		t.Fatalf("bad key: %d %s", st, e.Code)
+	}
+	key := `no-pty ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFJiNUh2lSu0HKrMBqDhBTLTtc3P6gVjsyhP6UkCQBkW me@laptop`
+	var withKeys struct {
+		SSHKeys []string `json:"ssh_keys"`
+	}
+	if st := c.do("PUT", "/api/v1/sites/"+site.ID+"/ssh-keys", map[string]any{"keys": []string{key}}, &withKeys); st != http.StatusOK || len(withKeys.SSHKeys) != 1 || strings.Contains(withKeys.SSHKeys[0], "no-pty") {
+		t.Fatalf("keys: %d %+v", st, withKeys)
+	}
+
+	// SFTP off forgets the password.
+	c.do("POST", "/api/v1/sites/"+site.ID+"/sftp", map[string]bool{"enabled": false}, nil)
+	spec = lastSpec()
+	for spec.SFTPEnabled {
+		spec = lastSpec()
+	}
+	if spec.SFTPPasswordHash != "" {
+		t.Fatal("disabling SFTP must clear the password")
+	}
+
+	// Files: listing, the site's own account, and actions the JSON endpoint refuses.
+	var list agentproto.FilesResult
+	if st := c.do("POST", "/api/v1/sites/"+site.ID+"/files", map[string]any{"action": "list", "path": "/public_html"}, &list); st != http.StatusOK || len(list.Entries) != 1 {
+		t.Fatalf("list: %d %+v", st, list)
+	}
+	if call := <-fileCalls; !strings.HasPrefix(call.User, "files_") {
+		t.Fatalf("file action must run as the site's account, got %q", call.User)
+	}
+	if st := c.do("POST", "/api/v1/sites/"+site.ID+"/files", map[string]any{"action": "write_chunk", "path": "/x"}, &e); st != http.StatusBadRequest {
+		t.Fatalf("chunk action through JSON endpoint: %d", st)
+	}
+
+	// Upload a piece as raw bytes; a text/plain body (what a cross-site form can send) is refused.
+	req, _ := http.NewRequest("POST", p.web.URL+"/api/v1/sites/"+site.ID+"/files/upload?path=/public_html/a.bin&offset=0&final=1", strings.NewReader("abc"))
+	req.Header.Set("Content-Type", "application/octet-stream")
+	resp, err := c.http.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("upload: %v %d", err, resp.StatusCode)
+	}
+	resp.Body.Close()
+	if call := <-fileCalls; call.Action != "write_chunk" || string(call.Data) != "abc" || !call.Final {
+		t.Fatalf("upload reached agent as %+v", call)
+	}
+	req, _ = http.NewRequest("POST", p.web.URL+"/api/v1/sites/"+site.ID+"/files/upload?path=/x&offset=0", strings.NewReader("abc"))
+	req.Header.Set("Content-Type", "text/plain")
+	resp, _ = c.http.Do(req)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnsupportedMediaType {
+		t.Fatalf("text/plain upload: %d", resp.StatusCode)
+	}
+
+	// Download is streamed from the agent in pieces.
+	resp, err = c.http.Get(p.web.URL + "/api/v1/sites/" + site.ID + "/files/download?path=/public_html/hello.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if string(body) != "hello!" || !strings.Contains(resp.Header.Get("Content-Disposition"), `filename=hello.txt`) {
+		t.Fatalf("download = %q %q", body, resp.Header.Get("Content-Disposition"))
+	}
+}

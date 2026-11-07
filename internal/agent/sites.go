@@ -143,6 +143,17 @@ func validateSite(sp agentproto.SiteSpec) error {
 	if sp.TLS != "auto" && sp.TLS != "internal" {
 		return fmt.Errorf("unknown TLS mode %q", sp.TLS)
 	}
+	if sp.SFTPPasswordHash != "" && !cryptHashRE.MatchString(sp.SFTPPasswordHash) {
+		return errors.New("invalid SFTP password hash")
+	}
+	if len(sp.SSHKeys) > maxSSHKeys {
+		return errors.New("too many SSH keys")
+	}
+	for _, k := range sp.SSHKeys {
+		if _, err := normalizeSSHKey(k); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -193,6 +204,7 @@ type applier struct {
 	reloadPHP    map[string]bool   // PHP version -> true if it gained or changed a pool, false if it only lost pools
 	caddyChanged map[string][]byte // site file path -> previous content (nil: did not exist)
 	caddySites   map[string]string // site file path -> site ID
+	sshdReady    *error            // result of installing the SFTP rules, once per run
 }
 
 func (a *applier) fail(id string, err error) {
@@ -207,9 +219,11 @@ func (a *applier) prepare(ctx context.Context) error {
 	if err := os.MkdirAll(a.sys.path(caddySitesDir), 0o755); err != nil {
 		return err
 	}
-	if _, err := a.sys.run(ctx, "getent", "group", sitesGroup); err != nil {
-		if _, err := a.sys.run(ctx, "groupadd", "--system", sitesGroup); err != nil {
-			return err
+	for _, g := range []string{sitesGroup, sftpGroup} {
+		if _, err := a.sys.run(ctx, "getent", "group", g); err != nil {
+			if _, err := a.sys.run(ctx, "groupadd", "--system", g); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -251,15 +265,27 @@ func (a *applier) ensure(ctx context.Context, sp agentproto.SiteSpec) error {
 	if err := a.writePools(sp); err != nil {
 		return err
 	}
+	if err := a.ensureSFTP(ctx, sp); err != nil {
+		return err
+	}
 	return a.writeCaddy(sp)
 }
 
 func (a *applier) ensureDirs(ctx context.Context, sp agentproto.SiteSpec, created bool) error {
 	home := "/home/" + sp.User
+	// The home folder belongs to root (OpenSSH requires that of an SFTP chroot) with the
+	// site's group, so the account can enter it but only write inside the folders below.
 	dirs := []struct {
-		path string
-		mode os.FileMode
-	}{{home, 0o750}, {home + "/public_html", 0o750}, {home + "/logs", 0o750}, {home + "/tmp", 0o700}}
+		path  string
+		mode  os.FileMode
+		owner string
+	}{
+		{home, 0o750, "root:" + sp.User},
+		{home + "/public_html", 0o750, sp.User + ":" + sp.User},
+		{home + "/logs", 0o750, sp.User + ":" + sp.User},
+		{home + "/tmp", 0o700, sp.User + ":" + sp.User},
+		{home + "/.trash", 0o700, sp.User + ":" + sp.User},
+	}
 	for _, d := range dirs {
 		p := a.sys.path(d.path)
 		if err := os.MkdirAll(p, d.mode); err != nil {
@@ -268,7 +294,7 @@ func (a *applier) ensureDirs(ctx context.Context, sp agentproto.SiteSpec, create
 		if err := os.Chmod(p, d.mode); err != nil {
 			return err
 		}
-		if _, err := a.sys.run(ctx, "chown", sp.User+":"+sp.User, d.path); err != nil {
+		if _, err := a.sys.run(ctx, "chown", d.owner, d.path); err != nil {
 			return err
 		}
 	}
@@ -552,6 +578,7 @@ func (a *applier) remove(ctx context.Context, sp agentproto.SiteSpec) error {
 			a.reloadPHP[v] = false
 		}
 	}
+	os.Remove(a.sys.path(sshKeysDir + "/" + sp.User))
 	exists, err := a.managedUser(ctx, sp.User)
 	if err != nil {
 		return err

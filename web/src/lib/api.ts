@@ -106,6 +106,8 @@ export interface Site {
   php_version: string | null;
   tls: "auto" | "internal";
   linux_user: string;
+  sftp_enabled: boolean;
+  ssh_keys: string[];
   state: SiteState;
   message: string | null;
   generation: number;
@@ -134,6 +136,25 @@ export interface Database {
 export interface DatabaseWithPassword {
   database: Database;
   password: string;
+}
+
+export interface FileEntry {
+  name: string;
+  type: "file" | "dir" | "link";
+  size: number;
+  mode: string;
+  modified: string;
+  target?: string;
+}
+
+/** Result of a file action. `data` is base64 (Go []byte). */
+export interface FilesResult {
+  entries?: FileEntry[];
+  data?: string;
+  size?: number;
+  eof?: boolean;
+  path?: string;
+  count?: number;
 }
 
 export interface AuditEntry {
@@ -188,6 +209,7 @@ export const api = {
   get: <T>(path: string) => request<T>("GET", path),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body ?? {}),
   patch: <T>(path: string, body: unknown) => request<T>("PATCH", path, body),
+  put: <T>(path: string, body: unknown) => request<T>("PUT", path, body),
   del: (path: string) => request<void>("DELETE", path),
 };
 

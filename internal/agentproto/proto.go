@@ -161,6 +161,11 @@ type SiteSpec struct {
 	TLS        string   `json:"tls"`  // "auto" (public CA) or "internal" (self-signed)
 	User       string   `json:"user"` // Linux account owning the site
 	Deleted    bool     `json:"deleted,omitempty"`
+
+	// SFTP sign-in for the site's account, locked into its home folder.
+	SFTPEnabled      bool     `json:"sftp_enabled,omitempty"`
+	SFTPPasswordHash string   `json:"sftp_password_hash,omitempty"` // SHA-512 crypt; empty means keys only
+	SSHKeys          []string `json:"ssh_keys,omitempty"`           // public keys, one per entry
 }
 
 // DatabaseSpec is one customer database with its owner account. PasswordHash is the
@@ -198,4 +203,49 @@ type DatabaseResult struct {
 type StateApplyResult struct {
 	Sites     []SiteResult     `json:"sites"`
 	Databases []DatabaseResult `json:"databases"`
+}
+
+// ---- Files ----
+
+// OpFiles runs one file manager action inside a site's home folder. The agent performs it
+// in a separate process that is chrooted into the folder and runs as the site's account,
+// so the kernel stops it from reaching anything else, symlinks included.
+const OpFiles = "files"
+
+// FileChunkSize is the largest piece of a file sent in one message (before base64).
+const FileChunkSize = 512 << 10
+
+// FileEditLimit is the largest file the editor opens or saves.
+const FileEditLimit = 2 << 20
+
+type FilesParams struct {
+	User   string `json:"user"`   // site account
+	Action string `json:"action"` // list, read, write, mkdir, rename, delete, chmod, extract, compress, read_chunk, write_chunk, empty_trash
+	// Paths are relative to the site's home folder, written with a leading "/".
+	Path    string   `json:"path,omitempty"`
+	Paths   []string `json:"paths,omitempty"`
+	To      string   `json:"to,omitempty"`
+	Data    []byte   `json:"data,omitempty"` // file content for write and write_chunk
+	Offset  int64    `json:"offset,omitempty"`
+	Final   bool     `json:"final,omitempty"` // last chunk of an upload: move it into place
+	Mode    string   `json:"mode,omitempty"`  // octal permissions for chmod, e.g. "644"
+	Replace bool     `json:"replace,omitempty"`
+}
+
+type FileEntry struct {
+	Name     string    `json:"name"`
+	Type     string    `json:"type"` // file, dir or link
+	Size     int64     `json:"size"`
+	Mode     string    `json:"mode"`
+	Modified time.Time `json:"modified"`
+	Target   string    `json:"target,omitempty"` // for links
+}
+
+type FilesResult struct {
+	Entries []FileEntry `json:"entries,omitempty"`
+	Data    []byte      `json:"data,omitempty"`
+	Size    int64       `json:"size,omitempty"` // total size for read_chunk
+	EOF     bool        `json:"eof,omitempty"`
+	Path    string      `json:"path,omitempty"` // where something was put (trash, archive)
+	Count   int         `json:"count,omitempty"`
 }

@@ -57,6 +57,12 @@ func Dispatch(ctx context.Context, op string, params json.RawMessage) (any, *age
 			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
 		}
 		return stateApply(ctx, realSystem, p)
+	case agentproto.OpFiles:
+		var p agentproto.FilesParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return runFiles(ctx, realSystem, p)
 	case agentproto.OpServicesRestart:
 		var p agentproto.ServicesRestartParams
 		if err := json.Unmarshal(params, &p); err != nil {
