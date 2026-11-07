@@ -168,10 +168,11 @@ Each phase ends with something installable and usable.
 - Multi-user: packages, quotas, customer accounts, cgroup resource limits
 
 ### Phase 3 — "cPanel level"
-- Built-in DNS (PowerDNS) + Cloudflare
-- Email (Stalwart + webmail), auto DKIM/SPF/DMARC
+- Cloudflare DNS as the recommended way (one click, kept in sync), built-in DNS (PowerDNS) as
+  an option
+- Email (Stalwart + Roundcube), auto DKIM/SPF/DMARC
 - WordPress toolkit, app installer
-- Security suite (firewall UI, CrowdSec, WAF, malware scan)
+- Security suite (CrowdSec, country blocking, malware scan; WAF later)
 - FTP, PHP extensions/ini editor, redirects, hotlink protection
 
 ### Phase 4 — "Beyond"
@@ -568,5 +569,71 @@ limits are measured and enforced by the panel, real filesystem quotas come later
 - [ ] Comments on the pull request with the preview's address (needs a token for the forge),
       previews of forks after approval: later
 
+## 12. Phase 3 plan
+
+Agreed (2026-11-07):
+
+- **DNS: Cloudflare first.** ekPanel recommends keeping domains on Cloudflare and manages them
+  there in one click, kept in sync through Cloudflare's API. The panel's own DNS (PowerDNS) is
+  an option for people who do not use Cloudflare, and comes last.
+- **Mail: Stalwart** (AGPL-3.0, one binary with SMTP, IMAP, JMAP, spam filter and DKIM), driven
+  through its API. **Webmail: Roundcube**, hosted as a PHP site.
+- **Security: CrowdSec now, WAF later.** 3e uses the packaged Caddy. A WAF (Coraza) needs a
+  Caddy built with modules, which ekPanel would then build and ship itself; that comes later.
+- **Order:** 3a → 3b → 3c → 3d → 3e → 3f → 3g, each tested in the VM like phase 2.
+
+**3a. Website extras**
+- [ ] Redirects (301/302, whole domain or paths) and hotlink protection
+- [ ] PHP settings per site from a list (memory_limit, upload and post size, execution time,
+      display_errors …), and PHP extensions from an allowlist (php8.x-imagick, -redis, -intl …)
+- [ ] Uploading a site's own certificate and key, checked before use
+
+**3b. Cloudflare DNS**
+- [ ] Connect a Cloudflare account with an API token limited to DNS (and zone settings);
+      sealed like other secrets. Customers can connect their own
+- [ ] One click per domain: the records a site, app or mailbox needs are created; proxied
+      (orange cloud) or not, per record
+- [ ] Kept in sync: adding, renaming or deleting a site or app changes its records; records
+      changed by hand in Cloudflare are shown as drift instead of being overwritten silently
+- [ ] Adding a new domain to Cloudflare from the panel, with the nameservers to set at the
+      registrar; zone editor for every record; cache purge
+- [ ] Behind Cloudflare, Caddy trusts Cloudflare's addresses, so logs, traffic and (3e)
+      CrowdSec see visitors' real addresses; the zone's SSL mode is checked (Full (strict))
+
+**3c. Email**
+- [ ] Stalwart on the server, installed on first use (pinned version, checked download)
+- [ ] Mail domains, mailboxes with quotas and passwords, aliases, forwarders, catch-all,
+      autoresponders; package limits on mailboxes
+- [ ] DKIM keys made per domain; DKIM, SPF, DMARC and MX published to Cloudflare (3b), or
+      shown to copy for other DNS
+- [ ] Roundcube webmail as a PHP site on a domain the user picks
+- [ ] Deliverability check: reverse DNS (PTR), outgoing port 25 (many providers block it),
+      blocklists, and the published records
+- [ ] Tested in the VM: delivery inside the VM, IMAP, DKIM signatures, spam filtering
+      (delivery to outside mailboxes cannot be tested from the VM)
+
+**3d. WordPress toolkit and app installer**
+- [ ] Every WordPress site in one list: core, plugin and theme updates (WP-CLI), automatic
+      update rules, maintenance mode
+- [ ] Staging: a copy on a subdomain (files and database), and pushing it back
+- [ ] Hardening: no file editing from the dashboard, xmlrpc blocked, safe permissions
+- [ ] Installer for PHP apps: Laravel, Joomla, Drupal, PrestaShop, Moodle …
+
+**3e. Security**
+- [ ] CrowdSec with the firewall bouncer: SSH, web server and WordPress attacks banned
+- [ ] Alerts, bans, manual bans and allowlists in the panel; country blocking (db-ip lite,
+      CC BY 4.0)
+- [ ] Malware scans with ClamAV on a schedule, with quarantine
+- [ ] A security overview: SSH settings, pending updates, 2FA of administrators
+
+**3f. FTP**
+- [ ] Pure-FTPd with TLS required, one login per site chrooted to it, passive ports opened in
+      the firewall automatically
+
+**3g. Built-in DNS (optional)**
+- [ ] PowerDNS Authoritative with its own PostgreSQL database; zone editor and templates;
+      records made automatically like with Cloudflare; DNSSEC; a second server as secondary
+      (AXFR/NOTIFY); guidance for glue records
+
 **Next**
-- [ ] Phase 3: built-in DNS, email with webmail, WordPress toolkit, security suite
+- [ ] 3a. Website extras
