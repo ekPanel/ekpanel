@@ -2,10 +2,26 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Boxes, Download, SquareTerminal, ExternalLink, Lock, Play, Plus, RefreshCw, RotateCw, Square, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Boxes,
+  Download,
+  Eye,
+  EyeOff,
+  SquareTerminal,
+  ExternalLink,
+  LayoutGrid,
+  Lock,
+  Play,
+  Plus,
+  RefreshCw,
+  RotateCw,
+  Square,
+  Trash2,
+} from "lucide-react";
 import { api, ApiError, errorMessage, type App, type AppContainer, type Server, type Task } from "../lib/api";
 import { PageHeader } from "../components/AppShell";
-import { Badge, Button, Card, Dialog, ErrorAlert, Field, Spinner, cx, type Tone } from "../components/ui";
+import { Badge, Button, Card, CopyButton, Dialog, ErrorAlert, Field, Spinner, cx, type Tone } from "../components/ui";
 import { EmptyState } from "./ServerParts";
 import { SiteStateBadge } from "./SitesPage";
 import { useTasks } from "../components/Tasks";
@@ -13,6 +29,7 @@ import { useMe } from "../lib/session";
 import { CronCard } from "../components/CronCard";
 import { LogsCard, TrafficCard } from "../components/WebInsights";
 import { OwnerField } from "./CustomersPage";
+import { TemplateMark, useCatalog } from "./CatalogPage";
 
 const textarea = "rounded-lg border border-line bg-surface px-3 py-2 font-mono text-sm text-ink";
 const select = "h-10 rounded-lg border border-line bg-surface px-3 text-ink";
@@ -97,19 +114,15 @@ function requestBody(kind: App["kind"], f: AppForm) {
   };
 }
 
-/** Ready-made settings for a few popular images; a full app catalogue comes later. */
-const presets: { name: string; label: string; form: Partial<AppForm> }[] = [
-  { name: "uptime-kuma", label: "Uptime Kuma", form: { image: "louislam/uptime-kuma:1", port: "3001", volumes: "/app/data" } },
-  { name: "n8n", label: "n8n", form: { image: "docker.n8n.io/n8nio/n8n:latest", port: "5678", volumes: "/home/node/.n8n" } },
-  { name: "web", label: "Nginx", form: { image: "nginx:alpine", port: "80" } },
-];
-
-function AppFields({ kind, value, onChange }: { kind: App["kind"]; value: AppForm; onChange: (v: AppForm) => void }) {
+/** The settings of an app. An app from the catalogue keeps the template's Compose file and port. */
+function AppFields({ kind, value, onChange, fromTemplate }: { kind: App["kind"]; value: AppForm; onChange: (v: AppForm) => void; fromTemplate?: boolean }) {
   const { t } = useTranslation();
   const set = <K extends keyof AppForm>(k: K, v: AppForm[K]) => onChange({ ...value, [k]: v });
   return (
     <div className="grid gap-4">
-      {kind === "image" ? (
+      {fromTemplate ? (
+        <p className="rounded-lg bg-sunk px-3 py-2 text-sm text-muted">{t("catalog.compose_fixed")}</p>
+      ) : kind === "image" ? (
         <Field
           label={t("apps.image")}
           hint={t("apps.image_hint")}
@@ -135,20 +148,22 @@ function AppFields({ kind, value, onChange }: { kind: App["kind"]; value: AppFor
           <span className="text-sm text-muted">{t("apps.compose_hint")}</span>
         </label>
       )}
-      <div className={cx("grid gap-4", kind === "compose" ? "sm:grid-cols-2" : "")}>
-        {kind === "compose" && (
-          <Field label={t("apps.service")} hint={t("apps.service_hint")} value={value.service} onChange={(e) => set("service", e.target.value)} dir="ltr" />
-        )}
-        <Field
-          label={t("apps.port")}
-          hint={t("apps.port_hint")}
-          value={value.port}
-          onChange={(e) => set("port", e.target.value.replace(/\D/g, ""))}
-          inputMode="numeric"
-          dir="ltr"
-          placeholder="8080"
-        />
-      </div>
+      {!fromTemplate && (
+        <div className={cx("grid gap-4", kind === "compose" ? "sm:grid-cols-2" : "")}>
+          {kind === "compose" && (
+            <Field label={t("apps.service")} hint={t("apps.service_hint")} value={value.service} onChange={(e) => set("service", e.target.value)} dir="ltr" />
+          )}
+          <Field
+            label={t("apps.port")}
+            hint={t("apps.port_hint")}
+            value={value.port}
+            onChange={(e) => set("port", e.target.value.replace(/\D/g, ""))}
+            inputMode="numeric"
+            dir="ltr"
+            placeholder="8080"
+          />
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
         <Field
           label={t("apps.domain")}
@@ -216,7 +231,7 @@ function AppFields({ kind, value, onChange }: { kind: App["kind"]; value: AppFor
               placeholder={t("apps.no_limit")}
             />
           </div>
-          {kind === "compose" && (
+          {kind === "compose" && !fromTemplate && (
             <label className="flex items-start gap-2 text-sm">
               <input
                 type="checkbox"
@@ -307,24 +322,12 @@ function AddAppDialog({ open, onClose }: { open: boolean; onClose: () => void })
             </label>
           ))}
         </div>
-        {kind === "image" && (
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-muted">{t("apps.presets")}</span>
-            {presets.map((p) => (
-              <button
-                key={p.name}
-                type="button"
-                className="rounded-full border border-line px-3 py-1 hover:border-accent hover:text-accent"
-                onClick={() => {
-                  setForm({ ...emptyForm, ...p.form });
-                  setName(p.name);
-                }}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        )}
+        <p className="text-sm text-muted">
+          {t("catalog.or")}{" "}
+          <Link to="/apps/catalog" className="font-medium text-accent hover:underline">
+            {t("catalog.browse")}
+          </Link>
+        </p>
         <div className={cx("grid gap-4", ready.length > 1 && "sm:grid-cols-2")}>
           <Field
             label={t("apps.name")}
@@ -376,18 +379,24 @@ export function AppsPage() {
   const [params, setParams] = useSearchParams();
   const adding = params.get("add") === "1";
   const setAdding = (on: boolean) => setParams(on ? { add: "1" } : {}, { replace: true });
-  const addButton = (
-    <Button variant="primary" onClick={() => setAdding(true)}>
-      <Plus className="size-4" aria-hidden />
-      {t("apps.add")}
-    </Button>
+  const addButtons = (
+    <div className="flex flex-wrap justify-center gap-2">
+      <Link to="/apps/catalog" className="inline-flex h-10 items-center gap-2 rounded-lg bg-accent px-4 text-sm font-medium text-accent-ink hover:opacity-90">
+        <LayoutGrid className="size-4" aria-hidden />
+        {t("catalog.open")}
+      </Link>
+      <Button onClick={() => setAdding(true)}>
+        <Plus className="size-4" aria-hidden />
+        {t("apps.add")}
+      </Button>
+    </div>
   );
   return (
     <>
-      <PageHeader title={t("nav.apps")} description={t("apps.intro")} actions={apps.data?.length ? addButton : undefined} />
+      <PageHeader title={t("nav.apps")} description={t("apps.intro")} actions={apps.data?.length ? addButtons : undefined} />
       {apps.isPending && <Spinner />}
       {apps.error && <ErrorAlert>{errorMessage(t, apps.error)}</ErrorAlert>}
-      {apps.data?.length === 0 && <EmptyState icon={<Boxes />} title={t("apps.empty.title")} body={t("apps.empty.body")} action={addButton} />}
+      {apps.data?.length === 0 && <EmptyState icon={<Boxes />} title={t("apps.empty.title")} body={t("apps.empty.body")} action={addButtons} />}
       {!!apps.data?.length && (
         <Card className="overflow-x-auto">
           <table className="w-full min-w-[680px] text-sm">
@@ -415,7 +424,7 @@ export function AppsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span className="font-mono text-xs" dir="ltr">
-                      {a.kind === "image" ? a.image : t("apps.kind.compose")}
+                      {a.kind === "image" ? a.image : (a.template ?? t("apps.kind.compose"))}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-muted">
@@ -587,7 +596,7 @@ export function AppDetailPage() {
       </Link>
       <PageHeader
         title={app.name}
-        description={app.kind === "image" ? (app.image ?? "") : t("apps.kind.compose")}
+        description={app.kind === "image" ? (app.image ?? "") : app.template ? t("catalog.from") : t("apps.kind.compose")}
         actions={
           <>
             {url && (
@@ -681,6 +690,7 @@ export function AppDetailPage() {
           </dl>
         </Card>
 
+        {app.template && <TemplateCard app={app} />}
         <div className="grid gap-6 xl:grid-cols-[2fr_3fr]">
           <Containers app={app} />
           <Logs app={app} />
@@ -703,7 +713,7 @@ export function AppDetailPage() {
               }}
             >
               <h2 className="text-lg font-semibold">{t("apps.settings")}</h2>
-              <AppFields kind={app.kind} value={form} onChange={setForm} />
+              <AppFields kind={app.kind} value={form} onChange={setForm} fromTemplate={!!app.template} />
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="ghost" onClick={() => setForm(formFromApp(app))}>
                   {t("apps.reset")}
@@ -729,6 +739,58 @@ export function AppDetailPage() {
       </div>
       <DeleteAppDialog open={deleting} app={app} onClose={() => setDeleting(false)} />
     </>
+  );
+}
+
+/** What a catalogue app needs to be used: its notes and sign-in details. */
+function TemplateCard({ app }: { app: App }) {
+  const { t } = useTranslation();
+  const catalog = useCatalog();
+  const [shown, setShown] = useState(false);
+  const tpl = catalog.data?.find((c) => c.id === app.template);
+  if (!tpl) return null;
+  const logins = tpl.vars.filter((v) => v.login).map((v) => ({ key: v.name, value: app.env.find((e) => e.key === v.name)?.value ?? "" }));
+  const notes = t(`catalog.apps.${tpl.id}.notes`, { defaultValue: "", port: app.host_port ?? "", domain: app.domain_display });
+  return (
+    <Card className="grid gap-4 p-5">
+      <div className="flex items-center gap-3">
+        <TemplateMark template={tpl} />
+        <div className="min-w-0">
+          <h2 className="font-semibold">{tpl.name}</h2>
+          <p className="text-sm text-muted">{t("catalog.version", { version: app.template_version })}</p>
+        </div>
+        <a href={tpl.website} target="_blank" rel="noreferrer" className="ms-auto inline-flex items-center gap-1 text-sm text-accent hover:underline">
+          {t("catalog.website")}
+          <ExternalLink className="size-3.5" aria-hidden />
+        </a>
+      </div>
+      {notes && <p className="text-sm">{notes}</p>}
+      {logins.length > 0 && (
+        <div className="grid gap-2">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold">{t("catalog.sign_in")}</h3>
+            <Button size="sm" variant="ghost" onClick={() => setShown(!shown)} aria-pressed={shown}>
+              {shown ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
+              {shown ? t("catalog.hide") : t("catalog.show")}
+            </Button>
+          </div>
+          <dl className="grid gap-2 text-sm">
+            {logins.map((l) => (
+              <div key={l.key} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-sunk px-3 py-2">
+                <dt className="font-mono text-xs text-muted" dir="ltr">
+                  {l.key}
+                </dt>
+                <dd className="min-w-0 flex-1 truncate font-mono" dir="ltr">
+                  {shown || !/PASSWORD|TOKEN/.test(l.key) ? l.value : "•".repeat(12)}
+                </dd>
+                <CopyButton text={l.value} className="-my-1 shrink-0" />
+              </div>
+            ))}
+          </dl>
+          <p className="text-xs text-muted">{t("catalog.sign_in_hint")}</p>
+        </div>
+      )}
+    </Card>
   );
 }
 

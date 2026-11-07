@@ -2,7 +2,23 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { ArchiveRestore, Bell, Boxes, CornerDownLeft, Package as PackageIcon, Users, Database as DatabaseIcon, Gauge, Globe, Plus, ScrollText, Search, Server as ServerIcon, ShieldCheck } from "lucide-react";
+import {
+  ArchiveRestore,
+  Bell,
+  Boxes,
+  CornerDownLeft,
+  Database as DatabaseIcon,
+  Gauge,
+  Globe,
+  LayoutGrid,
+  Package as PackageIcon,
+  Plus,
+  ScrollText,
+  Search,
+  Server as ServerIcon,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
 import { api, type Database, type Server, type Site, type User } from "../lib/api";
 import { cx } from "./ui";
 
@@ -62,6 +78,7 @@ export function CommandPalette({ open, onClose, user }: { open: boolean; onClose
       { id: "sites", group: pages, label: t("nav.sites"), icon: <Globe />, run: go("/sites") },
       { id: "databases", group: pages, label: t("nav.databases"), icon: <DatabaseIcon />, run: go("/databases") },
       { id: "apps", group: pages, label: t("nav.apps"), icon: <Boxes />, run: go("/apps") },
+      { id: "catalog", group: pages, label: t("catalog.title"), icon: <LayoutGrid />, run: go("/apps/catalog") },
       { id: "add-site", group: t("palette.actions"), label: t("sites.add"), icon: <Plus />, run: go("/sites?add=1") },
       { id: "add-db", group: t("palette.actions"), label: t("databases.add"), icon: <Plus />, run: go("/databases?add=1") },
       { id: "add-app", group: t("palette.actions"), label: t("apps.add"), icon: <Plus />, run: go("/apps?add=1") },

@@ -165,6 +165,14 @@ func composeCommand(sys *system, name string, env []agentproto.EnvVar, args ...s
 	return command{name: "docker", args: append(base, args...), env: vars}
 }
 
+// withoutOverride drops ekPanel's override file from compose arguments.
+func withoutOverride(args []string) []string {
+	if i := slices.Index(args, "-f"); i >= 0 && i+3 < len(args) && args[i+2] == "-f" && strings.HasSuffix(args[i+3], "/"+appOverrideFile) {
+		return slices.Delete(slices.Clone(args), i+2, i+4)
+	}
+	return args
+}
+
 func compose(ctx context.Context, sys *system, name string, env []agentproto.EnvVar, args ...string) ([]byte, error) {
 	return sys.exec(ctx, composeCommand(sys, name, env, args...))
 }
@@ -216,37 +224,92 @@ func imageCompose(ap agentproto.AppSpec) []byte {
 }
 
 // composeOverride publishes the app's port on 127.0.0.1 and applies limits to the chosen
-// service of a Compose app. Nil means no override is needed.
-func composeOverride(ap agentproto.AppSpec) []byte {
-	if ap.ContainerPort == 0 && ap.MemoryMB == 0 && ap.CPUs == 0 {
+// service of a Compose app. A customer's app also puts every service (named in services) in
+// the customer's slice. Nil means no override is needed.
+func composeOverride(ap agentproto.AppSpec, services []string) []byte {
+	all := map[string]any{}
+	if ap.Owner != "" {
+		for _, name := range services {
+			all[name] = map[string]any{"cgroup_parent": customerSlice(ownerKey(ap.Owner))}
+		}
+	}
+	if ap.ContainerPort != 0 || ap.MemoryMB > 0 || ap.CPUs > 0 {
+		svc, _ := all[ap.Service].(map[string]any)
+		if svc == nil {
+			svc = map[string]any{}
+		}
+		if ap.ContainerPort != 0 {
+			svc["ports"] = []string{fmt.Sprintf("127.0.0.1:%d:%d", ap.HostPort, ap.ContainerPort)}
+		}
+		if ap.MemoryMB > 0 {
+			svc["mem_limit"] = strconv.Itoa(ap.MemoryMB) + "m"
+		}
+		if ap.CPUs > 0 {
+			svc["cpus"] = ap.CPUs
+		}
+		all[ap.Service] = svc
+	}
+	if len(all) == 0 {
 		return nil
 	}
-	svc := map[string]any{}
-	if ap.ContainerPort != 0 {
-		svc["ports"] = []string{fmt.Sprintf("127.0.0.1:%d:%d", ap.HostPort, ap.ContainerPort)}
-	}
-	if ap.MemoryMB > 0 {
-		svc["mem_limit"] = strconv.Itoa(ap.MemoryMB) + "m"
-	}
-	if ap.CPUs > 0 {
-		svc["cpus"] = ap.CPUs
-	}
-	b, _ := json.MarshalIndent(map[string]any{"services": map[string]any{ap.Service: svc}}, "", "  ")
+	b, _ := json.MarshalIndent(map[string]any{"services": all}, "", "  ")
 	return append(b, '\n')
+}
+
+// composeService is what checkComposeConfig reads of one service in the resolved file.
+type composeService struct {
+	NetworkMode string `json:"network_mode"`
+	Ports       []struct {
+		HostIP    string `json:"host_ip"`
+		Published string `json:"published"`
+	} `json:"ports"`
+	Privileged   bool              `json:"privileged"`
+	CapAdd       []string          `json:"cap_add"`
+	Devices      []json.RawMessage `json:"devices"`
+	Pid          string            `json:"pid"`
+	Ipc          string            `json:"ipc"`
+	UsernsMode   string            `json:"userns_mode"`
+	SecurityOpt  []string          `json:"security_opt"`
+	VolumesFrom  []string          `json:"volumes_from"`
+	CgroupParent string            `json:"cgroup_parent"`
+	Volumes      []struct {
+		Type   string `json:"type"`
+		Source string `json:"source"`
+	} `json:"volumes"`
+}
+
+// customerComposeRules keeps a customer's app (always a catalogue template) inside its
+// containers: nothing of the host may be shared with it. Templates follow these rules
+// already; this holds even if one did not.
+func customerComposeRules(name string, s composeService, slice string) error {
+	switch {
+	case s.Privileged || len(s.CapAdd) > 0 || len(s.Devices) > 0 || len(s.SecurityOpt) > 0:
+		return fmt.Errorf("service %s asks for extra privileges", name)
+	case s.NetworkMode != "" || s.Pid != "" || s.Ipc != "" || s.UsernsMode != "" || len(s.VolumesFrom) > 0:
+		return fmt.Errorf("service %s shares namespaces with the host or other containers", name)
+	case s.CgroupParent != slice:
+		return fmt.Errorf("service %s is not in the customer's slice", name)
+	}
+	for _, v := range s.Volumes {
+		if v.Type != "volume" && v.Type != "tmpfs" {
+			return fmt.Errorf("service %s mounts %s from the host", name, v.Source)
+		}
+	}
+	return nil
 }
 
 // checkComposeConfig reads the resolved configuration and refuses ports published on
 // public addresses (Docker opens those past the firewall) unless the user allowed them.
 func checkComposeConfig(raw []byte, ap agentproto.AppSpec) error {
 	var cfg struct {
-		Services map[string]struct {
-			NetworkMode string `json:"network_mode"`
-			Ports       []struct {
-				HostIP    string `json:"host_ip"`
-				Published string `json:"published"`
-				Target    int    `json:"target"`
-			} `json:"ports"`
-		} `json:"services"`
+		Services map[string]composeService `json:"services"`
+		Volumes  map[string]struct {
+			Driver     string            `json:"driver"`
+			DriverOpts map[string]string `json:"driver_opts"`
+			External   bool              `json:"external"`
+		} `json:"volumes"`
+		Secrets map[string]json.RawMessage `json:"secrets"`
+		Configs map[string]json.RawMessage `json:"configs"`
 	}
 	if err := json.Unmarshal(raw, &cfg); err != nil {
 		return fmt.Errorf("read the Compose configuration: %w", err)
@@ -259,14 +322,31 @@ func checkComposeConfig(raw []byte, ap agentproto.AppSpec) error {
 			return fmt.Errorf("the Compose file has no service %q", ap.Service)
 		}
 	}
-	if ap.PublicPorts {
-		return nil
-	}
 	names := make([]string, 0, len(cfg.Services))
 	for n := range cfg.Services {
 		names = append(names, n)
 	}
 	slices.Sort(names)
+	if ap.Owner != "" {
+		// Volumes with driver options can mount any folder of the host; secrets and configs
+		// read files of the host.
+		for vn, v := range cfg.Volumes {
+			if (v.Driver != "" && v.Driver != "local") || len(v.DriverOpts) > 0 || v.External {
+				return fmt.Errorf("volume %s is not a plain volume of the app", vn)
+			}
+		}
+		if len(cfg.Secrets) > 0 || len(cfg.Configs) > 0 {
+			return errors.New("the Compose file reads secrets or configs from the host")
+		}
+		for _, n := range names {
+			if err := customerComposeRules(n, cfg.Services[n], customerSlice(ownerKey(ap.Owner))); err != nil {
+				return err
+			}
+		}
+	}
+	if ap.PublicPorts {
+		return nil
+	}
 	for _, n := range names {
 		s := cfg.Services[n]
 		if s.NetworkMode == "host" {
@@ -308,16 +388,29 @@ func (a *applier) ensureApp(ctx context.Context, ap agentproto.AppSpec) error {
 	if ap.Kind == "image" {
 		file = imageCompose(ap)
 	}
-	changed := false
-	for name, content := range map[string][]byte{appComposeFile: file, appOverrideFile: nil} {
-		if name == appOverrideFile && ap.Kind == "compose" {
-			content = composeOverride(ap)
+	changed, err := writeSecretIfChanged(filepath.Join(dir, appComposeFile), file)
+	if err != nil {
+		return err
+	}
+	var override []byte
+	if ap.Kind == "compose" {
+		var services []string
+		if ap.Owner != "" {
+			// The override names every service, so read them from the file alone first.
+			cmd := composeCommand(a.sys, ap.Name, ap.Env, "config", "--services")
+			cmd.args = withoutOverride(cmd.args)
+			out, err := a.sys.exec(ctx, cmd)
+			if err != nil {
+				return fmt.Errorf("the Compose file is not valid: %w", err)
+			}
+			services = strings.Fields(string(out))
 		}
-		c, err := writeSecretIfChanged(filepath.Join(dir, name), content)
-		if err != nil {
-			return err
-		}
-		changed = changed || c
+		override = composeOverride(ap, services)
+	}
+	if c, err := writeSecretIfChanged(filepath.Join(dir, appOverrideFile), override); err != nil {
+		return err
+	} else if c {
+		changed = true
 	}
 	st, _ := json.Marshal(appState{ID: ap.ID, Stopped: ap.Stopped, Env: ap.Env})
 	if c, err := writeSecretIfChanged(filepath.Join(dir, appStateFile), st); err != nil {

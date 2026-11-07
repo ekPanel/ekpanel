@@ -39,6 +39,9 @@ email, DNS and game servers, with a modern UI in your own language.
 - **Backups**: encrypted, deduplicated backups of every website and database to the server
   or S3-compatible storage, on a schedule with retention, and one-click restores. The
   encryption key is shown once and stays on the server
+- **App catalogue**: one-click Nextcloud, Ghost, n8n, Gitea, Vaultwarden, Grafana, Uptime
+  Kuma, Umami, listmonk, Redis and more, with passwords and keys generated for each install.
+  Customers can install them too, inside their package's limits
 - **Docker apps**: run any image or Compose file, with a domain and free HTTPS, variables,
   kept folders, limits, logs and one-click image updates. App ports stay private to the
   server, so Docker cannot open holes in the firewall
@@ -58,8 +61,7 @@ email, DNS and game servers, with a modern UI in your own language.
 - A web UI in **English** and **বাংলা (Bangla)**, ready for right-to-left languages, with
   light/dark themes, a `Ctrl+K` command palette and phone-friendly layouts
 
-Coming next, in order: a one-click service catalogue, then Git deploys with rollbacks and
-previews. [PLAN.md](PLAN.md) lists every phase.
+Coming next: Git deploys with builds, rollbacks and previews. [PLAN.md](PLAN.md) lists every phase.
 
 ## How it fits together
 

@@ -19,6 +19,7 @@ import { DatabaseDetailPage, DatabasesPage } from "./pages/DatabasesPage";
 import { FileManagerPage } from "./pages/FileManagerPage";
 import { BackupRepoPage, BackupsPage } from "./pages/BackupsPage";
 import { AppDetailPage, AppsPage } from "./pages/AppsPage";
+import { CatalogPage } from "./pages/CatalogPage";
 import { CustomersPage, PackagesPage } from "./pages/CustomersPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { AppTerminalPage, ServerTerminalPage } from "./pages/TerminalPage";
@@ -83,6 +84,7 @@ const router = createBrowserRouter([
       { path: "/databases", element: <DatabasesPage /> },
       { path: "/databases/:id", element: <DatabaseDetailPage /> },
       { path: "/apps", element: <AppsPage /> },
+      { path: "/apps/catalog", element: <CatalogPage /> },
       { path: "/apps/:id", element: <AppDetailPage /> },
       { path: "/apps/:id/terminal", element: <AppTerminalPage /> },
       {

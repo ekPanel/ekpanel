@@ -490,6 +490,27 @@ limits are measured and enforced by the panel, real filesystem quotas come later
       container, a stopped service reported as such
 - [ ] Recording sessions, and shells as a website's own account: later
 
-**Next, in order**
-- [ ] 2e. One-click service catalogue
+**2e. App catalogue — done**
+- [x] 14 one-click services: Uptime Kuma, Grafana, n8n, Gitea, IT Tools, Vaultwarden, Umami,
+      Ghost, listmonk, Nextcloud, Memos, Excalidraw, ntfy and Redis. Each is a reviewed Compose
+      file in the panel (`internal/catalog`), with categories, search and the memory it needs
+- [x] Installing asks only for a name, server, owner and domain. Passwords and keys are
+      generated for each install and kept in the app's variables; values made from the domain
+      follow it when it changes. The app page shows the service's notes and sign-in details
+- [x] An installed service is a Compose app that remembers its template and version. Its
+      Compose file and port stay the template's; domain, variables and limits can change
+- [x] Customers can install services whose images their package allows (their own Compose
+      files stay refused). The agent puts every container of a customer's app in their slice
+      and refuses privileged mode, capabilities, devices, host folders and namespaces, volumes
+      with driver options, and secrets or configs from the host. Tests check every template
+      for the same rules, for declared images and variables, and for translations
+- [x] Tested in the VM: all 14 installed, answered over HTTPS and were removed without leaving
+      volumes. Generated passwords worked (Grafana, Nextcloud, Vaultwarden token, Redis, with
+      wrong ones refused); ntfy refused anonymous use; a customer's Umami ran both containers
+      in their slice and Nextcloud outside their package was refused. Ghost needs a minute or
+      two on its first start, which its notes now say
+- [ ] Updating an installed service to a newer template version: later
+- [ ] More services, and services that need more than one domain or port: later
+
+**Next**
 - [ ] 2f. Git deployments: builds, zero-downtime deploys, rollbacks, previews

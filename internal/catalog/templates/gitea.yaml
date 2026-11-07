@@ -1,0 +1,17 @@
+services:
+  gitea:
+    image: gitea/gitea:1
+    restart: unless-stopped
+    environment:
+      USER_UID: "1000"
+      USER_GID: "1000"
+      GITEA__database__DB_TYPE: sqlite3
+      GITEA__server__DOMAIN: ${DOMAIN}
+      GITEA__server__ROOT_URL: ${ROOT_URL}
+      # Only the web port is published, so Git works over HTTPS.
+      GITEA__server__DISABLE_SSH: "true"
+    volumes:
+      - data:/data
+
+volumes:
+  data:

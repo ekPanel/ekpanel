@@ -126,6 +126,7 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/databases/{id}", s.handleGetDatabase)
 			r.Post("/databases/{id}/password", s.handleResetDatabasePassword)
 			r.Delete("/databases/{id}", s.handleDeleteDatabase)
+			r.Get("/catalog", s.handleCatalog)
 			r.Get("/apps", s.handleListApps)
 			r.Post("/apps", s.handleCreateApp)
 			r.Get("/apps/{id}", s.handleGetApp)

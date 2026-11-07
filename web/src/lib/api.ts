@@ -254,8 +254,27 @@ export interface App extends Owned {
   message: string | null;
   generation: number;
   applied_generation: number;
+  template: string | null;
+  template_version: number | null;
   created_at: string;
   updated_at: string;
+}
+
+/** A one-click service of the catalogue. Its description is translated in catalog.apps.<id>. */
+export interface CatalogTemplate {
+  id: string;
+  name: string;
+  category: string;
+  website: string;
+  version: number;
+  service: string;
+  port?: number;
+  needs_domain: boolean;
+  images: string[];
+  memory_mb: number;
+  vars: { name: string; generate?: string; value?: string; login?: boolean }[];
+  compose: string;
+  allowed: boolean;
 }
 
 export interface AppContainer {

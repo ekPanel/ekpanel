@@ -1,0 +1,17 @@
+services:
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    restart: unless-stopped
+    command: serve
+    environment:
+      NTFY_BASE_URL: ${BASE_URL}
+      NTFY_BEHIND_PROXY: "true"
+      NTFY_CACHE_FILE: /var/lib/ntfy/cache.db
+      NTFY_AUTH_FILE: /var/lib/ntfy/user.db
+      # Nobody can read or send until you add users from the app's shell.
+      NTFY_AUTH_DEFAULT_ACCESS: deny-all
+    volumes:
+      - data:/var/lib/ntfy
+
+volumes:
+  data:

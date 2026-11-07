@@ -59,7 +59,11 @@ ekPanel is in early development and has no stable release yet. Fixes go into the
   App folders and variables are readable by root only.
 - Customers see and change only what they own; everything else answers "not found". Their
   PHP and containers run in a cgroup slice with their package's memory and CPU limits, and
-  they cannot run Compose files. An administrator acting as a customer is recorded as
+  they cannot run Compose files of their own. They may install catalogue services, whose
+  Compose files are reviewed with the project and cannot be changed by them; the agent also
+  checks the resolved file of every customer's app and refuses privileged mode, added
+  capabilities, devices, host folders and namespaces, volumes with driver options, and
+  secrets or configs read from the host, and puts every container in the customer's slice. An administrator acting as a customer is recorded as
   themselves in the audit log and cannot change the customer's password or two-factor setup.
 - Secrets the panel must reuse (notification channel tokens, webhook addresses and keys, the
   SMTP password) are encrypted with AES-256-GCM under a key in the panel's data directory and

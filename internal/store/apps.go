@@ -42,6 +42,8 @@ type App struct {
 	AppliedGeneration int64     `json:"applied_generation"`
 	OwnerID           *string   `json:"owner_id"`
 	OwnerName         *string   `json:"owner_name"`
+	Template          *string   `json:"template"` // catalogue template, if installed from it
+	TemplateVersion   *int      `json:"template_version"`
 	DiskBytes         *int64    `json:"disk_bytes"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
@@ -50,7 +52,7 @@ type App struct {
 const appColumns = `a.id, a.server_id, sv.name, a.name, a.kind, a.image, a.compose, a.service, a.container_port,
 	a.host_port, a.domain, a.tls, a.env, a.volumes, a.memory_mb, a.cpus::float8, a.public_ports, a.stopped,
 	a.delete_data, a.state, a.message, a.generation, a.applied_generation, a.created_at, a.updated_at,
-	a.owner_id, ow.name, a.disk_bytes`
+	a.owner_id, ow.name, a.disk_bytes, a.template, a.template_version`
 
 const appFrom = ` FROM apps a JOIN servers sv ON sv.id = a.server_id LEFT JOIN users ow ON ow.id = a.owner_id`
 
@@ -59,7 +61,7 @@ func scanApp(row pgx.Row) (App, error) {
 	err := row.Scan(&a.ID, &a.ServerID, &a.ServerName, &a.Name, &a.Kind, &a.Image, &a.Compose, &a.Service, &a.ContainerPort,
 		&a.HostPort, &a.Domain, &a.TLS, &a.Env, &a.Volumes, &a.MemoryMB, &a.CPUs, &a.PublicPorts, &a.Stopped,
 		&a.DeleteData, &a.State, &a.Message, &a.Generation, &a.AppliedGeneration, &a.CreatedAt, &a.UpdatedAt,
-		&a.OwnerID, &a.OwnerName, &a.DiskBytes)
+		&a.OwnerID, &a.OwnerName, &a.DiskBytes, &a.Template, &a.TemplateVersion)
 	if a.Env == nil {
 		a.Env = []EnvVar{}
 	}
@@ -90,6 +92,9 @@ type NewApp struct {
 	Kind      string
 	OwnerID   *string
 	CreatedBy *string
+	// Template and TemplateVersion name the catalogue template the app comes from.
+	Template        *string
+	TemplateVersion *int
 	AppSettings
 }
 
@@ -129,10 +134,10 @@ func (s *Store) CreateApp(ctx context.Context, n NewApp) (App, error) {
 	}
 	_, err = tx.Exec(ctx, `
 		INSERT INTO apps (id, server_id, name, kind, image, compose, service, container_port, host_port, domain, tls,
-			env, volumes, memory_mb, cpus, public_ports, created_by, owner_id)
-		VALUES ($1, $3, $4, $5, $6, $7, $8, $2, `+hostPortSQL+`, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+			env, volumes, memory_mb, cpus, public_ports, created_by, owner_id, template, template_version)
+		VALUES ($1, $3, $4, $5, $6, $7, $8, $2, `+hostPortSQL+`, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
 		id, n.ContainerPort, n.ServerID, n.Name, n.Kind, n.Image, n.Compose, n.Service, n.Domain, n.TLS,
-		n.Env, n.Volumes, n.MemoryMB, n.CPUs, n.PublicPorts, n.CreatedBy, n.OwnerID)
+		n.Env, n.Volumes, n.MemoryMB, n.CPUs, n.PublicPorts, n.CreatedBy, n.OwnerID, n.Template, n.TemplateVersion)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "apps_server_id_name_key" {
 		return App{}, ErrAppNameTaken

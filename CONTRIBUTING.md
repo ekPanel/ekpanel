@@ -53,6 +53,7 @@ a pull request from `dev`. Open your pull requests against `dev`.
 | `internal/agentproto` | messages shared by the panel and agents |
 | `internal/hub` | live server state, fan-out to browsers, routing operations to agents |
 | `internal/pki` | the panel's private CA for agent mutual TLS |
+| `internal/catalog` | the one-click service catalogue: Compose templates and their variables |
 | `internal/tasks` | background task queue and its handlers |
 | `web/` | React + TypeScript UI (Vite, Tailwind, TanStack Query, i18next) |
 
@@ -71,6 +72,18 @@ a pull request from `dev`. Open your pull requests against `dev`.
 - **Tests.** New behaviour comes with tests. API behaviour is tested end to end against a real
   PostgreSQL in `internal/api/api_test.go`.
 - Run `gofmt` and `make test` before opening a pull request.
+
+## Adding a service to the catalogue
+
+Each service is a Compose file in `internal/catalog/templates/<id>.yaml` and an entry in
+`internal/catalog/catalog.go` (name, category, images, the service and port that get the
+domain, and its variables). Customers can install templates, so they must follow the rules
+that `go test ./internal/catalog` checks: named volumes only, no published ports, no
+privileged mode, capabilities, devices, host namespaces or Docker socket. Values that differ
+per install are `${VARIABLES}`: generated passwords and keys, or fixed text using `{domain}`.
+Pin a major version of the image where the project publishes one, describe the service in
+`catalog.apps.<id>` in `en.json` (and `bn.json` if you can), and test it on a real server.
+Raise `Version` whenever you change a template.
 
 ## License of contributions
 

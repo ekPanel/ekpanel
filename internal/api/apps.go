@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"ekpanel/internal/agentproto"
+	"ekpanel/internal/catalog"
 	"ekpanel/internal/store"
 )
 
@@ -46,13 +47,23 @@ type appRequest struct {
 	CPUs          *float64       `json:"cpus"`
 	PublicPorts   bool           `json:"public_ports"`
 	OwnerID       string         `json:"owner_id"` // administrators: create the app for this customer
+	Template      string         `json:"template"` // install this catalogue template (on create only)
 }
 
 // customerAppRules applies a package to an app: customers run only images the package
-// allows, never Compose files (which can do anything Docker can, as root).
-func customerAppRules(w http.ResponseWriter, pkg *store.Package, kind string, set store.AppSettings) bool {
+// allows, never Compose files of their own (which can do anything Docker can, as root).
+// Catalogue templates are Compose files the project reviewed, so they may run them.
+func customerAppRules(w http.ResponseWriter, pkg *store.Package, kind string, set store.AppSettings, tpl *catalog.Template) bool {
 	switch {
 	case pkg == nil:
+		return true
+	case tpl != nil:
+		for _, image := range tpl.Images {
+			if !imageAllowed(pkg, image) {
+				writeError(w, http.StatusForbidden, "image_not_allowed", "the package does not include this image: "+image)
+				return false
+			}
+		}
 		return true
 	case kind != "image":
 		writeError(w, http.StatusForbidden, "compose_not_allowed", "customers can run images, not Compose files")
@@ -217,9 +228,35 @@ func (s *Server) handleCreateApp(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_app_name", "use 2–32 lowercase letters, digits and dashes, starting with a letter")
 		return
 	}
+	var tpl *catalog.Template
+	if req.Template != "" {
+		t, ok := catalog.Get(req.Template)
+		if !ok {
+			writeError(w, http.StatusBadRequest, "template_not_found", "no such service in the catalogue")
+			return
+		}
+		tpl = &t
+		// The template decides everything but the name, domain and limits.
+		req.Kind, req.Compose, req.Service, req.PublicPorts, req.Env = "compose", t.Compose, t.Service, false, nil
+		req.ContainerPort = nil
+		if t.Port != 0 {
+			req.ContainerPort = &t.Port
+		}
+	}
 	set, ok := appSettings(w, req.Kind, req)
 	if !ok {
 		return
+	}
+	if tpl != nil {
+		if tpl.NeedsDomain && set.Domain == nil {
+			writeError(w, http.StatusBadRequest, "domain_required", "this service is used through its domain; enter one")
+			return
+		}
+		domain := ""
+		if set.Domain != nil {
+			domain = *set.Domain
+		}
+		set.Env = templateEnv(tpl.Env(domain))
 	}
 	if !isUUID(req.ServerID) {
 		writeError(w, http.StatusBadRequest, "server_not_found", "choose a server")
@@ -230,17 +267,23 @@ func (s *Server) handleCreateApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	place, ok := s.resolveOwner(w, r, req.OwnerID)
-	if !ok || !customerAppRules(w, place.Package, req.Kind, set) || !s.allowNew(w, r, place, "app", srv.ID) {
+	if !ok || !customerAppRules(w, place.Package, req.Kind, set, tpl) || !s.allowNew(w, r, place, "app", srv.ID) {
 		return
 	}
 	u := currentUser(r)
-	app, err := s.store.CreateApp(r.Context(), store.NewApp{ServerID: srv.ID, Name: req.Name, Kind: req.Kind, OwnerID: place.OwnerID,
-		CreatedBy: &u.ID, AppSettings: set})
+	n := store.NewApp{ServerID: srv.ID, Name: req.Name, Kind: req.Kind, OwnerID: place.OwnerID, CreatedBy: &u.ID, AppSettings: set}
+	details := map[string]any{"server_id": srv.ID, "kind": req.Kind}
+	if tpl != nil {
+		n.Template, n.TemplateVersion = &tpl.ID, &tpl.Version
+		details["template"] = tpl.ID
+	}
+	app, err := s.store.CreateApp(r.Context(), n)
 	if err != nil {
 		s.writeAppStoreError(w, r, err)
 		return
 	}
-	s.audit(r, "app.created", app.Name, map[string]any{"app_id": app.ID, "server_id": srv.ID, "kind": app.Kind})
+	details["app_id"] = app.ID
+	s.audit(r, "app.created", app.Name, details)
 	s.queueReconcile(r, srv.ID)
 	withAppDisplay(&app)
 	writeJSON(w, http.StatusCreated, app)
@@ -266,16 +309,37 @@ func (s *Server) handleUpdateApp(w http.ResponseWriter, r *http.Request) {
 		s.writeAppStoreError(w, r, err)
 		return
 	}
+	var tpl *catalog.Template
+	if app.Template != nil {
+		// The Compose file and its port stay the template's.
+		req.Compose, req.Service, req.ContainerPort, req.PublicPorts = *app.Compose, "", app.ContainerPort, false
+		if app.Service != nil {
+			req.Service = *app.Service
+		}
+		if t, ok := catalog.Get(*app.Template); ok {
+			tpl = &t
+		} else {
+			tpl = &catalog.Template{} // no longer in the catalogue: nothing more to check
+		}
+	}
 	set, ok := appSettings(w, app.Kind, req)
 	if !ok {
 		return
+	}
+	if tpl != nil && set.Domain != nil {
+		env := make([]catalog.Variable, len(set.Env))
+		for i, e := range set.Env {
+			env[i] = catalog.Variable{Key: e.Key, Value: e.Value}
+		}
+		tpl.FollowDomain(env, *set.Domain)
+		set.Env = templateEnv(env)
 	}
 	pkg, err := s.packageFor(r, app.OwnerID)
 	if err != nil {
 		s.internalError(w, r, err)
 		return
 	}
-	if !customerAppRules(w, pkg, app.Kind, set) {
+	if !customerAppRules(w, pkg, app.Kind, set, tpl) {
 		return
 	}
 	app, err = s.store.UpdateApp(r.Context(), app.ID, set)

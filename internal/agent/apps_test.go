@@ -80,6 +80,53 @@ func TestCheckComposeConfig(t *testing.T) {
 	}
 }
 
+func TestCustomerComposeApp(t *testing.T) {
+	owner := "0e4c2f8a-1b2c-4d5e-8f90-123456789abc"
+	slice := customerSlice(ownerKey(owner))
+	ap := agentproto.AppSpec{Kind: "compose", Owner: owner, Service: "web", ContainerPort: 80, HostPort: 20003, MemoryMB: 256}
+
+	out := string(composeOverride(ap, []string{"web", "db"}))
+	if strings.Count(out, `"cgroup_parent": "`+slice+`"`) != 2 || !strings.Contains(out, `"127.0.0.1:20003:80"`) || !strings.Contains(out, `"256m"`) {
+		t.Errorf("every service goes in the customer's slice, the port and limit stay on web:\n%s", out)
+	}
+	if composeOverride(agentproto.AppSpec{Kind: "compose", Service: "web"}, nil) != nil {
+		t.Error("an administrator's app without port or limits needs no override")
+	}
+	args := []string{"compose", "-p", "x", "--project-directory", "/d", "-f", "/d/compose.yaml", "-f", "/d/" + appOverrideFile, "config", "--services"}
+	if got := strings.Join(withoutOverride(args), " "); got != "compose -p x --project-directory /d -f /d/compose.yaml config --services" {
+		t.Errorf("without override: %s", got)
+	}
+
+	svc := func(extra string) string {
+		return `{"services":{"web":{"cgroup_parent":"` + slice + `","ports":[{"host_ip":"127.0.0.1","published":"20003","target":80}]` + extra + `},` +
+			`"db":{"cgroup_parent":"` + slice + `","volumes":[{"type":"volume","source":"db","target":"/var/lib/postgresql/data"}]}}`
+	}
+	if err := checkComposeConfig([]byte(svc(``)+`,"volumes":{"db":{}}}`), ap); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{
+		svc(`,"privileged":true`) + `}`,
+		svc(`,"cap_add":["SYS_ADMIN"]`) + `}`,
+		svc(`,"devices":[{"source":"/dev/sda","target":"/dev/sda"}]`) + `}`,
+		svc(`,"pid":"host"`) + `}`,
+		svc(`,"network_mode":"container:other"`) + `}`,
+		svc(`,"security_opt":["apparmor=unconfined"]`) + `}`,
+		svc(`,"volumes":[{"type":"bind","source":"/var/run/docker.sock","target":"/var/run/docker.sock"}]`) + `}`,
+		svc(``) + `,"volumes":{"db":{"driver_opts":{"type":"none","o":"bind","device":"/"}}}}`,
+		svc(``) + `,"volumes":{"db":{"external":true}}}`,
+		svc(``) + `,"secrets":{"s":{"file":"/etc/shadow"}}}`,
+		`{"services":{"web":{"ports":[{"host_ip":"127.0.0.1","published":"20003","target":80}]}}}`, // not in the slice
+	} {
+		if err := checkComposeConfig([]byte(bad), ap); err == nil {
+			t.Errorf("accepted for a customer: %s", bad)
+		}
+	}
+	ap.Owner = ""
+	if err := checkComposeConfig([]byte(svc(`,"privileged":true`)+`}`), ap); err != nil {
+		t.Errorf("administrators' Compose files may ask for privileges: %v", err)
+	}
+}
+
 func TestValidateApp(t *testing.T) {
 	if err := validateApp(imageApp()); err != nil {
 		t.Fatal(err)

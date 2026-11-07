@@ -440,7 +440,9 @@
     "channel_failed": "The message could not be sent.",
     "invalid_panel_url": "Enter the address people use to open the panel, such as https://panel.example.com.",
     "invalid_smtp": "Check the mail server's host name, port and security.",
-    "confirm_required": "Enter your password again to open a terminal."
+    "confirm_required": "Enter your password again to open a terminal.",
+    "domain_required": "This service is used through its domain; enter one.",
+    "template_not_found": "That service is not in the catalogue."
   },
   "not_found": {
     "title": "Page not found",
@@ -826,7 +828,7 @@
     "create": "Create app",
     "empty": {
       "title": "Run your first app",
-      "body": "Start any Docker image, such as Uptime Kuma or n8n, or paste a Compose file. ekPanel installs Docker on first use."
+      "body": "Install a ready-made service from the catalogue, run any Docker image, or paste a Compose file. ekPanel installs Docker on first use."
     },
     "kind_label": "App type",
     "kind": {
@@ -837,7 +839,6 @@
       "image": "One container from an image, with variables and kept folders.",
       "compose": "Several services described in a docker-compose.yml."
     },
-    "presets": "Quick start:",
     "name": "Name",
     "name_hint": "Lowercase letters, digits and dashes. Used for the folder and containers.",
     "image": "Image",
@@ -895,6 +896,106 @@
       "keeps": "The containers are removed. By default the data (volumes and the app folder) stays on the server, and an app created later with the same name uses it again.",
       "with_data": "Also delete all its data",
       "with_data_hint": "Removes the volumes and /srv/ekpanel/apps/{{name}}. This cannot be undone."
+    }
+  },
+  "catalog": {
+    "title": "App catalogue",
+    "intro": "Ready-made services, reviewed by ekPanel. Passwords and keys are made fresh for every install.",
+    "open": "Catalogue",
+    "browse": "install a ready-made service from the catalogue",
+    "or": "Or",
+    "search": "Search the catalogue",
+    "category": "Category",
+    "all": "All",
+    "none": "No service matches",
+    "none_body": "Try another word, or run any image with Add app.",
+    "memory": "Needs about {{size}} of memory",
+    "services_one": "{{count, number}} service",
+    "services_other": "{{count, number}} services",
+    "not_allowed": "Not in your package",
+    "install": "Install",
+    "install_title": "Install {{name}}",
+    "website": "Website",
+    "no_servers": "Add a server first; services are installed on one of your servers.",
+    "domain_hint": "The service is used through this domain. Point its DNS at the server first; HTTPS is set up for it.",
+    "secrets_note": "Passwords and keys are generated now and kept in the app's variables. The app's page shows what you need to sign in.",
+    "what_runs": "What will run, and a memory limit",
+    "memory_hint": "Optional, for the main service. It needs about {{size}} MB.",
+    "images": "Images",
+    "from": "From the catalogue",
+    "version": "From the catalogue, template version {{version}}",
+    "sign_in": "Sign-in details",
+    "sign_in_hint": "These are the app's variables. Changing a password in the app itself does not change them here.",
+    "show": "Show",
+    "hide": "Hide",
+    "compose_fixed": "The Compose file and port come from the catalogue. You can change the domain, variables and limits.",
+    "categories": {
+      "monitoring": "Monitoring",
+      "automation": "Automation",
+      "development": "Development",
+      "security": "Security",
+      "analytics": "Analytics",
+      "publishing": "Publishing",
+      "productivity": "Productivity",
+      "notifications": "Notifications",
+      "database": "Databases"
+    },
+    "apps": {
+      "uptime-kuma": {
+        "description": "Watch websites, servers and services, and get alerts when they go down.",
+        "notes": "Open the app right after installing: the first visitor creates the administrator account."
+      },
+      "grafana": {
+        "description": "Dashboards and charts for metrics and logs from many data sources.",
+        "notes": "Sign in with the user name and password below."
+      },
+      "n8n": {
+        "description": "Automate work by connecting apps and APIs in a visual workflow editor.",
+        "notes": "Open the app right after installing to create the owner account. Keep N8N_ENCRYPTION_KEY: credentials saved in n8n cannot be read without it."
+      },
+      "gitea": {
+        "description": "Light Git hosting with pull requests, issues, wikis and a package registry.",
+        "notes": "Open the app right after installing and finish the setup page, where you create the administrator account. Git works over HTTPS."
+      },
+      "it-tools": {
+        "description": "Handy tools for developers in one place: converters, generators, formatters and more."
+      },
+      "vaultwarden": {
+        "description": "A light password manager that works with the Bitwarden apps and browser extensions.",
+        "notes": "Create your account, then set SIGNUPS_ALLOWED to false in the variables so nobody else can sign up. The admin page at /admin asks for the token below."
+      },
+      "umami": {
+        "description": "Simple website analytics that respects privacy and needs no cookies.",
+        "notes": "Sign in as admin with the password umami, and change it right away."
+      },
+      "ghost": {
+        "description": "A publishing platform for blogs, newsletters and paid memberships.",
+        "notes": "The first start takes a minute or two while the database is set up. Then open /ghost on the domain to create the owner account. Newsletters need a mail service, set up in Ghost."
+      },
+      "listmonk": {
+        "description": "Newsletters and mailing lists, with templates, fast sending and reports.",
+        "notes": "Sign in with the user name and password below. Add your SMTP server in Settings → SMTP to send mail."
+      },
+      "nextcloud": {
+        "description": "Your own cloud for files, calendars and contacts, with apps for every device.",
+        "notes": "Sign in with the user name and password below. The first start takes a few minutes while Nextcloud sets itself up."
+      },
+      "memos": {
+        "description": "Quick notes and a personal timeline, written in Markdown.",
+        "notes": "Open the app right after installing: the first account becomes the administrator."
+      },
+      "excalidraw": {
+        "description": "A whiteboard for sketching diagrams that look hand-drawn.",
+        "notes": "Drawings stay in the browser. Use Export to save them as files."
+      },
+      "ntfy": {
+        "description": "Send push notifications to your phone or computer from scripts and apps.",
+        "notes": "Nobody can use it until you add a user: open the app's shell and run ntfy user add --role=admin yourname"
+      },
+      "redis": {
+        "description": "A fast in-memory store for caches, sessions and queues, for websites and apps on this server.",
+        "notes": "Connect to 127.0.0.1:{{port}} with the password below. It cannot be reached from other servers."
+      }
     }
   },
   "customers": {
