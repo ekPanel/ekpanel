@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
@@ -439,6 +440,8 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 type myUsage struct {
 	Package *store.Package `json:"package"`
 	Usage   store.Usage    `json:"usage"`
+	// Bytes served by the customer's websites and apps this month (UTC).
+	BandwidthMonth int64 `json:"bandwidth_month"`
 }
 
 // handleMyUsage shows a customer their package and what they use of it.
@@ -459,7 +462,13 @@ func (s *Server) handleMyUsage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pkg.Customers = 0 // not the customer's business
-	writeJSON(w, http.StatusOK, myUsage{Package: &pkg, Usage: c.Usage})
+	now := time.Now().UTC()
+	bw, err := s.store.OwnerBandwidth(r.Context(), u.ID, time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, myUsage{Package: &pkg, Usage: c.Usage, BandwidthMonth: bw})
 }
 
 // customerServerView is what a customer may know about a server: enough to pick one.

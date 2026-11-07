@@ -296,6 +296,55 @@ export interface CronStatus {
   output: string;
 }
 
+export interface AccessLogEntry {
+  time: string;
+  ip: string;
+  method: string;
+  host: string;
+  uri: string;
+  proto: string;
+  status: number;
+  size: number;
+  duration_ms: number;
+  user_agent?: string;
+  referer?: string;
+}
+
+export interface Traffic {
+  points: { at: string; requests: number; bytes: number }[];
+  requests: number;
+  bytes: number;
+  status: [number, number, number, number];
+  paths: { path: string; requests: number }[];
+}
+
+export interface NotificationItem {
+  id: number;
+  event: string;
+  severity: "info" | "warning" | "critical";
+  title: string;
+  body: string;
+  link: string;
+  created_at: string;
+  read_at: string | null;
+}
+
+export type ChannelKind = "email" | "telegram" | "discord" | "slack" | "webhook";
+
+export interface Channel {
+  id: string;
+  kind: ChannelKind;
+  name: string;
+  config: Record<string, string>;
+  events: string[];
+  enabled: boolean;
+  last_sent_at: string | null;
+  last_error: string | null;
+  created_at: string;
+  /** The webhook signing key, only right after it was made. */
+  key?: string;
+}
+
 export interface FirewallRule {
   id: string;
   action: "allow" | "deny";

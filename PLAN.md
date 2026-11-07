@@ -443,8 +443,36 @@ limits are measured and enforced by the panel, real filesystem quotas come later
 - [x] Found and fixed while testing: deleting a website left its home folder behind (userdel
       skips a home the account does not own); the folder is now removed with the site
 
+**2c. Logs, traffic and notifications — done**
+- [x] Request log of each website and app (time, address, status, path, size, duration) with a
+      status filter, search and a live mode that fetches only new lines; the PHP error log of
+      websites. The PHP log is read through the file worker (as the site's account, inside its
+      folder), so a link planted there cannot expose other files
+- [x] Traffic: the agent adds web server log lines to hourly totals (requests, bytes, status
+      classes, most requested paths), follows log roll-overs, and never counts a line twice;
+      the panel collects every 15 minutes and keeps 90 days. Charts for 24 hours, 7 and 30
+      days; customers see this month's traffic on their dashboard
+- [x] Notifications in the panel (a bell with unread count) and on channels each user sets up:
+      email (through the administrators' SMTP server), Telegram, Discord, Slack, and webhooks
+      signed with HMAC-SHA256. Each channel can pick its events; "send a test" shows what the
+      service answered. Messages are written in the recipient's language (the notification
+      texts are checked for missing translations like the UI)
+- [x] Events: server offline (after 3 minutes) and back, disk over 90%, backup failed or
+      partly failed, website, app or database failing to apply (once, when it starts), disk
+      space of a package at 90% and 100%, failed tasks, and sign-in from a new address.
+      Failed sends are retried after 1, 5 and 30 minutes
+- [x] Secrets (bot tokens, webhook addresses, signing keys, the SMTP password) are encrypted
+      with AES-256-GCM using a key file the panel keeps (`/var/lib/ekpanel/secret.key`), and
+      never sent back to the browser. Customers' webhooks cannot reach private or local
+      addresses (checked on the address actually dialled, so redirects and DNS tricks fail too)
+- [x] Tested in the VM: traffic counts stable across repeated collections; following the
+      request log; PHP warnings shown; a link to /etc/shadow returned nothing; customers'
+      webhooks to 127.0.0.1 and 169.254.169.254 refused; a webhook on the server received a
+      signed test, and "offline" 3 minutes after stopping the agent, then "back online"
+- [ ] Bandwidth limits in packages: later (the numbers are now there)
+- [ ] Cron job failures do not alert yet (the panel does not watch job results)
+
 **Next, in order**
-- [ ] 2c. Logs, traffic and notifications (email, Telegram, Discord, Slack, webhook)
 - [ ] 2d. Web terminal for administrators and container shells
 - [ ] 2e. One-click service catalogue
 - [ ] 2f. Git deployments: builds, zero-downtime deploys, rollbacks, previews

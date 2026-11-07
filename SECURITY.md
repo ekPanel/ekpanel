@@ -55,4 +55,8 @@ ekPanel is in early development and has no stable release yet. Fixes go into the
   PHP and containers run in a cgroup slice with their package's memory and CPU limits, and
   they cannot run Compose files. An administrator acting as a customer is recorded as
   themselves in the audit log and cannot change the customer's password or two-factor setup.
+- Secrets the panel must reuse (notification channel tokens, webhook addresses and keys, the
+  SMTP password) are encrypted with AES-256-GCM under a key in the panel's data directory and
+  are never returned by the API. Customers' webhooks cannot reach private, local or
+  link-local addresses (such as cloud metadata services).
 - Every change is written to an append-only audit log that the database refuses to modify.

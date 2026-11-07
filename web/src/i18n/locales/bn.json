@@ -25,7 +25,8 @@
     "backups": "ব্যাকআপ",
     "apps": "অ্যাপ",
     "customers": "গ্রাহক",
-    "packages": "প্যাকেজ"
+    "packages": "প্যাকেজ",
+    "notifications": "নোটিফিকেশন"
   },
   "theme": {
     "label": "থিম",
@@ -291,6 +292,11 @@
         "updated": "ক্রন জব বদলেছে",
         "deleted": "ক্রন জব মুছে ফেলা হয়েছে",
         "run": "ক্রন জব হাতে চালানো হয়েছে"
+      },
+      "notifications": {
+        "channel_added": "নোটিফিকেশন চ্যানেল যোগ হয়েছে",
+        "channel_removed": "নোটিফিকেশন চ্যানেল সরানো হয়েছে",
+        "settings_changed": "মেইল সেটিং বদলেছে"
       }
     }
   },
@@ -417,7 +423,18 @@
     "invalid_cron_target": "একটা জব কোনো ওয়েবসাইট বা অ্যাপের হয়।",
     "cron_not_found": "এই জবটি নেই।",
     "cron_not_ready": "জবটি এখনো সার্ভারে চালু করা হয়নি।",
-    "limit_reached_cron": "আপনার প্যাকেজে আর ক্রন জব যোগ করা যাবে না।"
+    "limit_reached_cron": "আপনার প্যাকেজে আর ক্রন জব যোগ করা যাবে না।",
+    "invalid_events": "তালিকার ঘটনাগুলো থেকে বেছে নিন।",
+    "invalid_chat_id": "চ্যাটের নম্বর বা তার @নাম লিখুন।",
+    "invalid_bot_token": "@BotFather যে টোকেন দিয়েছে সেটা লিখুন, যেমন 123456:ABC…",
+    "invalid_hook_url": "সার্ভিস যে webhook ঠিকানা দিয়েছে সেটা লিখুন। https হতে হবে।",
+    "invalid_hook_key": "সই করার কী ১৬ থেকে ২০০ অক্ষরের হতে হবে।",
+    "invalid_channel_kind": "ইমেইল, Telegram, Discord, Slack বা webhook বেছে নিন।",
+    "too_many_channels": "সর্বোচ্চ ২০টি চ্যানেল রাখা যায়।",
+    "channel_not_found": "এই চ্যানেলটি নেই।",
+    "channel_failed": "বার্তা পাঠানো যায়নি।",
+    "invalid_panel_url": "মানুষ যে ঠিকানায় প্যানেল খোলেন সেটা লিখুন, যেমন https://panel.example.com।",
+    "invalid_smtp": "মেইল সার্ভারের হোস্ট নাম, পোর্ট আর নিরাপত্তা দেখুন।"
   },
   "not_found": {
     "title": "পাতাটা পাওয়া যায়নি",
@@ -904,7 +921,8 @@
     "acting_as": "আপনি {{name}} ({{email}}) হিসেবে ঢুকেছেন। যা করবেন, সব আপনার নিজের নামেই লেখা থাকবে।",
     "back_to_admin": "নিজের অ্যাকাউন্টে ফিরুন",
     "limit_cpu_one": "{{cores}}টি CPU কোর",
-    "limit_cpu_other": "{{cores}}টি CPU কোর"
+    "limit_cpu_other": "{{cores}}টি CPU কোর",
+    "bandwidth_month": "এই মাসের ট্রাফিক: {{size}}"
   },
   "packages": {
     "intro": "প্রত্যেক গ্রাহক কী ব্যবহার করতে পারবেন: কয়টা ওয়েবসাইট, ডেটাবেস আর অ্যাপ, ডিস্কের জায়গা, আর তাঁর সব প্রসেস মিলিয়ে মেমরি ও CPU।",
@@ -978,5 +996,119 @@
     "failed": "ব্যর্থ ({{result}}, এক্সিট কোড {{code}})",
     "never": "এখনো চলেনি",
     "no_output": "এখনো কোনো আউটপুট নেই।"
+  },
+  "traffic": {
+    "title": "ট্রাফিক",
+    "range": "সময়ের পরিসর",
+    "ranges": {
+      "24h": "২৪ ঘণ্টা",
+      "7d": "৭ দিন",
+      "30d": "৩০ দিন"
+    },
+    "requests": "রিকোয়েস্ট",
+    "bandwidth": "ব্যান্ডউইথ",
+    "errors": "এরর",
+    "status": "উত্তর",
+    "top_paths": "সবচেয়ে বেশি দেখা",
+    "status_names": {
+      "2xx": "সফল (2xx)",
+      "3xx": "রিডাইরেক্ট (3xx)",
+      "4xx": "ক্লায়েন্টের ভুল (4xx)",
+      "5xx": "সার্ভারের ভুল (5xx)"
+    },
+    "none": "এই সময়ে এখনো কোনো রিকোয়েস্ট নেই।",
+    "delay": "ওয়েব সার্ভারের লগ থেকে প্রতি ১৫ মিনিটে গোনা হয়।"
+  },
+  "weblogs": {
+    "title": "লগ",
+    "which": "কোন লগ",
+    "kinds": {
+      "access": "রিকোয়েস্ট",
+      "php": "PHP এরর"
+    },
+    "filter": "দেখান",
+    "all": "সব উত্তর",
+    "search": "খুঁজুন",
+    "live": "লাইভ",
+    "empty": "এখনো কোনো রিকোয়েস্ট লগ হয়নি।",
+    "php_empty": "কোনো PHP এরর লগ হয়নি। আপনার কোডের এরর এখানে দেখা যাবে।"
+  },
+  "notifications": {
+    "title": "নোটিফিকেশন",
+    "bell_one": "নোটিফিকেশন, {{count}}টি না-পড়া",
+    "bell_other": "নোটিফিকেশন, {{count}}টি না-পড়া",
+    "read_all": "সব পড়া হয়েছে",
+    "empty": "এখনো কিছু নেই। আপনার সার্ভার, ওয়েবসাইট আর ব্যাকআপের সতর্কবার্তা এখানে আসবে।",
+    "unread": "না-পড়া",
+    "settings": "নোটিফিকেশন সেটিং",
+    "intro": "সতর্কবার্তা কোথায় যাবে বেছে নিন: ইমেইল, Telegram, Discord, Slack বা webhook। ঘণ্টার নিচেও সবসময় দেখা যাবে।",
+    "channels": "কোথায় পাঠানো হবে",
+    "add": "চ্যানেল যোগ করুন",
+    "edit": "চ্যানেল সম্পাদনা",
+    "create": "চ্যানেল যোগ করুন",
+    "delete": "চ্যানেল সরান",
+    "test": "পরীক্ষামূলক বার্তা পাঠান",
+    "test_sent": "পরীক্ষামূলক বার্তা পাঠানো হয়েছে।",
+    "no_channels": "এখনো কোনো চ্যানেল নেই। সতর্কবার্তা তবু ঘণ্টার নিচে দেখা যাবে।",
+    "kind": "ধরন",
+    "kinds": {
+      "email": "ইমেইল",
+      "telegram": "Telegram",
+      "discord": "Discord",
+      "slack": "Slack",
+      "webhook": "Webhook"
+    },
+    "name": "নাম",
+    "address": "ইমেইল ঠিকানা",
+    "bot_token": "বট টোকেন",
+    "bot_token_hint": "Telegram-এ @BotFather থেকে।",
+    "chat_id": "চ্যাট আইডি",
+    "chat_id_hint": "আপনার চ্যাটের নম্বর (@userinfobot-কে জিজ্ঞেস করুন) বা চ্যানেলের @নাম। আগে বটকে /start পাঠান।",
+    "url": "Webhook ঠিকানা",
+    "url_hint": {
+      "discord": "Server settings → Integrations → Webhooks → Copy URL।",
+      "slack": "আপনার Slack অ্যাপের Incoming Webhook URL।",
+      "webhook": "ekPanel এই ঠিকানায় সই করা JSON POST পাঠায়।"
+    },
+    "keep_secret": "আগেরটা রাখতে খালি রাখুন।",
+    "events": "ঘটনা",
+    "events_hint": "কিছু টিক না দিলে সব ঘটনা।",
+    "all_events": "সব ঘটনা",
+    "last_sent": "শেষ পাঠানো {{when}}",
+    "key_once": "সই করার কী, শুধু এই একবারই দেখানো হচ্ছে। এটা দিয়ে X-Ekpanel-Signature হেডার (বডির HMAC-SHA256) যাচাই করুন।",
+    "key_hint": "Webhook যে সার্ভিস গ্রহণ করে, সেখানে এটা রাখুন।",
+    "event_names": {
+      "server_offline": "সার্ভার অফলাইন",
+      "server_online": "সার্ভার আবার অনলাইন",
+      "server_disk": "সার্ভারের ডিস্ক প্রায় ভরা",
+      "backup_failed": "ব্যাকআপ ব্যর্থ",
+      "backup_partial": "ব্যাকআপ আংশিক ব্যর্থ",
+      "site_error": "ওয়েবসাইটে সমস্যা",
+      "app_error": "অ্যাপে সমস্যা",
+      "database_error": "ডেটাবেসে সমস্যা",
+      "quota_warning": "ডিস্কের জায়গা প্রায় শেষ",
+      "quota_full": "ডিস্কের জায়গা শেষ",
+      "task_failed": "কাজ ব্যর্থ",
+      "login_new_ip": "নতুন ঠিকানা থেকে সাইন-ইন"
+    },
+    "inbox_note": "নোটিফিকেশন ৯০ দিন রাখা হয়।",
+    "mail": {
+      "title": "মেইল সার্ভার আর প্যানেলের ঠিকানা",
+      "body": "ইমেইল নোটিফিকেশন এই SMTP সার্ভার দিয়ে যায়। প্যানেলের ঠিকানা থাকলে বার্তার লিংক কাজ করে।",
+      "panel_url": "প্যানেলের ঠিকানা",
+      "panel_url_hint": "মানুষ যে ঠিকানায় এই প্যানেল খোলেন, যেমন https://panel.example.com",
+      "host": "SMTP সার্ভার",
+      "port": "পোর্ট",
+      "security": "নিরাপত্তা",
+      "tls": {
+        "starttls": "STARTTLS (587)",
+        "tls": "TLS (465)",
+        "none": "কিছু না (শুধু লোকাল রিলে)"
+      },
+      "from": "প্রেরক",
+      "username": "ইউজার নাম",
+      "password": "পাসওয়ার্ড",
+      "saved": "সেভ হয়েছে।"
+    }
   }
 }

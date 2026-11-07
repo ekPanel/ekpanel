@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ExternalLink, FolderOpen, Loader2, RotateCw, Trash2 } from "lucide-react";
 import { useMe } from "../lib/session";
 import { CronCard } from "../components/CronCard";
+import { LogsCard, TrafficCard } from "../components/WebInsights";
 import { SiteSFTP } from "../components/SiteSFTP";
 import { WordPressCard } from "../components/WordPressCard";
 import { api, ApiError, errorMessage, type Server, type Site } from "../lib/api";
@@ -160,6 +161,8 @@ export function SiteDetailPage() {
           <div className="grid content-start gap-6">
           {!deleting && <WordPressCard site={s} />}
           {!deleting && <CronCard siteId={s.id} />}
+          {!deleting && <TrafficCard base={`/sites/${s.id}`} />}
+          {!deleting && <LogsCard base={`/sites/${s.id}`} php />}
           <Card className="p-6">
             <h2 className="mb-5 text-lg font-semibold">{t("sites.settings")}</h2>
             {settings && (

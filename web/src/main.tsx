@@ -20,6 +20,7 @@ import { FileManagerPage } from "./pages/FileManagerPage";
 import { BackupRepoPage, BackupsPage } from "./pages/BackupsPage";
 import { AppDetailPage, AppsPage } from "./pages/AppsPage";
 import { CustomersPage, PackagesPage } from "./pages/CustomersPage";
+import { NotificationsPage } from "./pages/NotificationsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true } },
@@ -73,6 +74,7 @@ const router = createBrowserRouter([
     children: [
       { path: "/", element: <DashboardPage /> },
       { path: "/settings/security", element: <SecurityPage /> },
+      { path: "/settings/notifications", element: <NotificationsPage /> },
       // Customers use these too; the API shows them only what they own.
       { path: "/sites", element: <SitesPage /> },
       { path: "/sites/:id", element: <SiteDetailPage /> },

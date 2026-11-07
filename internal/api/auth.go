@@ -295,6 +295,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		s.internalError(w, r, err)
 		return
 	}
+	s.checkNewSignIn(r, &u)
 	s.auditAs(r, &u.ID, "auth.login", u.Email, nil)
 	writeJSON(w, http.StatusOK, u)
 }

@@ -87,7 +87,11 @@ export function UsageList({ usage, pkg }: { usage: Usage; pkg: Package }) {
 /** A customer's own package and what they use of it, on their dashboard. */
 export function MyUsageCard() {
   const { t, i18n } = useTranslation();
-  const q = useQuery({ queryKey: ["me", "usage"], queryFn: () => api.get<{ package: Package | null; usage: Usage }>("/me/usage"), refetchInterval: 60000 });
+  const q = useQuery({
+    queryKey: ["me", "usage"],
+    queryFn: () => api.get<{ package: Package | null; usage: Usage; bandwidth_month: number }>("/me/usage"),
+    refetchInterval: 60000,
+  });
   if (q.isPending) return <Spinner />;
   if (q.error) return <ErrorAlert>{errorMessage(t, q.error)}</ErrorAlert>;
   const pkg = q.data.package;
@@ -103,6 +107,7 @@ export function MyUsageCard() {
         {limits.length > 0 && <p className="text-sm text-muted">{limits.join(" · ")}</p>}
       </div>
       <UsageList usage={q.data.usage} pkg={pkg} />
+      <p className="text-sm text-muted">{t("customers.bandwidth_month", { size: formatBytes(q.data.bandwidth_month, i18n.language) })}</p>
     </Card>
   );
 }

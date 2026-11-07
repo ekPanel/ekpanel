@@ -11,7 +11,9 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"ekpanel/internal/hub"
+	"ekpanel/internal/notify"
 	"ekpanel/internal/pki"
+	"ekpanel/internal/secretbox"
 	"ekpanel/internal/store"
 	"ekpanel/internal/tasks"
 )
@@ -34,6 +36,9 @@ type Options struct {
 	AgentPort int
 	// Tasks queues background work.
 	Tasks *tasks.Runner
+	// Notify sends notifications; Secrets seals the secrets they need.
+	Notify  *notify.Notifier
+	Secrets *secretbox.Box
 }
 
 type Server struct {
@@ -90,6 +95,13 @@ func (s *Server) Handler() http.Handler {
 		r.Group(func(r chi.Router) {
 			r.Use(requireRole("admin", "customer"))
 			r.Get("/me/usage", s.handleMyUsage)
+			r.Get("/notifications", s.handleListNotifications)
+			r.Post("/notifications/read", s.handleReadNotifications)
+			r.With(notImpersonating).Get("/notifications/channels", s.handleListChannels)
+			r.With(notImpersonating).Post("/notifications/channels", s.handleCreateChannel)
+			r.With(notImpersonating).Put("/notifications/channels/{id}", s.handleUpdateChannel)
+			r.With(notImpersonating).Delete("/notifications/channels/{id}", s.handleDeleteChannel)
+			r.With(notImpersonating).Post("/notifications/channels/{id}/test", s.handleTestChannel)
 			r.Post("/auth/password", s.handleChangePassword)
 			r.Get("/servers", s.handleListServers)
 			r.Get("/tasks", s.handleListTasks)
@@ -105,6 +117,8 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/sites/{id}/files", s.handleFiles)
 			r.Post("/sites/{id}/files/upload", s.handleUpload)
 			r.Get("/sites/{id}/files/download", s.handleDownload)
+			r.Get("/sites/{id}/logs", s.handleSiteLogs)
+			r.Get("/sites/{id}/traffic", s.handleSiteTraffic)
 			r.Get("/php-versions", s.handlePHPVersions)
 			r.Get("/databases", s.handleListDatabases)
 			r.Post("/databases", s.handleCreateDatabase)
@@ -122,6 +136,8 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/apps/{id}/update", s.handleUpdateAppImages)
 			r.Get("/apps/{id}/status", s.handleAppStatus)
 			r.Get("/apps/{id}/logs", s.handleAppLogs)
+			r.Get("/apps/{id}/access-log", s.handleAppAccessLog)
+			r.Get("/apps/{id}/traffic", s.handleAppTraffic)
 			r.Get("/cron", s.handleListCron)
 			r.Post("/cron", s.handleCreateCron)
 			r.Post("/cron/preview", s.handleCronPreview)
@@ -134,6 +150,8 @@ func (s *Server) Handler() http.Handler {
 
 		r.Group(func(r chi.Router) {
 			r.Use(requireRole("admin"))
+			r.Get("/settings/notifications", s.handleGetNotifySettings)
+			r.Put("/settings/notifications", s.handleSetNotifySettings)
 			r.Get("/packages", s.handleListPackages)
 			r.Post("/packages", s.handleCreatePackage)
 			r.Get("/packages/{id}", s.handleGetPackage)
@@ -155,6 +173,7 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/servers/{id}/services", s.handleServerServices)
 			r.Post("/servers/{id}/services/{name}/restart", s.handleRestartService)
 			r.Post("/servers/{id}/usage", s.handleMeasureUsage)
+			r.Post("/servers/{id}/traffic", s.handleCollectTraffic)
 			r.Get("/servers/{id}/firewall", s.handleGetFirewall)
 			r.Put("/servers/{id}/firewall", s.handleSetFirewall)
 			r.Post("/servers/{id}/firewall/rules", s.handleAddFirewallRule)

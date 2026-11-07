@@ -34,6 +34,9 @@ email, DNS and game servers, with a modern UI in your own language.
 - **Docker apps**: run any image or Compose file, with a domain and free HTTPS, variables,
   kept folders, limits, logs and one-click image updates. App ports stay private to the
   server, so Docker cannot open holes in the firewall
+- **Logs, traffic and notifications**: live request logs, PHP errors and traffic charts per
+  website and app; alerts for offline servers, full disks, failed backups and more, by email,
+  Telegram, Discord, Slack or signed webhooks, in the recipient's language
 - **Cron jobs** for websites and apps, with presets or cron expressions in your time zone,
   a preview of the next runs, time limits, output and "run now"
 - **Customers and packages**: host other people. Each customer signs in to see only their own

@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, ArchiveRestore, Boxes, Database, Package, Users, Gauge, Globe, Languages, LogOut, Menu, Monitor, Moon, ScrollText, Search, Server, ShieldCheck, Sun, X } from "lucide-react";
+import { Activity, ArchiveRestore, Bell, Boxes, Database, Package, Users, Gauge, Globe, Languages, LogOut, Menu, Monitor, Moon, ScrollText, Search, Server, ShieldCheck, Sun, X } from "lucide-react";
 import { api, type User } from "../lib/api";
 import { meKey } from "../lib/session";
 import { useTheme, type Theme } from "../lib/theme";
@@ -10,6 +10,7 @@ import { languages } from "../i18n";
 import { CommandPalette } from "./CommandPalette";
 import { TaskTray } from "./Tasks";
 import { ImpersonationBanner } from "../pages/CustomersPage";
+import { NotificationBell } from "../pages/NotificationsPage";
 import { cx } from "./ui";
 
 export function Logo({ className }: { className?: string }) {
@@ -63,6 +64,7 @@ function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => void }) 
       )}
       <p className="px-3 pt-5 pb-1 text-xs font-semibold tracking-wider text-muted uppercase">{t("nav.account")}</p>
       <NavItem to="/settings/security" icon={<ShieldCheck />}>{t("nav.security")}</NavItem>
+      <NavItem to="/settings/notifications" icon={<Bell />}>{t("nav.notifications")}</NavItem>
     </nav>
   );
 }
@@ -207,6 +209,7 @@ export function AppShell({ user }: { user: User }) {
               <ThemeMenu />
             </div>
             <div className="flex items-center gap-2 ps-1">
+              <NotificationBell />
               <span className="grid size-9 place-items-center rounded-full bg-amber-soft text-xs font-bold text-amber" title={user.email} aria-hidden>
                 {initials || <Activity className="size-4" />}
               </span>

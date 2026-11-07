@@ -13,6 +13,7 @@ import (
 
 	"ekpanel/internal/agentproto"
 	"ekpanel/internal/hub"
+	"ekpanel/internal/notify"
 	"ekpanel/internal/store"
 )
 
@@ -46,6 +47,17 @@ type Runner struct {
 	handlers map[string]Handler
 	wake     chan struct{}
 	vault    *vault
+	notify   *notify.Notifier
+}
+
+// SetNotifier lets the runner send notifications. Without one, events are only logged.
+func (r *Runner) SetNotifier(n *notify.Notifier) { r.notify = n }
+
+// alert tells the administrators (and the owner, for a customer's resource) about an event.
+func (r *Runner) alert(ctx context.Context, owner *string, event, severity string, params map[string]string, path string) {
+	if r.notify != nil {
+		r.notify.Admins(ctx, owner, event, severity, params, path)
+	}
 }
 
 func New(st *store.Store, h *hub.Hub, log *slog.Logger) *Runner {
@@ -85,10 +97,18 @@ func (r *Runner) Run(ctx context.Context, workers int) {
 			r.work(ctx)
 		}()
 	}
-	wg.Add(3)
+	wg.Add(5)
 	go func() {
 		defer wg.Done()
 		r.driftLoop(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		r.monitorLoop(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		r.trafficLoop(ctx)
 	}()
 	go func() {
 		defer wg.Done()
@@ -172,6 +192,16 @@ func (r *Runner) execute(ctx context.Context, t store.Task) {
 		backoff := time.Duration(t.Attempts*t.Attempts) * 10 * time.Second
 		if err := r.store.FailTask(runCtx, t.ID, err.Error(), backoff); err != nil {
 			log.Error("record task failure", "err", err)
+		}
+		// Applies and backups report their own, more specific alerts.
+		if t.Attempts >= t.MaxAttempts && t.Kind != KindServerReconcile && t.Kind != KindBackupRun {
+			var owner *string
+			if t.CreatedBy != nil {
+				if u, err := r.store.UserByID(runCtx, *t.CreatedBy); err == nil && u.Role == "customer" {
+					owner = t.CreatedBy
+				}
+			}
+			r.alert(runCtx, owner, "task_failed", "warning", map[string]string{"task": t.Kind, "message": err.Error()}, "/")
 		}
 		return
 	}
@@ -398,7 +428,25 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 	if err := json.Unmarshal(raw, &res); err != nil {
 		return sum, err
 	}
+	// Alert once when something starts failing, not on every apply.
+	wasError := map[string]bool{}
+	for _, s := range sites {
+		wasError[s.ID] = s.State == "error"
+	}
+	for _, d := range dbs {
+		wasError[d.ID] = d.State == "error"
+	}
+	for _, a := range apps {
+		wasError[a.ID] = a.State == "error"
+	}
 	for _, sr := range res.Sites {
+		if !sr.OK && !wasError[sr.ID] {
+			for _, s := range sites {
+				if s.ID == sr.ID && s.State != "deleting" {
+					r.alert(ctx, s.OwnerID, "site_error", "critical", map[string]string{"name": s.Domain, "message": sr.Error}, "/sites/"+s.ID)
+				}
+			}
+		}
 		if err := r.store.ApplySiteResult(ctx, sr.ID, sr.Generation, sr.OK, sr.Error); err != nil {
 			return sum, err
 		}
@@ -409,6 +457,13 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		}
 	}
 	for _, dr := range res.Databases {
+		if !dr.OK && !wasError[dr.ID] {
+			for _, d := range dbs {
+				if d.ID == dr.ID && d.State != "deleting" {
+					r.alert(ctx, d.OwnerID, "database_error", "critical", map[string]string{"name": d.Name, "message": dr.Error}, "/databases/"+d.ID)
+				}
+			}
+		}
 		if err := r.store.ApplyDatabaseResult(ctx, dr.ID, dr.Generation, dr.OK, dr.Error, dr.SizeBytes); err != nil {
 			return sum, err
 		}
@@ -419,6 +474,13 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		}
 	}
 	for _, ar := range res.Apps {
+		if !ar.OK && !wasError[ar.ID] {
+			for _, a := range apps {
+				if a.ID == ar.ID && a.State != "deleting" {
+					r.alert(ctx, a.OwnerID, "app_error", "critical", map[string]string{"name": a.Name, "message": ar.Error}, "/apps/"+a.ID)
+				}
+			}
+		}
 		if err := r.store.ApplyAppResult(ctx, ar.ID, ar.Generation, ar.OK, ar.Error); err != nil {
 			return sum, err
 		}

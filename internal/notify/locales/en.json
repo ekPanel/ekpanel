@@ -1,0 +1,57 @@
+{
+  "events": {
+    "server_offline": {
+      "title": "Server {{server}} is offline",
+      "body": "The agent on {{server}} has not been connected for {{minutes}} minutes. Websites on it may be down."
+    },
+    "server_online": {
+      "title": "Server {{server}} is back online",
+      "body": "The agent on {{server}} connected again."
+    },
+    "server_disk": {
+      "title": "Disk almost full on {{server}}",
+      "body": "The disk of {{server}} is {{percent}}% full. Free some space before websites and databases stop writing."
+    },
+    "backup_failed": {
+      "title": "Backup to {{repo}} failed",
+      "body": "{{message}}"
+    },
+    "backup_partial": {
+      "title": "Backup to {{repo}} partly failed",
+      "body": "{{message}}"
+    },
+    "site_error": {
+      "title": "Website {{name}} has a problem",
+      "body": "{{message}}"
+    },
+    "app_error": {
+      "title": "App {{name}} has a problem",
+      "body": "{{message}}"
+    },
+    "database_error": {
+      "title": "Database {{name}} has a problem",
+      "body": "{{message}}"
+    },
+    "quota_warning": {
+      "title": "Disk space almost used up",
+      "body": "{{customer}} uses {{used}} of {{limit}}. When it is full, files and new websites cannot be added."
+    },
+    "quota_full": {
+      "title": "Disk space used up",
+      "body": "{{customer}} uses {{used}} of {{limit}}. Files and new websites cannot be added until some space is freed."
+    },
+    "task_failed": {
+      "title": "A task failed: {{task}}",
+      "body": "{{message}}"
+    },
+    "login_new_ip": {
+      "title": "New sign-in to your account",
+      "body": "Someone signed in to your ekPanel account from {{ip}}. If it was not you, change your password and sign out other devices."
+    },
+    "test": {
+      "title": "Test notification from ekPanel",
+      "body": "This channel works. You will get notifications here."
+    }
+  },
+  "open": "Open in ekPanel: {{link}}"
+}

@@ -76,5 +76,9 @@ func (r *Runner) MeasureDiskUse(ctx context.Context, serverID string) error {
 	if err := json.Unmarshal(raw, &res); err != nil {
 		return err
 	}
-	return r.store.RecordDiskUse(ctx, res.Sites, res.Apps)
+	if err := r.store.RecordDiskUse(ctx, res.Sites, res.Apps); err != nil {
+		return err
+	}
+	r.checkQuotas(ctx, serverID)
+	return nil
 }

@@ -562,3 +562,58 @@ type CronStatusResult struct {
 	NextRun  *time.Time `json:"next_run,omitempty"`
 	Output   string     `json:"output"`
 }
+
+// ---- Web logs and traffic ----
+
+// OpAccessLog reads the newest requests of a website or app from its web server log.
+const OpAccessLog = "logs.access"
+
+type AccessLogParams struct {
+	Kind   string `json:"kind"` // "site" or "app"
+	ID     string `json:"id"`
+	Cursor int64  `json:"cursor,omitempty"` // continue after this byte; 0 reads the newest lines
+	Lines  int    `json:"lines,omitempty"`
+}
+
+type AccessLogEntry struct {
+	Time       time.Time `json:"time"`
+	IP         string    `json:"ip"`
+	Method     string    `json:"method"`
+	Host       string    `json:"host"`
+	URI        string    `json:"uri"`
+	Proto      string    `json:"proto"`
+	Status     int       `json:"status"`
+	Size       int64     `json:"size"`
+	DurationMS float64   `json:"duration_ms"`
+	UserAgent  string    `json:"user_agent,omitempty"`
+	Referer    string    `json:"referer,omitempty"`
+}
+
+type AccessLogResult struct {
+	Entries []AccessLogEntry `json:"entries"`
+	Cursor  int64            `json:"cursor"`
+}
+
+// OpTraffic adds the requests logged since the last call to hourly totals the agent keeps
+// for three days, and returns the hours from Since on. Asking again returns the same totals.
+const OpTraffic = "traffic.collect"
+
+type TrafficParams struct {
+	Sites []string  `json:"sites"`
+	Apps  []string  `json:"apps"`
+	Since time.Time `json:"since"`
+}
+
+type TrafficBucket struct {
+	Kind     string           `json:"kind"` // "site" or "app"
+	ID       string           `json:"id"`
+	Hour     time.Time        `json:"hour"`
+	Requests int64            `json:"requests"`
+	Bytes    int64            `json:"bytes"`
+	Status   [4]int64         `json:"status"` // 2xx, 3xx, 4xx, 5xx
+	Paths    map[string]int64 `json:"paths"`  // the most requested paths
+}
+
+type TrafficResult struct {
+	Buckets []TrafficBucket `json:"buckets"`
+}

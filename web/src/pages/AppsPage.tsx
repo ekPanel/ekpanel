@@ -11,6 +11,7 @@ import { SiteStateBadge } from "./SitesPage";
 import { useTasks } from "../components/Tasks";
 import { useMe } from "../lib/session";
 import { CronCard } from "../components/CronCard";
+import { LogsCard, TrafficCard } from "../components/WebInsights";
 import { OwnerField } from "./CustomersPage";
 
 const textarea = "rounded-lg border border-line bg-surface px-3 py-2 font-mono text-sm text-ink";
@@ -679,6 +680,12 @@ export function AppDetailPage() {
           <Logs app={app} />
         </div>
         {app.state !== "deleting" && <CronCard appId={app.id} />}
+        {app.state !== "deleting" && app.domain && (
+          <div className="grid gap-6 xl:grid-cols-[2fr_3fr]">
+            <TrafficCard base={`/apps/${app.id}`} />
+            <LogsCard base={`/apps/${app.id}`} php={false} />
+          </div>
+        )}
 
         {form && (
           <Card className="p-6">

@@ -27,7 +27,9 @@ import (
 	"ekpanel/internal/auth"
 	"ekpanel/internal/db"
 	"ekpanel/internal/hub"
+	"ekpanel/internal/notify"
 	"ekpanel/internal/pki"
+	"ekpanel/internal/secretbox"
 	"ekpanel/internal/store"
 	"ekpanel/internal/tasks"
 )
@@ -77,7 +79,7 @@ func newTestPanel(t *testing.T) *testPanel {
 	// trigger for the cleanup only.
 	_, err = pool.Exec(ctx, `
 		ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_update;
-		TRUNCATE users, sessions, servers, audit_log, tasks, server_metrics, packages CASCADE;
+		TRUNCATE users, sessions, servers, audit_log, tasks, server_metrics, packages, settings, alert_state CASCADE;
 		ALTER TABLE audit_log ENABLE TRIGGER audit_log_no_update;`)
 	if err != nil {
 		t.Fatal(err)
@@ -89,10 +91,18 @@ func newTestPanel(t *testing.T) *testPanel {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	st, h := store.New(pool), hub.New()
 	runner := tasks.New(st, h, log)
-	done := make(chan struct{})
-	go func() { runner.Run(ctx, 2); close(done) }()
+	box, err := secretbox.LoadOrCreate(filepath.Join(t.TempDir(), "secret.key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	notifier := notify.New(st, box, log)
+	notifier.AllowPrivate = true // test receivers listen on 127.0.0.1
+	runner.SetNotifier(notifier)
+	done := make(chan struct{}, 2)
+	go func() { runner.Run(ctx, 2); done <- struct{}{} }()
+	go func() { notifier.Run(ctx); done <- struct{}{} }()
 
-	s := api.New(st, h, log, api.Options{SetupToken: setupToken, CA: ca, AgentPort: 7443, Tasks: runner})
+	s := api.New(st, h, log, api.Options{SetupToken: setupToken, CA: ca, AgentPort: 7443, Tasks: runner, Notify: notifier, Secrets: box})
 	web := httptest.NewServer(s.Handler())
 	agents := httptest.NewUnstartedServer(s.AgentHandler())
 	agents.TLS, err = ca.ServerTLSConfig()
@@ -104,6 +114,7 @@ func newTestPanel(t *testing.T) *testPanel {
 		web.Close()
 		agents.Close()
 		cancel()
+		<-done
 		<-done
 		pool.Close()
 	})

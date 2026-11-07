@@ -81,6 +81,7 @@ func (r *Runner) runBackup(ctx context.Context, t store.Task) (any, error) {
 	raw, err := r.hub.Call(callCtx, repo.ServerID, agentproto.OpBackupRun, params)
 	if err != nil {
 		r.store.RecordBackupRun(context.WithoutCancel(ctx), repo.ID, "failed", err.Error())
+		r.alert(context.WithoutCancel(ctx), nil, "backup_failed", "critical", map[string]string{"repo": repo.Name, "message": err.Error()}, "/backups/"+repo.ID)
 		return nil, err
 	}
 	var res agentproto.BackupRunResult
@@ -111,6 +112,8 @@ func (r *Runner) runBackup(ctx context.Context, t store.Task) (any, error) {
 		return nil, err
 	}
 	if status != "succeeded" {
+		r.alert(ctx, nil, "backup_"+status, map[string]string{"failed": "critical", "partial": "warning"}[status],
+			map[string]string{"repo": repo.Name, "message": message}, "/backups/"+repo.ID)
 		return nil, fmt.Errorf("%d of %d items backed up: %s", ok, len(res.Items), message)
 	}
 	return map[string]int{"items": ok}, nil

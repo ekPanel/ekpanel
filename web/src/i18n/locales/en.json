@@ -25,7 +25,8 @@
     "backups": "Backups",
     "apps": "Apps",
     "customers": "Customers",
-    "packages": "Packages"
+    "packages": "Packages",
+    "notifications": "Notifications"
   },
   "theme": {
     "label": "Theme",
@@ -291,6 +292,11 @@
         "updated": "Cron job changed",
         "deleted": "Cron job deleted",
         "run": "Cron job run by hand"
+      },
+      "notifications": {
+        "channel_added": "Notification channel added",
+        "channel_removed": "Notification channel removed",
+        "settings_changed": "Mail settings changed"
       }
     }
   },
@@ -417,7 +423,18 @@
     "invalid_cron_target": "A job belongs to a website or an app.",
     "cron_not_found": "That job does not exist.",
     "cron_not_ready": "The job has not been set up on its server yet.",
-    "limit_reached_cron": "Your package allows no more cron jobs."
+    "limit_reached_cron": "Your package allows no more cron jobs.",
+    "invalid_events": "Choose from the listed events.",
+    "invalid_chat_id": "Enter the chat's numeric ID or its @name.",
+    "invalid_bot_token": "Enter the token that @BotFather gave, such as 123456:ABC…",
+    "invalid_hook_url": "Enter the webhook address the service gave you. It must use https.",
+    "invalid_hook_key": "The signing key needs 16 to 200 characters.",
+    "invalid_channel_kind": "Choose email, Telegram, Discord, Slack or a webhook.",
+    "too_many_channels": "You can have up to 20 channels.",
+    "channel_not_found": "That channel does not exist.",
+    "channel_failed": "The message could not be sent.",
+    "invalid_panel_url": "Enter the address people use to open the panel, such as https://panel.example.com.",
+    "invalid_smtp": "Check the mail server's host name, port and security."
   },
   "not_found": {
     "title": "Page not found",
@@ -904,7 +921,8 @@
     "acting_as": "You are signed in as {{name}} ({{email}}). Everything you do is recorded under your own name.",
     "back_to_admin": "Back to my account",
     "limit_cpu_one": "{{cores}} CPU core",
-    "limit_cpu_other": "{{cores}} CPU cores"
+    "limit_cpu_other": "{{cores}} CPU cores",
+    "bandwidth_month": "Traffic this month: {{size}}"
   },
   "packages": {
     "intro": "What each customer may use: how many websites, databases and apps, disk space, and memory and CPU for all their processes together.",
@@ -978,5 +996,119 @@
     "failed": "Failed ({{result}}, exit code {{code}})",
     "never": "Not run yet",
     "no_output": "No output yet."
+  },
+  "traffic": {
+    "title": "Traffic",
+    "range": "Time range",
+    "ranges": {
+      "24h": "24 hours",
+      "7d": "7 days",
+      "30d": "30 days"
+    },
+    "requests": "Requests",
+    "bandwidth": "Bandwidth",
+    "errors": "Errors",
+    "status": "Responses",
+    "top_paths": "Most requested",
+    "status_names": {
+      "2xx": "Success (2xx)",
+      "3xx": "Redirects (3xx)",
+      "4xx": "Client errors (4xx)",
+      "5xx": "Server errors (5xx)"
+    },
+    "none": "No requests in this time range yet.",
+    "delay": "Counted from the web server's log every 15 minutes."
+  },
+  "weblogs": {
+    "title": "Logs",
+    "which": "Which log",
+    "kinds": {
+      "access": "Requests",
+      "php": "PHP errors"
+    },
+    "filter": "Show",
+    "all": "All responses",
+    "search": "Search",
+    "live": "Live",
+    "empty": "No requests logged yet.",
+    "php_empty": "No PHP errors logged. Errors from your code show up here."
+  },
+  "notifications": {
+    "title": "Notifications",
+    "bell_one": "Notifications, {{count}} unread",
+    "bell_other": "Notifications, {{count}} unread",
+    "read_all": "Mark all read",
+    "empty": "Nothing yet. Alerts about your servers, websites and backups appear here.",
+    "unread": "Unread",
+    "settings": "Notification settings",
+    "intro": "Choose where alerts go: email, Telegram, Discord, Slack or a webhook. They always appear under the bell too.",
+    "channels": "Where to send",
+    "add": "Add channel",
+    "edit": "Edit channel",
+    "create": "Add channel",
+    "delete": "Remove channel",
+    "test": "Send a test",
+    "test_sent": "Test sent.",
+    "no_channels": "No channels yet. Alerts still appear under the bell.",
+    "kind": "Type",
+    "kinds": {
+      "email": "Email",
+      "telegram": "Telegram",
+      "discord": "Discord",
+      "slack": "Slack",
+      "webhook": "Webhook"
+    },
+    "name": "Name",
+    "address": "Email address",
+    "bot_token": "Bot token",
+    "bot_token_hint": "From @BotFather in Telegram.",
+    "chat_id": "Chat ID",
+    "chat_id_hint": "Your chat's number (ask @userinfobot) or a channel's @name. Send /start to the bot first.",
+    "url": "Webhook address",
+    "url_hint": {
+      "discord": "Server settings → Integrations → Webhooks → Copy URL.",
+      "slack": "An Incoming Webhook URL from your Slack app.",
+      "webhook": "ekPanel sends a signed JSON POST to this address."
+    },
+    "keep_secret": "Leave empty to keep the saved one.",
+    "events": "Events",
+    "events_hint": "None ticked means every event.",
+    "all_events": "All events",
+    "last_sent": "last sent {{when}}",
+    "key_once": "The signing key, shown only this once. Check the X-Ekpanel-Signature header (HMAC-SHA256 of the body) with it.",
+    "key_hint": "Keep it in the service that receives the webhook.",
+    "event_names": {
+      "server_offline": "Server offline",
+      "server_online": "Server back online",
+      "server_disk": "Server disk almost full",
+      "backup_failed": "Backup failed",
+      "backup_partial": "Backup partly failed",
+      "site_error": "Website problem",
+      "app_error": "App problem",
+      "database_error": "Database problem",
+      "quota_warning": "Disk space almost used up",
+      "quota_full": "Disk space used up",
+      "task_failed": "Task failed",
+      "login_new_ip": "Sign-in from a new address"
+    },
+    "inbox_note": "Notifications are kept for 90 days.",
+    "mail": {
+      "title": "Mail server and panel address",
+      "body": "Email notifications go out through this SMTP server. The panel address makes the links in messages work.",
+      "panel_url": "Panel address",
+      "panel_url_hint": "How people open this panel, such as https://panel.example.com",
+      "host": "SMTP server",
+      "port": "Port",
+      "security": "Security",
+      "tls": {
+        "starttls": "STARTTLS (587)",
+        "tls": "TLS (465)",
+        "none": "None (local relay only)"
+      },
+      "from": "Sender",
+      "username": "User name",
+      "password": "Password",
+      "saved": "Saved."
+    }
   }
 }

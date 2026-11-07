@@ -22,7 +22,9 @@ import (
 	"ekpanel/internal/config"
 	"ekpanel/internal/db"
 	"ekpanel/internal/hub"
+	"ekpanel/internal/notify"
 	"ekpanel/internal/pki"
+	"ekpanel/internal/secretbox"
 	"ekpanel/internal/store"
 	"ekpanel/internal/tasks"
 	"ekpanel/internal/webui"
@@ -154,6 +156,12 @@ func run(log *slog.Logger, args []string) error {
 
 	h := hub.New()
 	runner := tasks.New(st, h, log)
+	box, err := secretbox.LoadOrCreate(filepath.Join(cfg.DataDir, "secret.key"))
+	if err != nil {
+		return fmt.Errorf("secret key: %w", err)
+	}
+	notifier := notify.New(st, box, log)
+	runner.SetNotifier(notifier)
 	opts := api.Options{
 		SecureCookies: cfg.SecureCookies, UI: webui.FS(), Version: version,
 		CA: ca, AgentPort: agentPort, Tasks: runner,
@@ -161,6 +169,7 @@ func run(log *slog.Logger, args []string) error {
 	if err := prepareSetup(ctx, log, st, cfg.DataDir, &opts); err != nil {
 		return err
 	}
+	opts.Notify, opts.Secrets = notifier, box
 	apiServer := api.New(st, h, log, opts)
 
 	web := &http.Server{
@@ -178,8 +187,9 @@ func run(log *slog.Logger, args []string) error {
 	}
 
 	var background sync.WaitGroup
-	background.Add(2)
+	background.Add(3)
 	go func() { defer background.Done(); runner.Run(ctx, 4) }()
+	go func() { defer background.Done(); notifier.Run(ctx) }()
 	go func() { defer background.Done(); cleanupLoop(ctx, log, st) }()
 
 	errc := make(chan error, 2)
