@@ -21,6 +21,7 @@ import { BackupRepoPage, BackupsPage } from "./pages/BackupsPage";
 import { AppDetailPage, AppsPage } from "./pages/AppsPage";
 import { CustomersPage, PackagesPage } from "./pages/CustomersPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
+import { AppTerminalPage, ServerTerminalPage } from "./pages/TerminalPage";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true } },
@@ -83,6 +84,7 @@ const router = createBrowserRouter([
       { path: "/databases/:id", element: <DatabaseDetailPage /> },
       { path: "/apps", element: <AppsPage /> },
       { path: "/apps/:id", element: <AppDetailPage /> },
+      { path: "/apps/:id/terminal", element: <AppTerminalPage /> },
       {
         element: <AdminOnly />,
         children: [
@@ -92,6 +94,7 @@ const router = createBrowserRouter([
           { path: "/backups/:id", element: <BackupRepoPage /> },
           { path: "/servers", element: <ServersPage /> },
           { path: "/servers/:id", element: <ServerDetailPage /> },
+          { path: "/servers/:id/terminal", element: <ServerTerminalPage /> },
           { path: "/audit", element: <AuditPage /> },
         ],
       },

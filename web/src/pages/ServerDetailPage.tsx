@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, KeyRound, Trash2 } from "lucide-react";
+import { ArrowLeft, KeyRound, SquareTerminal, Trash2 } from "lucide-react";
 import { api, ApiError, errorMessage, type EnrollResult, type MetricPoint, type Server } from "../lib/api";
 import { formatBytes, formatDateTime, formatDuration, formatNumber, formatPercent, formatRate } from "../lib/format";
 import { useServerLive } from "../lib/live";
@@ -135,6 +135,12 @@ export function ServerDetailPage() {
         actions={
           <>
             <ServerStateBadge server={s} />
+            {s.online && (
+              <Link to={`/servers/${s.id}/terminal`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-sm hover:bg-sunk">
+                <SquareTerminal className="size-4" aria-hidden />
+                {t("terminal.open")}
+              </Link>
+            )}
             {s.enrolled_at && (
               <Button size="sm" onClick={newToken}>
                 <KeyRound className="size-4" aria-hidden />

@@ -51,6 +51,8 @@ type User struct {
 	TOTPSecret   *string   `json:"-"`
 	// Set when an administrator is signed in as this user; only SessionUser fills it.
 	ImpersonatorID *string `json:"impersonator_id,omitempty"`
+	// Until when this session may do things that need the password again; SessionUser fills it.
+	ConfirmedUntil *time.Time `json:"confirmed_until,omitempty"`
 }
 
 const userColumns = `id, email, name, role, locale, totp_enabled, created_at, password_hash, totp_secret, package_id`
@@ -133,10 +135,10 @@ func (s *Store) SessionUser(ctx context.Context, tokenHash []byte) (User, error)
 	var u User
 	err := s.pool.QueryRow(ctx, `
 		SELECT u.id, u.email, u.name, u.role, u.locale, u.totp_enabled, u.created_at, u.password_hash, u.totp_secret,
-			u.package_id, s.impersonator_id
+			u.package_id, s.impersonator_id, CASE WHEN s.confirmed_until > now() THEN s.confirmed_until END
 		FROM sessions s JOIN users u ON u.id = s.user_id
 		WHERE s.token_hash = $1 AND s.expires_at > now()`, tokenHash).Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Locale,
-		&u.TOTPEnabled, &u.CreatedAt, &u.PasswordHash, &u.TOTPSecret, &u.PackageID, &u.ImpersonatorID)
+		&u.TOTPEnabled, &u.CreatedAt, &u.PasswordHash, &u.TOTPSecret, &u.PackageID, &u.ImpersonatorID, &u.ConfirmedUntil)
 	if err != nil {
 		return User{}, notFound(err)
 	}
@@ -157,6 +159,12 @@ func (s *Store) CreateImpersonationSession(ctx context.Context, tokenHash []byte
 		INSERT INTO sessions (token_hash, user_id, impersonator_id, ip, user_agent, expires_at)
 		VALUES ($1, $2, $3, $4, $5, now() + $6 * interval '1 second')`,
 		tokenHash, userID, impersonatorID, ip, userAgent, int64(ImpersonationTTL.Seconds()))
+	return err
+}
+
+// ConfirmSession marks a session as having just given the password again.
+func (s *Store) ConfirmSession(ctx context.Context, tokenHash []byte, until time.Time) error {
+	_, err := s.pool.Exec(ctx, `UPDATE sessions SET confirmed_until = $2 WHERE token_hash = $1`, tokenHash, until)
 	return err
 }
 

@@ -220,6 +220,10 @@ func session(ctx context.Context, log *slog.Logger, cfg Config, collector *Colle
 		return err
 	}
 
+	// Terminals live as long as this connection.
+	terms := newTerminals(realSystem, func(env agentproto.Envelope) error { return send(ctx, conn, env) })
+	defer terms.closeAll()
+
 	// Requests from the panel run concurrently; each answers with a response envelope.
 	readErr := make(chan error, 1)
 	go func() {
@@ -230,7 +234,37 @@ func session(ctx context.Context, log *slog.Logger, cfg Config, collector *Colle
 				return
 			}
 			var env agentproto.Envelope
-			if json.Unmarshal(data, &env) != nil || env.Type != agentproto.TypeRequest {
+			if json.Unmarshal(data, &env) != nil {
+				continue
+			}
+			switch env.Type {
+			case agentproto.TypeStreamData:
+				terms.input(env)
+				continue
+			case agentproto.TypeStreamResize:
+				terms.resize(env)
+				continue
+			case agentproto.TypeStreamClose:
+				terms.close(env.Stream)
+				continue
+			case agentproto.TypeRequest:
+			default:
+				continue
+			}
+			if env.Op == agentproto.OpTerminalOpen {
+				resp := agentproto.Envelope{Type: agentproto.TypeResponse, ID: env.ID, Result: json.RawMessage("{}")}
+				var p agentproto.TerminalParams
+				if err := json.Unmarshal(env.Params, &p); err != nil {
+					resp.Error = opError(agentproto.ErrInvalidParams, "%v", err)
+				} else if opErr := terms.start(ctx, p); opErr != nil {
+					resp.Error = opErr
+				} else {
+					log.Info("terminal opened", "kind", p.Kind, "app", p.App)
+				}
+				if resp.Error != nil {
+					resp.Result = nil
+				}
+				send(ctx, conn, resp)
 				continue
 			}
 			go func(req agentproto.Envelope) {

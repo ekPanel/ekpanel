@@ -5,8 +5,8 @@
 // CA by fingerprint, and receives a client certificate. It then keeps a WebSocket open at
 // ConnectPath using mutual TLS. Messages are JSON envelopes in both directions:
 //
-//	agent → panel: hello, metrics, response
-//	panel → agent: request
+//	agent → panel: hello, metrics, response, stream data and close
+//	panel → agent: request, stream data, resize and close
 package agentproto
 
 import (
@@ -47,6 +47,11 @@ const (
 	TypeMetrics  = "metrics"
 	TypeRequest  = "request"
 	TypeResponse = "response"
+	// A stream is a long-lived byte channel, such as a terminal, opened by a request whose
+	// params carry the stream's ID. Its traffic then flows in these envelopes.
+	TypeStreamData   = "stream_data"
+	TypeStreamResize = "stream_resize"
+	TypeStreamClose  = "stream_close"
 )
 
 type Envelope struct {
@@ -60,6 +65,13 @@ type Envelope struct {
 	Params json.RawMessage `json:"params,omitempty"`
 	Result json.RawMessage `json:"result,omitempty"`
 	Error  *OpError        `json:"error,omitempty"`
+
+	// Stream fields.
+	Stream string `json:"stream,omitempty"`
+	Data   []byte `json:"data,omitempty"`
+	Cols   int    `json:"cols,omitempty"`
+	Rows   int    `json:"rows,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // OpError is a failed operation. Code is stable (the UI translates it); Message is detail.
@@ -617,3 +629,21 @@ type TrafficBucket struct {
 type TrafficResult struct {
 	Buckets []TrafficBucket `json:"buckets"`
 }
+
+// ---- Terminals ----
+
+// OpTerminalOpen starts a shell in a pseudo-terminal and streams it as Stream. Kind "server"
+// is a root login shell on the server; "container" is a shell inside a container of an app.
+const OpTerminalOpen = "terminal.open"
+
+type TerminalParams struct {
+	Stream  string `json:"stream"`
+	Kind    string `json:"kind"`
+	App     string `json:"app,omitempty"`
+	Service string `json:"service,omitempty"`
+	Cols    int    `json:"cols"`
+	Rows    int    `json:"rows"`
+}
+
+// MaxStreamChunk is the most bytes one stream_data envelope carries.
+const MaxStreamChunk = 16 << 10

@@ -22,7 +22,13 @@ ekPanel is in early development and has no stable release yet. Fixes go into the
 ## Design principles
 
 - Agents accept only typed, validated operations from a fixed list (for example, only
-  allowlisted services can be restarted). There is no operation that runs arbitrary commands.
+  allowlisted services can be restarted). The one way to run any command is the web terminal,
+  which is an interactive shell for a person, not an operation the API can script.
+- The web terminal gives administrators a root shell, and app owners a shell inside their own
+  containers. Opening one requires the password (and two-factor code) again within the last
+  15 minutes, is refused while acting as a customer, and is checked against the browser's
+  origin. Shells end with the browser tab, after 30 idle minutes and after 8 hours, and every
+  session is recorded in the audit log (not its keystrokes).
 - Panel and agents talk over mutual TLS on a separate port, using a private CA that agents
   pin by fingerprint at enrolment. Agent keys never leave their server; certificates last
   90 days and renew automatically; re-enrolling or deleting a server revokes its certificate.

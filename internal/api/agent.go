@@ -18,6 +18,7 @@ import (
 
 	"ekpanel/internal/agentproto"
 	"ekpanel/internal/auth"
+	"ekpanel/internal/hub"
 	"ekpanel/internal/pki"
 	"ekpanel/internal/store"
 )
@@ -153,7 +154,7 @@ func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
 	conn.SetReadLimit(1 << 20)
 	ctx := r.Context()
 
-	ac := &agentConn{conn: conn, pending: map[string]chan agentproto.Envelope{}}
+	ac := &agentConn{conn: conn, pending: map[string]chan agentproto.Envelope{}, streams: map[string]*agentStream{}}
 	defer ac.closeAll()
 	disconnected := s.hub.Connected(srv.ID, ac)
 	defer disconnected()
@@ -204,6 +205,8 @@ func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
 			}
 		case env.Type == agentproto.TypeResponse:
 			ac.deliver(env)
+		case env.Type == agentproto.TypeStreamData || env.Type == agentproto.TypeStreamClose:
+			ac.deliverStream(env)
 		}
 		if err != nil {
 			s.log.Error("agent message", "server", srv.ID, "err", err)
@@ -226,6 +229,7 @@ type agentConn struct {
 	nextID  atomic.Uint64
 	mu      sync.Mutex
 	pending map[string]chan agentproto.Envelope
+	streams map[string]*agentStream
 	closed  bool
 }
 
@@ -291,6 +295,130 @@ func (a *agentConn) closeAll() {
 	for id, ch := range a.pending {
 		close(ch)
 		delete(a.pending, id)
+	}
+	for id, st := range a.streams {
+		st.end("the server's agent disconnected")
+		delete(a.streams, id)
+	}
+}
+
+// ---- Streams (terminals) ----
+
+// streamBuffer is how many chunks may wait for a slow browser before the stream is dropped,
+// so one stuck viewer cannot hold up the agent's whole connection.
+const streamBuffer = 512
+
+type agentStream struct {
+	id     string
+	conn   *agentConn
+	out    chan []byte
+	mu     sync.Mutex // guards ended, so data is never pushed into a closed channel
+	ended  bool
+	reason string
+}
+
+func (st *agentStream) Output() <-chan []byte { return st.out }
+func (st *agentStream) Reason() string {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return st.reason
+}
+
+func (st *agentStream) end(reason string) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if !st.ended {
+		st.ended, st.reason = true, reason
+		close(st.out)
+	}
+}
+
+// push queues data for the browser; false means the stream has ended or the buffer is full.
+func (st *agentStream) push(data []byte) (ok bool) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if st.ended {
+		return true // nothing to do, and nothing wrong with the connection
+	}
+	select {
+	case st.out <- data:
+		return true
+	default:
+		return false
+	}
+}
+
+func (st *agentStream) send(ctx context.Context, env agentproto.Envelope) error {
+	env.Stream = st.id
+	b, _ := json.Marshal(env)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	return st.conn.conn.Write(ctx, websocket.MessageText, b)
+}
+
+func (st *agentStream) Write(ctx context.Context, data []byte) error {
+	for len(data) > 0 {
+		n := min(len(data), agentproto.MaxStreamChunk)
+		if err := st.send(ctx, agentproto.Envelope{Type: agentproto.TypeStreamData, Data: data[:n]}); err != nil {
+			return err
+		}
+		data = data[n:]
+	}
+	return nil
+}
+
+func (st *agentStream) Resize(ctx context.Context, cols, rows int) error {
+	return st.send(ctx, agentproto.Envelope{Type: agentproto.TypeStreamResize, Cols: cols, Rows: rows})
+}
+
+// Close ends the stream from the panel's side; the agent stops the shell.
+func (st *agentStream) Close() {
+	st.send(context.Background(), agentproto.Envelope{Type: agentproto.TypeStreamClose, Reason: "closed"})
+	st.conn.mu.Lock()
+	delete(st.conn.streams, st.id)
+	st.conn.mu.Unlock()
+	st.end("closed")
+}
+
+func (a *agentConn) OpenStream(ctx context.Context, op string, params func(id string) any) (hub.Stream, error) {
+	id := "s" + strconv.FormatUint(a.nextID.Add(1), 10)
+	st := &agentStream{id: id, conn: a, out: make(chan []byte, streamBuffer)}
+	a.mu.Lock()
+	if a.closed {
+		a.mu.Unlock()
+		return nil, errAgentGone
+	}
+	a.streams[id] = st
+	a.mu.Unlock()
+	if _, err := a.Call(ctx, op, params(id)); err != nil {
+		a.mu.Lock()
+		delete(a.streams, id)
+		a.mu.Unlock()
+		return nil, err
+	}
+	return st, nil
+}
+
+func (a *agentConn) deliverStream(env agentproto.Envelope) {
+	a.mu.Lock()
+	st := a.streams[env.Stream]
+	if st != nil && env.Type == agentproto.TypeStreamClose {
+		delete(a.streams, env.Stream)
+	}
+	a.mu.Unlock()
+	if st == nil {
+		return
+	}
+	if env.Type == agentproto.TypeStreamClose {
+		st.end(env.Reason)
+		return
+	}
+	if !st.push(env.Data) {
+		a.mu.Lock()
+		delete(a.streams, env.Stream)
+		a.mu.Unlock()
+		st.send(context.Background(), agentproto.Envelope{Type: agentproto.TypeStreamClose, Reason: "the browser could not keep up"})
+		st.end("the browser could not keep up")
 	}
 }
 

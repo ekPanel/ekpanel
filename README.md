@@ -45,6 +45,8 @@ email, DNS and game servers, with a modern UI in your own language.
 - **Logs, traffic and notifications**: live request logs, PHP errors and traffic charts per
   website and app; alerts for offline servers, full disks, failed backups and more, by email,
   Telegram, Discord, Slack or signed webhooks, in the recipient's language
+- **Web terminal**: a root shell on any server, or a shell inside an app's container, in the
+  browser. Opening one asks for the password again, and every session is in the audit log
 - **Cron jobs** for websites and apps, with presets or cron expressions in your time zone,
   a preview of the next runs, time limits, output and "run now"
 - **Customers and packages**: host other people. Each customer signs in to see only their own
@@ -56,8 +58,8 @@ email, DNS and game servers, with a modern UI in your own language.
 - A web UI in **English** and **বাংলা (Bangla)**, ready for right-to-left languages, with
   light/dark themes, a `Ctrl+K` command palette and phone-friendly layouts
 
-Coming next, in order: then Git deploys, an app store, customers and packages. [PLAN.md](PLAN.md) lists
-every phase.
+Coming next, in order: a one-click service catalogue, then Git deploys with rollbacks and
+previews. [PLAN.md](PLAN.md) lists every phase.
 
 ## How it fits together
 

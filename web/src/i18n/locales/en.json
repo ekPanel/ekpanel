@@ -216,7 +216,8 @@
         "2fa_enabled": "Two-factor turned on",
         "2fa_disabled": "Two-factor turned off",
         "sessions_revoked": "Other devices signed out",
-        "password_changed": "Password changed"
+        "password_changed": "Password changed",
+        "confirmed": "Password confirmed"
       },
       "server": {
         "created": "Server added",
@@ -297,6 +298,10 @@
         "channel_added": "Notification channel added",
         "channel_removed": "Notification channel removed",
         "settings_changed": "Mail settings changed"
+      },
+      "terminal": {
+        "opened": "Terminal opened",
+        "closed": "Terminal closed"
       }
     }
   },
@@ -434,7 +439,8 @@
     "channel_not_found": "That channel does not exist.",
     "channel_failed": "The message could not be sent.",
     "invalid_panel_url": "Enter the address people use to open the panel, such as https://panel.example.com.",
-    "invalid_smtp": "Check the mail server's host name, port and security."
+    "invalid_smtp": "Check the mail server's host name, port and security.",
+    "confirm_required": "Enter your password again to open a terminal."
   },
   "not_found": {
     "title": "Page not found",
@@ -1110,5 +1116,26 @@
       "password": "Password",
       "saved": "Saved."
     }
+  },
+  "terminal": {
+    "open": "Terminal",
+    "shell": "Shell",
+    "server_title": "Terminal on {{name}}",
+    "app_title": "Shell in {{name}}",
+    "service": "Service",
+    "confirm_title": "Enter your password again",
+    "confirm_body": "A terminal can change anything on the server. Confirm it is you; this lasts 15 minutes.",
+    "confirm": "Open terminal",
+    "connected": "Connected",
+    "connecting": "Connecting…",
+    "reconnect": "Reconnect",
+    "reasons": {
+      "idle": "Closed after 30 idle minutes",
+      "time_limit": "Closed after 8 hours",
+      "exit": "The shell ended",
+      "agent_offline": "The server's agent is offline",
+      "lost": "Connection lost"
+    },
+    "note": "Opening and closing are recorded in the audit log. The shell closes after 30 minutes without typing."
   }
 }

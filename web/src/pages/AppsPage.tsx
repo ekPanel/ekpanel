@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Boxes, Download, ExternalLink, Lock, Play, Plus, RefreshCw, RotateCw, Square, Trash2 } from "lucide-react";
+import { ArrowLeft, Boxes, Download, SquareTerminal, ExternalLink, Lock, Play, Plus, RefreshCw, RotateCw, Square, Trash2 } from "lucide-react";
 import { api, ApiError, errorMessage, type App, type AppContainer, type Server, type Task } from "../lib/api";
 import { PageHeader } from "../components/AppShell";
 import { Badge, Button, Card, Dialog, ErrorAlert, Field, Spinner, cx, type Tone } from "../components/ui";
@@ -643,6 +643,12 @@ export function AppDetailPage() {
               <Download className="size-4" aria-hidden />
               {t("apps.pull")}
             </Button>
+            {ready && !app.stopped && (
+              <Link to={`/apps/${id}/terminal`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-sm hover:bg-sunk">
+                <SquareTerminal className="size-4" aria-hidden />
+                {t("terminal.shell")}
+              </Link>
+            )}
           </>
         }
       />

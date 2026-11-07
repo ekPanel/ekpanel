@@ -156,9 +156,9 @@ function OneTimePassword({ email, password }: { email: string; password: string 
     <div className="grid gap-2 rounded-lg bg-warn-soft p-4 text-warn">
       <p className="text-sm font-medium">{t("customers.password_once")}</p>
       <dl className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 text-sm text-ink">
-        <dt className="text-muted">{t("login.email")}</dt>
+        <dt className="text-muted">{t("account.email")}</dt>
         <dd dir="ltr">{email}</dd>
-        <dt className="text-muted">{t("login.password")}</dt>
+        <dt className="text-muted">{t("account.password")}</dt>
         <dd className="flex items-center gap-2">
           <code className="rounded bg-surface px-2 py-1 font-mono break-all" dir="ltr">
             {password}
@@ -230,8 +230,8 @@ function CustomerDialog({ open, customer, onClose }: { open: boolean; customer: 
         <form onSubmit={submit} className="grid gap-4">
           <ErrorAlert>{error}</ErrorAlert>
           {packages.data?.length === 0 && <ErrorAlert>{t("customers.needs_package")}</ErrorAlert>}
-          <Field label={t("setup.name")} value={name} onChange={(e) => setName(e.target.value)} maxLength={100} required />
-          <Field label={t("login.email")} type="email" value={email} onChange={(e) => setEmail(e.target.value)} dir="ltr" required />
+          <Field label={t("packages.name")} value={name} onChange={(e) => setName(e.target.value)} maxLength={100} required />
+          <Field label={t("account.email")} type="email" value={email} onChange={(e) => setEmail(e.target.value)} dir="ltr" required />
           <label className="grid gap-1.5">
             <span className="text-sm font-medium">{t("customers.package")}</span>
             <select value={packageId} onChange={(e) => setPackageId(e.target.value)} className={select} required>

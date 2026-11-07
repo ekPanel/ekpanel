@@ -11,6 +11,8 @@ export interface User {
   package_id: string | null;
   /** Set while an administrator is signed in as this user. */
   impersonator_id?: string;
+  /** Until when this session may open terminals without the password again. */
+  confirmed_until?: string;
 }
 
 export interface Package {

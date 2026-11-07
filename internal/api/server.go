@@ -83,6 +83,7 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/auth/me", s.handleMe)
 			r.Patch("/auth/me", s.handleUpdateMe)
 			r.Post("/auth/impersonation/end", s.handleEndImpersonation)
+			r.With(notImpersonating).Post("/auth/confirm", s.handleConfirm)
 			// The account's own security stays with its owner, not an administrator acting as them.
 			r.With(notImpersonating).Post("/auth/2fa/setup", s.handleTOTPSetup)
 			r.With(notImpersonating).Post("/auth/2fa/enable", s.handleTOTPEnable)
@@ -137,6 +138,7 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/apps/{id}/status", s.handleAppStatus)
 			r.Get("/apps/{id}/logs", s.handleAppLogs)
 			r.Get("/apps/{id}/access-log", s.handleAppAccessLog)
+			r.Get("/apps/{id}/terminal", s.handleAppTerminal)
 			r.Get("/apps/{id}/traffic", s.handleAppTraffic)
 			r.Get("/cron", s.handleListCron)
 			r.Post("/cron", s.handleCreateCron)
@@ -173,6 +175,7 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/servers/{id}/services", s.handleServerServices)
 			r.Post("/servers/{id}/services/{name}/restart", s.handleRestartService)
 			r.Post("/servers/{id}/usage", s.handleMeasureUsage)
+			r.Get("/servers/{id}/terminal", s.handleServerTerminal)
 			r.Post("/servers/{id}/traffic", s.handleCollectTraffic)
 			r.Get("/servers/{id}/firewall", s.handleGetFirewall)
 			r.Put("/servers/{id}/firewall", s.handleSetFirewall)

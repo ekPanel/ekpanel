@@ -472,7 +472,24 @@ limits are measured and enforced by the panel, real filesystem quotas come later
 - [ ] Bandwidth limits in packages: later (the numbers are now there)
 - [ ] Cron job failures do not alert yet (the panel does not watch job results)
 
+**2d. Web terminal — done**
+- [x] A root shell on any server for administrators, and a shell inside a running container of
+      an app (any service of a Compose app) for whoever owns the app, in the browser (xterm.js)
+      with colours, resizing and reconnecting
+- [x] The agent runs the shell in a pseudo-terminal and streams it over its existing mTLS
+      connection; the panel bridges it to a WebSocket from the browser. Shells belong to that
+      connection: when the browser leaves or the agent disconnects, the whole process group is
+      hung up, then killed after 3 seconds. At most 10 shells per server
+- [x] Opening one needs the password (and two-factor code, if on) again; that confirmation lasts
+      15 minutes for that session only. Not available while signed in as a customer. Shells
+      close after 30 minutes without typing and after 8 hours in any case
+- [x] The audit log records opening and closing, with duration and bytes in and out (not what
+      was typed)
+- [x] Tested in the VM: root shell with the right size after resizing, `exit` reported to the
+      browser, a `sleep` left running was killed when the tab closed, a shell in an Alpine
+      container, a stopped service reported as such
+- [ ] Recording sessions, and shells as a website's own account: later
+
 **Next, in order**
-- [ ] 2d. Web terminal for administrators and container shells
 - [ ] 2e. One-click service catalogue
 - [ ] 2f. Git deployments: builds, zero-downtime deploys, rollbacks, previews
