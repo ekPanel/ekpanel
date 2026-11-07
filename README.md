@@ -43,6 +43,8 @@ email, DNS and game servers, with a modern UI in your own language.
   staging copy at staging.<domain> that can be pushed to the live site or refreshed from it
 - **Files**: a browser file manager with uploads, code editor, zip/unzip and trash, and SFTP
   per site. Both are locked into the site's own folder
+- **FTP** for tools that need it: encrypted only (FTPS), a login of its own per website,
+  locked into it, with the firewall opened only while used
 - **Backups**: encrypted, deduplicated backups of every website and database to the server
   or S3-compatible storage, on a schedule with retention, and one-click restores. The
   encryption key is shown once and stays on the server

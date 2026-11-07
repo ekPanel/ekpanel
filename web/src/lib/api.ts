@@ -34,6 +34,7 @@ export interface Package {
   max_mailboxes: number;
   /** Largest size of one mailbox; null means no limit. */
   mailbox_quota_mb: number | null;
+  ftp: boolean;
   customers: number;
   created_at: string;
 }
@@ -210,6 +211,7 @@ export interface Site extends Owned {
   tls_names?: string[] | null;
   linux_user: string;
   sftp_enabled: boolean;
+  ftp_enabled: boolean;
   app: "wordpress" | null;
   app_version: string | null;
   ssh_keys: string[];

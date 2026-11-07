@@ -200,6 +200,9 @@ func validateSite(sp agentproto.SiteSpec) error {
 	if sp.SFTPPasswordHash != "" && !cryptHashRE.MatchString(sp.SFTPPasswordHash) {
 		return errors.New("invalid SFTP password hash")
 	}
+	if sp.FTPPasswordHash != "" && !cryptHashRE.MatchString(sp.FTPPasswordHash) {
+		return errors.New("invalid FTP password hash")
+	}
 	if len(sp.SSHKeys) > maxSSHKeys {
 		return errors.New("too many SSH keys")
 	}
@@ -246,6 +249,7 @@ func stateApply(ctx context.Context, sys *system, p agentproto.StateApplyParams)
 		}
 	}
 	a.removeOrphans(p.Sites)
+	a.applyFTP(ctx, p.Sites, p.FTPPassiveIP)
 	for _, ap := range p.Apps {
 		a.results[ap.ID] = &agentproto.SiteResult{ID: ap.ID, Generation: ap.Generation, OK: true}
 		var err error

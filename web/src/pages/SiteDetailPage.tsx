@@ -7,7 +7,7 @@ import { useMe } from "../lib/session";
 import { CronCard } from "../components/CronCard";
 import { LogsCard, TrafficCard } from "../components/WebInsights";
 import { CertificateCard, HotlinkCard, PHPSettingsCard, RedirectsCard } from "../components/SiteRules";
-import { SiteSFTP } from "../components/SiteSFTP";
+import { SiteFTP, SiteSFTP } from "../components/SiteSFTP";
 import { WordPressCard } from "../components/WordPressCard";
 import { api, ApiError, errorMessage, type Server, type Site } from "../lib/api";
 import { formatDateTime } from "../lib/format";
@@ -198,6 +198,7 @@ export function SiteDetailPage() {
 
           <div className="grid content-start gap-6">
             {!deleting && <SiteSFTP site={s} server={server.data} />}
+            {!deleting && <SiteFTP site={s} server={server.data} />}
             {!deleting && <CertificateCard site={s} />}
             <Card className="p-6">
               <h2 className="mb-4 text-lg font-semibold">{t("sites.details")}</h2>

@@ -720,9 +720,18 @@ Agreed (2026-11-07):
 - [ ] Malware scans with ClamAV on a schedule, with quarantine
 - [ ] Country blocking (db-ip lite, CC BY 4.0)
 
-**3f. FTP**
-- [ ] Pure-FTPd with TLS required, one login per site chrooted to it, passive ports opened in
-      the firewall automatically
+**3f. FTP — done**
+- [x] Pure-FTPd, installed when the first site turns FTP on and stopped when the last turns
+      it off. Each site gets a login of its own (the site's account name, a separate
+      password shown once, SHA-512 crypt only) in Pure-FTPd's own user list, mapped to the
+      site's account and locked into its home folder; no system account can sign in
+- [x] TLS required for every session (a self-signed certificate, accepted once in the FTP
+      program); port 21 and passive ports 30000-30100 opened in a managed firewall while any
+      site has FTP; the public address given to clients on servers behind NAT
+- [x] Packages say whether customers may use FTP (off by default)
+- [x] Tested in the VM: plain FTP refused, FTPS sign-in, upload served by the website, no way
+      out of the home folder, root and other accounts refused, a new password replaced the
+      old, firewall ports opened and closed, Pure-FTPd stopped when the last site turned it off
 
 **3g. Built-in DNS (optional)**
 - [ ] PowerDNS Authoritative with its own PostgreSQL database; zone editor and templates;
@@ -730,4 +739,4 @@ Agreed (2026-11-07):
       (AXFR/NOTIFY); guidance for glue records
 
 **Next**
-- [ ] 3d-2. PHP app installer, 3e-2. Malware and countries, or 3f. FTP
+- [ ] 3d-2. PHP app installer, 3e-2. Malware and countries, or 3g. Built-in DNS

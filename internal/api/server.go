@@ -115,6 +115,8 @@ func (s *Server) Handler() http.Handler {
 			r.Delete("/sites/{id}", s.handleDeleteSite)
 			r.Post("/sites/{id}/sftp", s.handleSetSFTP)
 			r.Post("/sites/{id}/sftp/password", s.handleResetSFTPPassword)
+			r.Post("/sites/{id}/ftp", s.handleSetFTP)
+			r.Post("/sites/{id}/ftp/password", s.handleResetFTPPassword)
 			r.Put("/sites/{id}/ssh-keys", s.handleSetSSHKeys)
 			r.Post("/sites/{id}/wordpress", s.handleInstallWordPress)
 			r.Post("/sites/{id}/files", s.handleFiles)

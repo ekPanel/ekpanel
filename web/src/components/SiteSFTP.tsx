@@ -123,3 +123,85 @@ export function SiteSFTP({ site, server }: { site: Site; server?: Server }) {
     </Card>
   );
 }
+
+/** FTP over TLS for a site: its own login and one-time password. */
+export function SiteFTP({ site, server }: { site: Site; server?: Server }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const host = server?.hostname || t("sftp.server_ip");
+  const call = async (what: string, path: string, body?: unknown) => {
+    setBusy(what);
+    setError("");
+    try {
+      const r = await api.post<{ site: Site; password?: string }>(path, body);
+      qc.setQueryData(["site", site.id], r.site);
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      setPassword(r.password ?? "");
+    } catch (err) {
+      setError(errorMessage(t, err));
+    } finally {
+      setBusy("");
+    }
+  };
+  return (
+    <Card className="grid gap-4 p-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">{t("ftp.title")}</h2>
+        <Badge tone={site.ftp_enabled ? "ok" : "neutral"}>{site.ftp_enabled ? t("sftp.on") : t("sftp.off")}</Badge>
+      </div>
+      <p className="text-sm text-muted">{t("ftp.intro")}</p>
+      <ErrorAlert>{error}</ErrorAlert>
+      {site.ftp_enabled && (
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 text-sm">
+          <dt className="text-muted">{t("sftp.host")}</dt>
+          <dd className="flex items-center gap-1 font-mono" dir="ltr">
+            {host} {server?.hostname && <CopyButton text={server.hostname} className="-my-1" />}
+          </dd>
+          <dt className="text-muted">{t("databases.port")}</dt>
+          <dd className="font-mono">21</dd>
+          <dt className="text-muted">{t("ftp.encryption")}</dt>
+          <dd>{t("ftp.explicit_tls")}</dd>
+          <dt className="text-muted">{t("databases.username")}</dt>
+          <dd className="flex items-center gap-1 font-mono" dir="ltr">
+            {site.linux_user} <CopyButton text={site.linux_user} className="-my-1" />
+          </dd>
+        </dl>
+      )}
+      {password && (
+        <div className="grid gap-2 rounded-lg bg-warn-soft p-3 text-warn">
+          <p className="flex items-start gap-2 text-sm">
+            <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+            {t("ftp.password_once")}
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="rounded bg-surface px-2 py-1 font-mono text-sm text-ink" dir="ltr">
+              {password}
+            </code>
+            <CopyButton text={password} />
+          </div>
+        </div>
+      )}
+      {site.ftp_enabled && <p className="text-sm text-muted">{t("ftp.certificate_note")}</p>}
+      <div className="flex flex-wrap gap-2">
+        {site.ftp_enabled ? (
+          <>
+            <Button size="sm" onClick={() => call("reset", `/sites/${site.id}/ftp/password`)} loading={busy === "reset"}>
+              <KeyRound className="size-4" aria-hidden />
+              {t("sftp.new_password")}
+            </Button>
+            <Button size="sm" variant="danger" onClick={() => call("off", `/sites/${site.id}/ftp`, { enabled: false })} loading={busy === "off"}>
+              {t("ftp.turn_off")}
+            </Button>
+          </>
+        ) : (
+          <Button size="sm" variant="primary" onClick={() => call("on", `/sites/${site.id}/ftp`, { enabled: true })} loading={busy === "on"}>
+            {t("ftp.turn_on")}
+          </Button>
+        )}
+      </div>
+    </Card>
+  );
+}

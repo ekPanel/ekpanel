@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -305,6 +306,7 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		return sum, err
 	}
 	params := agentproto.StateApplyParams{Sites: make([]agentproto.SiteSpec, 0, len(sites))}
+	anyFTP := false
 	// Each customer with something here gets a slice with their package's limits. Things
 	// being deleted need no slice, so a customer's last delete also removes theirs.
 	packages := map[string]*store.Package{}
@@ -355,6 +357,10 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		spec.Owner = id
 		if pkg != nil && !pkg.SFTP {
 			spec.SFTPEnabled = false // the package no longer includes SFTP
+		}
+		if s.FTPEnabled && s.FTPPasswordHash != nil && (pkg == nil || pkg.FTP) {
+			spec.FTPEnabled, spec.FTPPasswordHash = true, *s.FTPPasswordHash
+			anyFTP = anyFTP || !spec.Deleted
 		}
 		params.Sites = append(params.Sites, spec)
 	}
@@ -449,8 +455,14 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 	if err != nil {
 		return sum, err
 	}
-	if params.Firewall != nil && params.Mail != nil {
-		params.Firewall.Mail = true
+	if params.Firewall != nil {
+		params.Firewall.Mail = params.Mail != nil
+		params.Firewall.FTP = anyFTP
+	}
+	// Behind NAT (an address set by hand that the server does not have), FTP clients must
+	// be sent to the public address for transfers.
+	if srv, err := r.store.GetServer(ctx, serverID); err == nil && srv.PublicIPv4 != nil && !slices.Contains(srv.Addresses, *srv.PublicIPv4) {
+		params.FTPPassiveIP = *srv.PublicIPv4
 	}
 	callCtx, cancel := context.WithTimeout(ctx, lease-5*time.Minute)
 	defer cancel()

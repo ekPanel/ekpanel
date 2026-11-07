@@ -40,6 +40,7 @@ type PackageLimits struct {
 	MaxMailDomains int  `json:"max_mail_domains"`
 	MaxMailboxes   int  `json:"max_mailboxes"`
 	MailboxQuotaMB *int `json:"mailbox_quota_mb"`
+	FTP            bool `json:"ftp"`
 }
 
 type Package struct {
@@ -51,14 +52,14 @@ type Package struct {
 
 const packageColumns = `p.id, p.name, p.max_sites, p.max_databases, p.max_apps, p.max_cron_jobs, p.disk_mb, p.memory_mb, p.cpu_percent,
 	p.php_versions, p.app_images, p.server_ids::text[], p.sftp, p.git_apps, p.max_mail_domains, p.max_mailboxes,
-	p.mailbox_quota_mb, p.created_at,
+	p.mailbox_quota_mb, p.ftp, p.created_at,
 	(SELECT count(*) FROM users u WHERE u.package_id = p.id)`
 
 func scanPackage(row pgx.Row) (Package, error) {
 	var p Package
 	err := row.Scan(&p.ID, &p.Name, &p.MaxSites, &p.MaxDatabases, &p.MaxApps, &p.MaxCronJobs, &p.DiskMB, &p.MemoryMB, &p.CPUPercent,
 		&p.PHPVersions, &p.AppImages, &p.ServerIDs, &p.SFTP, &p.GitApps, &p.MaxMailDomains, &p.MaxMailboxes, &p.MailboxQuotaMB,
-		&p.CreatedAt, &p.Customers)
+		&p.FTP, &p.CreatedAt, &p.Customers)
 	return p, notFound(err)
 }
 
@@ -69,10 +70,10 @@ func (s *Store) CreatePackage(ctx context.Context, l PackageLimits) (Package, er
 	var id string
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO packages (name, max_sites, max_databases, max_apps, disk_mb, memory_mb, cpu_percent, php_versions,
-			app_images, server_ids, sftp, max_cron_jobs, git_apps, max_mail_domains, max_mailboxes, mailbox_quota_mb)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::text[]::uuid[], $11, $12, $13, $14, $15, $16) RETURNING id`,
+			app_images, server_ids, sftp, max_cron_jobs, git_apps, max_mail_domains, max_mailboxes, mailbox_quota_mb, ftp)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::text[]::uuid[], $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
 		l.Name, l.MaxSites, l.MaxDatabases, l.MaxApps, l.DiskMB, l.MemoryMB, l.CPUPercent, l.PHPVersions, l.AppImages,
-		l.ServerIDs, l.SFTP, l.MaxCronJobs, l.GitApps, l.MaxMailDomains, l.MaxMailboxes, l.MailboxQuotaMB).Scan(&id)
+		l.ServerIDs, l.SFTP, l.MaxCronJobs, l.GitApps, l.MaxMailDomains, l.MaxMailboxes, l.MailboxQuotaMB, l.FTP).Scan(&id)
 	if isUniqueViolation(err) {
 		return Package{}, ErrPackageNameTaken
 	}
@@ -100,10 +101,10 @@ func (s *Store) UpdatePackage(ctx context.Context, id string, l PackageLimits) (
 		UPDATE packages SET name = $2, max_sites = $3, max_databases = $4, max_apps = $5, disk_mb = $6, memory_mb = $7,
 			cpu_percent = $8, php_versions = $9, app_images = $10, server_ids = $11::text[]::uuid[], sftp = $12,
 			max_cron_jobs = $13, git_apps = $14, max_mail_domains = $15, max_mailboxes = $16, mailbox_quota_mb = $17,
-			updated_at = now()
+			ftp = $18, updated_at = now()
 		WHERE id = $1`,
 		id, l.Name, l.MaxSites, l.MaxDatabases, l.MaxApps, l.DiskMB, l.MemoryMB, l.CPUPercent, l.PHPVersions, l.AppImages,
-		l.ServerIDs, l.SFTP, l.MaxCronJobs, l.GitApps, l.MaxMailDomains, l.MaxMailboxes, l.MailboxQuotaMB)
+		l.ServerIDs, l.SFTP, l.MaxCronJobs, l.GitApps, l.MaxMailDomains, l.MaxMailboxes, l.MailboxQuotaMB, l.FTP)
 	if isUniqueViolation(err) {
 		return Package{}, ErrPackageNameTaken
 	}

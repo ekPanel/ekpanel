@@ -258,7 +258,10 @@
         "wordpress_auto_updates": "WordPress automatic updates changed",
         "wordpress_staging": "Staging copy made",
         "wordpress_push": "Staging pushed to live",
-        "wordpress_pull": "Staging refreshed from live"
+        "wordpress_pull": "Staging refreshed from live",
+        "ftp_enabled": "FTP turned on",
+        "ftp_disabled": "FTP turned off",
+        "ftp_password_reset": "FTP password reset"
       },
       "database": {
         "created": "Database created",
@@ -553,7 +556,9 @@
     "invalid_allowlist": "Use IP addresses or networks such as 203.0.113.0/24, one per line.",
     "invalid_ban": "Enter one public IP address, a duration and a reason.",
     "agent_crowdsec_off": "CrowdSec is not running on this server.",
-    "agent_allowlisted": "That address is on the allowlist."
+    "agent_allowlisted": "That address is on the allowlist.",
+    "ftp_not_allowed": "Your package does not include FTP.",
+    "ftp_disabled": "Turn on FTP first."
   },
   "not_found": {
     "title": "Page not found",
@@ -997,6 +1002,16 @@
     "keys_other": "SSH keys ({{count, number}})",
     "keys_hint": "Sign in without a password: paste public keys (id_ed25519.pub), one per line.",
     "save_keys": "Save keys"
+  },
+  "ftp": {
+    "title": "FTP",
+    "intro": "For older tools and website builders that only speak FTP. Encrypted (FTPS) only, with a login of its own, locked into this website's folders. Prefer SFTP where you can.",
+    "encryption": "Encryption",
+    "explicit_tls": "FTP over TLS (explicit), required",
+    "password_once": "This FTP password is shown only now. Save it in your FTP program.",
+    "certificate_note": "The server uses its own certificate, so your FTP program asks once whether to trust it.",
+    "turn_on": "Turn on FTP",
+    "turn_off": "Turn off FTP"
   },
   "wordpress": {
     "title": "Install WordPress",
@@ -1783,7 +1798,8 @@
     "mail_domains": "Mail domains",
     "mailboxes": "Mailboxes",
     "mailbox_size": "Mailbox size (GB)",
-    "mailbox_size_hint": "Largest size of one mailbox. Leave empty for no limit."
+    "mailbox_size_hint": "Largest size of one mailbox. Leave empty for no limit.",
+    "ftp": "FTP (encrypted) for their websites"
   },
   "cron": {
     "title": "Cron jobs",

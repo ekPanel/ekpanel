@@ -419,6 +419,7 @@ interface PackageForm {
   server_ids: string[];
   sftp: boolean;
   gitApps: boolean;
+  ftp: boolean;
   max_mail_domains: string;
   max_mailboxes: string;
   mailbox_gb: string;
@@ -438,6 +439,7 @@ const newPackage: PackageForm = {
   server_ids: [],
   sftp: true,
   gitApps: false,
+  ftp: false,
   max_mail_domains: "1",
   max_mailboxes: "10",
   mailbox_gb: "1",
@@ -458,6 +460,7 @@ function formFromPackage(p: Package): PackageForm {
     server_ids: p.server_ids,
     sftp: p.sftp,
     gitApps: p.git_apps,
+    ftp: p.ftp,
     max_mail_domains: String(p.max_mail_domains),
     max_mailboxes: String(p.max_mailboxes),
     mailbox_gb: p.mailbox_quota_mb === null ? "" : String(Math.round((p.mailbox_quota_mb / 1024) * 100) / 100),
@@ -540,6 +543,7 @@ function PackageDialog({ open, pkg, onClose }: { open: boolean; pkg: Package | n
       server_ids: f.server_ids,
       sftp: f.sftp,
       git_apps: f.gitApps,
+      ftp: f.ftp,
       max_mail_domains: Number(f.max_mail_domains || 0),
       max_mailboxes: Number(f.max_mailboxes || 0),
       mailbox_quota_mb: opt(f.mailbox_gb, 1024),
@@ -633,6 +637,10 @@ function PackageDialog({ open, pkg, onClose }: { open: boolean; pkg: Package | n
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={f.sftp} onChange={(e) => set("sftp", e.target.checked)} className="accent-[var(--accent)]" />
           {t("packages.sftp")}
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={f.ftp} onChange={(e) => set("ftp", e.target.checked)} className="accent-[var(--accent)]" />
+          {t("packages.ftp")}
         </label>
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" checked={f.gitApps} onChange={(e) => set("gitApps", e.target.checked)} className="mt-1 accent-[var(--accent)]" />

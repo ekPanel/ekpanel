@@ -218,6 +218,10 @@ type SiteSpec struct {
 	SFTPPasswordHash string   `json:"sftp_password_hash,omitempty"` // SHA-512 crypt; empty means keys only
 	SSHKeys          []string `json:"ssh_keys,omitempty"`           // public keys, one per entry
 
+	// FTP (over TLS only) with a login of its own, locked into the site's home folder.
+	FTPEnabled      bool   `json:"ftp_enabled,omitempty"`
+	FTPPasswordHash string `json:"ftp_password_hash,omitempty"` // SHA-512 crypt
+
 	Web SiteWeb `json:"web"`
 	// With TLS "custom": the uploaded certificate chain and its key, in PEM.
 	CertPEM string `json:"cert_pem,omitempty"`
@@ -247,6 +251,9 @@ type StateApplyParams struct {
 	Firewall *FirewallSpec `json:"firewall,omitempty"`
 	// Mail is nil when the server has no email.
 	Mail *MailSpec `json:"mail,omitempty"`
+	// FTPPassiveIP is the address FTP clients are told to connect to for transfers, for
+	// servers behind NAT; empty means the address they connected to.
+	FTPPassiveIP string `json:"ftp_passive_ip,omitempty"`
 	// Security is nil from panels that do not know it; the agent then leaves it alone.
 	Security *SecuritySpec `json:"security,omitempty"`
 }
@@ -304,7 +311,12 @@ type FirewallSpec struct {
 	Enabled bool               `json:"enabled"`
 	Rules   []FirewallRuleSpec `json:"rules"`
 	Mail    bool               `json:"mail,omitempty"` // also open MailPorts
+	FTP     bool               `json:"ftp,omitempty"`  // also open FTPPorts
 }
+
+// FTPPorts are opened in the firewall while a site has FTP: the control port and the
+// passive data ports.
+var FTPPorts = []string{"21/tcp", "30000:30100/tcp"}
 
 type FirewallRuleSpec struct {
 	ID       string `json:"id"`

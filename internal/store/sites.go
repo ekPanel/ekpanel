@@ -32,6 +32,8 @@ type Site struct {
 	SFTPEnabled       bool               `json:"sftp_enabled"`
 	SSHKeys           []string           `json:"ssh_keys"`
 	SFTPPasswordHash  *string            `json:"-"`
+	FTPEnabled        bool               `json:"ftp_enabled"`
+	FTPPasswordHash   *string            `json:"-"`
 	App               *string            `json:"app"`
 	AppVersion        *string            `json:"app_version"`
 	State             string             `json:"state"`
@@ -67,7 +69,8 @@ type WordPressAuto struct {
 const siteColumns = `st.id, st.server_id, sv.name, st.domain, st.aliases, st.kind, st.php_version, st.tls,
 	st.linux_user, st.state, st.message, st.generation, st.applied_generation, st.created_at, st.updated_at,
 	st.sftp_enabled, st.ssh_keys, st.sftp_password_hash, st.app, st.app_version, st.owner_id, ow.name, st.disk_bytes,
-	st.web, st.tls_cert, st.tls_key, st.tls_expires_at, st.tls_names, st.wp_info, st.wp_scanned_at, st.wp_auto, st.staging_of`
+	st.web, st.tls_cert, st.tls_key, st.tls_expires_at, st.tls_names, st.wp_info, st.wp_scanned_at, st.wp_auto, st.staging_of,
+	st.ftp_enabled, st.ftp_password_hash`
 
 const siteFrom = ` FROM sites st JOIN servers sv ON sv.id = st.server_id LEFT JOIN users ow ON ow.id = st.owner_id`
 
@@ -76,7 +79,8 @@ func scanSite(row pgx.Row) (Site, error) {
 	err := row.Scan(&s.ID, &s.ServerID, &s.ServerName, &s.Domain, &s.Aliases, &s.Kind, &s.PHPVersion, &s.TLS,
 		&s.LinuxUser, &s.State, &s.Message, &s.Generation, &s.AppliedGeneration, &s.CreatedAt, &s.UpdatedAt,
 		&s.SFTPEnabled, &s.SSHKeys, &s.SFTPPasswordHash, &s.App, &s.AppVersion, &s.OwnerID, &s.OwnerName, &s.DiskBytes,
-		&s.Web, &s.TLSCert, &s.TLSKey, &s.TLSExpiresAt, &s.TLSNames, &s.WordPress, &s.WPScannedAt, &s.WPAuto, &s.StagingOf)
+		&s.Web, &s.TLSCert, &s.TLSKey, &s.TLSExpiresAt, &s.TLSNames, &s.WordPress, &s.WPScannedAt, &s.WPAuto, &s.StagingOf,
+		&s.FTPEnabled, &s.FTPPasswordHash)
 	return s, notFound(err)
 }
 
@@ -246,6 +250,22 @@ func (s *Store) SetSiteSFTP(ctx context.Context, id string, enabled bool, passwo
 			ssh_keys = COALESCE($5, ssh_keys),
 			generation = generation + 1, state = 'pending', message = NULL, updated_at = now()
 		WHERE id = $1 AND state <> 'deleting'`, id, enabled, passwordHash, clearPassword, keys)
+	if err != nil {
+		return Site{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		return Site{}, ErrNotFound
+	}
+	return s.GetSite(ctx, id)
+}
+
+// SetSiteFTP turns FTP on (with a new password hash) or off (forgetting the password).
+func (s *Store) SetSiteFTP(ctx context.Context, id string, enabled bool, passwordHash *string) (Site, error) {
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE sites SET ftp_enabled = $2,
+			ftp_password_hash = CASE WHEN NOT $2 THEN NULL WHEN $3::text IS NOT NULL THEN $3 ELSE ftp_password_hash END,
+			generation = generation + 1, state = 'pending', message = NULL, updated_at = now()
+		WHERE id = $1 AND state <> 'deleting'`, id, enabled, passwordHash)
 	if err != nil {
 		return Site{}, err
 	}
