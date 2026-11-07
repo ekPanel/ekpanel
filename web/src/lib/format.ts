@@ -81,3 +81,12 @@ export function formatDuration(totalSeconds: number, lng: string): string {
   if (shown.length === 0) shown.push([0, "minute"]);
   return shown.map(([v, unit]) => nf(lng, { style: "unit", unit, unitDisplay: "short" }).format(v)).join(" ");
 }
+
+/** How long something short took, e.g. "42 sec" or "3 min 5 sec". */
+export function formatElapsed(totalSeconds: number, lng: string): string {
+  const s = Math.max(0, Math.round(totalSeconds));
+  const unit = (v: number, u: string) => nf(lng, { style: "unit", unit: u, unitDisplay: "short" }).format(v);
+  if (s < 60) return unit(s, "second");
+  if (s < 3600) return s % 60 ? `${unit(Math.floor(s / 60), "minute")} ${unit(s % 60, "second")}` : unit(s / 60, "minute");
+  return formatDuration(s, lng);
+}

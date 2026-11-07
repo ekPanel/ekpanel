@@ -48,6 +48,12 @@ type appRequest struct {
 	PublicPorts   bool           `json:"public_ports"`
 	OwnerID       string         `json:"owner_id"` // administrators: create the app for this customer
 	Template      string         `json:"template"` // install this catalogue template (on create only)
+	// Git apps.
+	GitURL       string `json:"git_url"`
+	GitBranch    string `json:"git_branch"`
+	Dockerfile   string `json:"dockerfile"`
+	BuildContext string `json:"build_context"`
+	AutoDeploy   *bool  `json:"auto_deploy"`
 }
 
 // customerAppRules applies a package to an app: customers run only images the package
@@ -65,6 +71,8 @@ func customerAppRules(w http.ResponseWriter, pkg *store.Package, kind string, se
 			}
 		}
 		return true
+	case kind == "git":
+		writeError(w, http.StatusForbidden, "git_not_allowed", "Git apps are for administrators for now")
 	case kind != "image":
 		writeError(w, http.StatusForbidden, "compose_not_allowed", "customers can run images, not Compose files")
 	case !imageAllowed(pkg, *set.Image):
@@ -84,12 +92,29 @@ func appSettings(w http.ResponseWriter, kind string, req appRequest) (store.AppS
 	}
 	set := store.AppSettings{Env: []store.EnvVar{}, Volumes: []string{}, TLS: req.TLS, PublicPorts: req.PublicPorts}
 	switch kind {
-	case "image":
-		image := strings.TrimSpace(req.Image)
-		if !imageRefRE.MatchString(image) || strings.Contains(image, "..") {
-			return fail("invalid_image", "enter an image such as nginx:1.27 or ghcr.io/owner/app:latest")
+	case "image", "git":
+		if kind == "image" {
+			image := strings.TrimSpace(req.Image)
+			if !imageRefRE.MatchString(image) || strings.Contains(image, "..") {
+				return fail("invalid_image", "enter an image such as nginx:1.27 or ghcr.io/owner/app:latest")
+			}
+			set.Image = &image
+		} else {
+			repo, branch := strings.TrimSpace(req.GitURL), strings.TrimSpace(req.GitBranch)
+			dockerfile, context := cleanRepoPath(req.Dockerfile, "Dockerfile"), cleanRepoPath(req.BuildContext, ".")
+			switch {
+			case !gitRepoRE.MatchString(repo) || strings.Contains(repo, ".."):
+				return fail("invalid_repo", "enter the repository's https:// address, or its SSH address (git@host:owner/repo.git) for a private one")
+			case !gitBranchRE.MatchString(branch) || strings.Contains(branch, "..") || strings.HasSuffix(branch, "/") || strings.HasSuffix(branch, ".lock"):
+				return fail("invalid_branch", "enter a branch name, such as main")
+			case dockerfile == "" || context == "":
+				return fail("invalid_repo_path", "the Dockerfile and build folder are paths inside the repository, such as Dockerfile and .")
+			case req.ContainerPort == nil:
+				return fail("port_required", "enter the port the app listens on inside its container")
+			}
+			set.GitURL, set.GitBranch, set.Dockerfile, set.BuildContext = &repo, &branch, &dockerfile, &context
+			set.AutoDeploy = req.AutoDeploy == nil || *req.AutoDeploy
 		}
-		set.Image = &image
 		set.PublicPorts = false
 		for _, v := range req.Volumes {
 			v = strings.TrimRight(strings.TrimSpace(v), "/")
@@ -277,6 +302,12 @@ func (s *Server) handleCreateApp(w http.ResponseWriter, r *http.Request) {
 		n.Template, n.TemplateVersion = &tpl.ID, &tpl.Version
 		details["template"] = tpl.ID
 	}
+	if req.Kind == "git" {
+		if err := s.newGitSecrets(&n); err != nil {
+			s.internalError(w, r, err)
+			return
+		}
+	}
 	app, err := s.store.CreateApp(r.Context(), n)
 	if err != nil {
 		s.writeAppStoreError(w, r, err)
@@ -448,6 +479,10 @@ func (s *Server) handleUpdateAppImages(w http.ResponseWriter, r *http.Request) {
 	app, err := s.getApp(r, appID(r))
 	if err != nil {
 		s.writeAppStoreError(w, r, err)
+		return
+	}
+	if app.Kind == "git" {
+		writeError(w, http.StatusConflict, "git_app_update", "a Git app is updated by deploying it")
 		return
 	}
 	if app.AppliedGeneration == 0 {

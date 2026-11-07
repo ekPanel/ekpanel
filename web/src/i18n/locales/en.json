@@ -273,7 +273,9 @@
         "stopped": "App stopped",
         "restarted": "App restarted",
         "update_started": "App update started",
-        "deleted": "App deleted"
+        "deleted": "App deleted",
+        "deploy_started": "Deploy started",
+        "rolled_back": "Rolled back"
       },
       "package": {
         "created": "Package created",
@@ -442,7 +444,16 @@
     "invalid_smtp": "Check the mail server's host name, port and security.",
     "confirm_required": "Enter your password again to open a terminal.",
     "domain_required": "This service is used through its domain; enter one.",
-    "template_not_found": "That service is not in the catalogue."
+    "template_not_found": "That service is not in the catalogue.",
+    "git_not_allowed": "Git apps are for administrators for now.",
+    "invalid_repo": "Enter the repository's https:// address, or its SSH address (git@host:owner/repo.git).",
+    "invalid_branch": "Enter a branch name, such as main.",
+    "invalid_repo_path": "The Dockerfile and build folder are paths inside the repository.",
+    "port_required": "Enter the port the app listens on inside its container.",
+    "not_git_app": "Only Git apps are deployed.",
+    "deployment_not_found": "That deployment does not exist.",
+    "rollback_not_possible": "Only the last five earlier releases can be returned to.",
+    "git_app_update": "A Git app is updated by deploying it."
   },
   "not_found": {
     "title": "Page not found",
@@ -833,11 +844,13 @@
     "kind_label": "App type",
     "kind": {
       "image": "Docker image",
-      "compose": "Compose file"
+      "compose": "Compose file",
+      "git": "Git repository"
     },
     "kind_hint": {
       "image": "One container from an image, with variables and kept folders.",
-      "compose": "Several services described in a docker-compose.yml."
+      "compose": "Several services described in a docker-compose.yml.",
+      "git": "Built from a branch with its Dockerfile, released without downtime."
     },
     "name": "Name",
     "name_hint": "Lowercase letters, digits and dashes. Used for the folder and containers.",
@@ -996,6 +1009,52 @@
         "description": "A fast in-memory store for caches, sessions and queues, for websites and apps on this server.",
         "notes": "Connect to 127.0.0.1:{{port}} with the password below. It cannot be reached from other servers."
       }
+    }
+  },
+  "deploys": {
+    "title": "Deployments",
+    "deploy": "Deploy",
+    "deploying": "Deploying…",
+    "repo": "Git repository",
+    "repo_hint": "Its https:// address, or for a private repository its SSH address (git@github.com:owner/app.git) with the deploy key the app page shows.",
+    "branch": "Branch",
+    "dockerfile": "Dockerfile",
+    "dockerfile_hint": "Path in the repository.",
+    "context": "Build folder",
+    "context_hint": "The folder Docker builds from; . is the whole repository.",
+    "port_hint": "The port the app listens on inside its container. Needed to release without downtime.",
+    "env_hint": "One NAME=value per line. The Dockerfile can also read them while building, with ARG NAME.",
+    "auto": "Deploy on every push",
+    "auto_hint": "When the repository's webhook reports a push to the branch, build and release it.",
+    "auto_on": "Deploys on push",
+    "auto_off": "Deploys by hand",
+    "webhook": "Webhook",
+    "webhook_hint": "In the repository's settings, add a webhook with this address and secret, for push events, sending JSON. Works with GitHub, GitLab, Gitea and Forgejo.",
+    "webhook_url": "Address",
+    "webhook_secret": "Secret",
+    "deploy_key": "Deploy key",
+    "deploy_key_hint": "Add this key to the repository as a read-only deploy key, so the server can clone it over SSH.",
+    "deploy_key_https": "Needed only for private repositories: switch the address to SSH and add this key to the repository as a read-only deploy key.",
+    "public_key": "Public key",
+    "none": "Nothing deployed yet. Deploy builds the branch with its Dockerfile and starts it.",
+    "branch_head": "Latest commit of {{branch}}",
+    "rollback": "Roll back",
+    "log": "Log of deployment {{number}}",
+    "waiting": "Waiting for the build to start…",
+    "no_log": "No output.",
+    "status": {
+      "queued": "Queued",
+      "building": "Building",
+      "releasing": "Releasing",
+      "live": "Live",
+      "failed": "Failed",
+      "superseded": "Earlier",
+      "cancelled": "Cancelled"
+    },
+    "trigger": {
+      "manual": "By {{name}}",
+      "webhook": "By a push",
+      "rollback": "Rollback by {{name}}"
     }
   },
   "customers": {
@@ -1192,6 +1251,7 @@
       "backup_partial": "Backup partly failed",
       "site_error": "Website problem",
       "app_error": "App problem",
+      "deploy_failed": "Deploy failed",
       "database_error": "Database problem",
       "quota_warning": "Disk space almost used up",
       "quota_full": "Disk space used up",

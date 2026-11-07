@@ -2,6 +2,7 @@ package hub
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 )
 
@@ -11,6 +12,8 @@ type Stream interface {
 	Output() <-chan []byte
 	// Reason says why the stream ended, once Output is closed.
 	Reason() string
+	// Result is what the agent reported when it ended the stream, if anything.
+	Result() json.RawMessage
 	Write(ctx context.Context, data []byte) error
 	Resize(ctx context.Context, cols, rows int) error
 	Close()

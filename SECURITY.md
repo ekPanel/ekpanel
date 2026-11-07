@@ -65,6 +65,13 @@ ekPanel is in early development and has no stable release yet. Fixes go into the
   capabilities, devices, host folders and namespaces, volumes with driver options, and
   secrets or configs read from the host, and puts every container in the customer's slice. An administrator acting as a customer is recorded as
   themselves in the audit log and cannot change the customer's password or two-factor setup.
+- Git deploys clone with no local Git configuration, no prompts and only the https and ssh
+  transports, keep the Dockerfile and build folder inside the repository (also through
+  links), and pass variables to builds through the environment. Each app's deploy key and
+  webhook secret are sealed with the panel's key; webhooks must be signed (HMAC-SHA256, or
+  GitLab's token) and failures are rate limited. Only administrators can create Git apps.
+- Revoking an agent's certificate (a new connection command, or deleting the server) also
+  closes any connection the agent has open.
 - Secrets the panel must reuse (notification channel tokens, webhook addresses and keys, the
   SMTP password) are encrypted with AES-256-GCM under a key in the panel's data directory and
   are never returned by the API. Customers' webhooks cannot reach private, local or

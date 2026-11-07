@@ -297,7 +297,7 @@ func (a *agentConn) closeAll() {
 		delete(a.pending, id)
 	}
 	for id, st := range a.streams {
-		st.end("the server's agent disconnected")
+		st.end("the server's agent disconnected", nil)
 		delete(a.streams, id)
 	}
 }
@@ -315,6 +315,7 @@ type agentStream struct {
 	mu     sync.Mutex // guards ended, so data is never pushed into a closed channel
 	ended  bool
 	reason string
+	result json.RawMessage
 }
 
 func (st *agentStream) Output() <-chan []byte { return st.out }
@@ -324,11 +325,17 @@ func (st *agentStream) Reason() string {
 	return st.reason
 }
 
-func (st *agentStream) end(reason string) {
+func (st *agentStream) Result() json.RawMessage {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return st.result
+}
+
+func (st *agentStream) end(reason string, result json.RawMessage) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	if !st.ended {
-		st.ended, st.reason = true, reason
+		st.ended, st.reason, st.result = true, reason, result
 		close(st.out)
 	}
 }
@@ -377,7 +384,12 @@ func (st *agentStream) Close() {
 	st.conn.mu.Lock()
 	delete(st.conn.streams, st.id)
 	st.conn.mu.Unlock()
-	st.end("closed")
+	st.end("closed", nil)
+}
+
+// Disconnect closes the connection; the agent's read loop then ends.
+func (a *agentConn) Disconnect(reason string) {
+	go a.conn.Close(websocket.StatusPolicyViolation, reason)
 }
 
 func (a *agentConn) OpenStream(ctx context.Context, op string, params func(id string) any) (hub.Stream, error) {
@@ -410,7 +422,7 @@ func (a *agentConn) deliverStream(env agentproto.Envelope) {
 		return
 	}
 	if env.Type == agentproto.TypeStreamClose {
-		st.end(env.Reason)
+		st.end(env.Reason, env.Result)
 		return
 	}
 	if !st.push(env.Data) {
@@ -418,7 +430,7 @@ func (a *agentConn) deliverStream(env agentproto.Envelope) {
 		delete(a.streams, env.Stream)
 		a.mu.Unlock()
 		st.send(context.Background(), agentproto.Envelope{Type: agentproto.TypeStreamClose, Reason: "the browser could not keep up"})
-		st.end("the browser could not keep up")
+		st.end("the browser could not keep up", nil)
 	}
 }
 

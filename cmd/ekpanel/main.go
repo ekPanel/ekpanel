@@ -162,6 +162,7 @@ func run(log *slog.Logger, args []string) error {
 	}
 	notifier := notify.New(st, box, log)
 	runner.SetNotifier(notifier)
+	runner.SetSecrets(box)
 	opts := api.Options{
 		SecureCookies: cfg.SecureCookies, UI: webui.FS(), Version: version,
 		CA: ca, AgentPort: agentPort, Tasks: runner,

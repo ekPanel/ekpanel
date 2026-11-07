@@ -161,6 +161,27 @@ func (h *Hub) Call(ctx context.Context, id, op string, params any) (json.RawMess
 	return c.Call(ctx, op, params)
 }
 
+// Disconnecter is implemented by agent connections that can be closed from the panel.
+type Disconnecter interface {
+	Disconnect(reason string)
+}
+
+// Disconnect closes every open connection of a server's agent, as when its certificate is
+// revoked: a revoked agent must not keep a connection it opened before.
+func (h *Hub) Disconnect(id string) {
+	h.mu.Lock()
+	var callers []Caller
+	if s := h.servers[id]; s != nil {
+		callers = append(callers, s.callers...)
+	}
+	h.mu.Unlock()
+	for _, c := range callers {
+		if d, ok := c.(Disconnecter); ok {
+			d.Disconnect("the agent's certificate was revoked")
+		}
+	}
+}
+
 // Forget drops all state for a deleted server.
 func (h *Hub) Forget(id string) {
 	h.mu.Lock()

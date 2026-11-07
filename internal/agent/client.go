@@ -220,9 +220,11 @@ func session(ctx context.Context, log *slog.Logger, cfg Config, collector *Colle
 		return err
 	}
 
-	// Terminals live as long as this connection.
+	// Terminals and builds live as long as this connection.
 	terms := newTerminals(realSystem, func(env agentproto.Envelope) error { return send(ctx, conn, env) })
 	defer terms.closeAll()
+	blds := newBuilds(realSystem, func(env agentproto.Envelope) error { return send(ctx, conn, env) })
+	defer blds.closeAll()
 
 	// Requests from the panel run concurrently; each answers with a response envelope.
 	readErr := make(chan error, 1)
@@ -246,6 +248,7 @@ func session(ctx context.Context, log *slog.Logger, cfg Config, collector *Colle
 				continue
 			case agentproto.TypeStreamClose:
 				terms.close(env.Stream)
+				blds.close(env.Stream)
 				continue
 			case agentproto.TypeRequest:
 			default:
@@ -260,6 +263,22 @@ func session(ctx context.Context, log *slog.Logger, cfg Config, collector *Colle
 					resp.Error = opErr
 				} else {
 					log.Info("terminal opened", "kind", p.Kind, "app", p.App)
+				}
+				if resp.Error != nil {
+					resp.Result = nil
+				}
+				send(ctx, conn, resp)
+				continue
+			}
+			if env.Op == agentproto.OpAppBuild {
+				resp := agentproto.Envelope{Type: agentproto.TypeResponse, ID: env.ID, Result: json.RawMessage("{}")}
+				var p agentproto.BuildParams
+				if err := json.Unmarshal(env.Params, &p); err != nil {
+					resp.Error = opError(agentproto.ErrInvalidParams, "%v", err)
+				} else if opErr := blds.start(ctx, p); opErr != nil {
+					resp.Error = opErr
+				} else {
+					log.Info("build started", "app", p.App, "image", p.Image)
 				}
 				if resp.Error != nil {
 					resp.Result = nil

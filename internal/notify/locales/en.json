@@ -28,6 +28,10 @@
       "title": "App {{name}} has a problem",
       "body": "{{message}}"
     },
+    "deploy_failed": {
+      "title": "Deploy of {{name}} failed",
+      "body": "{{message}}"
+    },
     "database_error": {
       "title": "Database {{name}} has a problem",
       "body": "{{message}}"

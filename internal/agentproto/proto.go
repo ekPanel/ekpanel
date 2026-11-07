@@ -213,7 +213,7 @@ type AppSpec struct {
 	ID            string   `json:"id"`
 	Generation    int64    `json:"generation"`
 	Name          string   `json:"name"`
-	Kind          string   `json:"kind"`            // "image" or "compose"
+	Kind          string   `json:"kind"`            // "image", "compose" or "git"
 	Owner         string   `json:"owner,omitempty"` // customer ID; containers run in their slice
 	Image         string   `json:"image,omitempty"`
 	Compose       string   `json:"compose,omitempty"`
@@ -231,7 +231,9 @@ type AppSpec struct {
 	PublicPorts bool `json:"public_ports,omitempty"`
 	Stopped     bool `json:"stopped,omitempty"`
 	Deleted     bool `json:"deleted,omitempty"`
-	DeleteData  bool `json:"delete_data,omitempty"` // with Deleted: remove volumes and the app folder too
+	// KeepImages are the builds of a Git app kept for rollbacks; the agent removes others.
+	KeepImages []string `json:"keep_images,omitempty"`
+	DeleteData bool     `json:"delete_data,omitempty"` // with Deleted: remove volumes and the app folder too
 }
 
 // OwnerSpec is a customer's limits, applied to a systemd slice that holds their PHP-FPM
@@ -644,6 +646,35 @@ type TerminalParams struct {
 	Cols    int    `json:"cols"`
 	Rows    int    `json:"rows"`
 }
+
+// OpAppBuild clones a Git app's repository and builds its image, streaming the output as
+// Stream. The agent ends the stream with reason "exit" and a BuildResult when the image is
+// built, or with the error. Closing the stream from the panel cancels the build.
+const OpAppBuild = "app.build"
+
+type BuildParams struct {
+	Stream     string `json:"stream"`
+	App        string `json:"app"`   // the app's name
+	Image      string `json:"image"` // the tag to build, ekpanel/<app>:<deployment>
+	Repo       string `json:"repo"`
+	Branch     string `json:"branch"`
+	Commit     string `json:"commit,omitempty"` // build this commit of the branch, if given
+	Dockerfile string `json:"dockerfile"`
+	Context    string `json:"context"`
+	// SSHKey is the app's private deploy key, for repositories reached over SSH.
+	SSHKey string `json:"ssh_key,omitempty"`
+	// Env is passed as build arguments, which a Dockerfile can read with ARG.
+	Env   []EnvVar `json:"env,omitempty"`
+	Owner string   `json:"owner,omitempty"`
+}
+
+type BuildResult struct {
+	Commit  string `json:"commit"`
+	Message string `json:"message"`
+}
+
+// GitImageRepo is the local image repository of a Git app's builds.
+func GitImageRepo(app string) string { return "ekpanel/" + app }
 
 // MaxStreamChunk is the most bytes one stream_data envelope carries.
 const MaxStreamChunk = 16 << 10

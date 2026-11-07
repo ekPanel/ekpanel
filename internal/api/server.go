@@ -73,6 +73,8 @@ func (s *Server) Handler() http.Handler {
 		r.Use(s.loadSession)
 
 		r.Get("/health", s.handleHealth)
+		// Signed by the app's webhook secret instead of a session.
+		r.Post("/hooks/git/{id}", s.handleGitHook)
 		r.Get("/setup/status", s.handleSetupStatus)
 		r.Post("/setup", s.handleSetup)
 		r.Post("/auth/login", s.handleLogin)
@@ -141,6 +143,12 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/apps/{id}/access-log", s.handleAppAccessLog)
 			r.Get("/apps/{id}/terminal", s.handleAppTerminal)
 			r.Get("/apps/{id}/traffic", s.handleAppTraffic)
+			r.Get("/apps/{id}/git", s.handleGitInfo)
+			r.Post("/apps/{id}/deploy", s.handleDeploy)
+			r.Get("/apps/{id}/deployments", s.handleListDeployments)
+			r.Get("/apps/{id}/deployments/{did}", s.handleGetDeployment)
+			r.Get("/apps/{id}/deployments/{did}/log", s.handleDeploymentLog)
+			r.Post("/apps/{id}/deployments/{did}/rollback", s.handleRollback)
 			r.Get("/cron", s.handleListCron)
 			r.Post("/cron", s.handleCreateCron)
 			r.Post("/cron/preview", s.handleCronPreview)

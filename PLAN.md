@@ -512,5 +512,36 @@ limits are measured and enforced by the panel, real filesystem quotas come later
 - [ ] Updating an installed service to a newer template version: later
 - [ ] More services, and services that need more than one domain or port: later
 
+**2f. Git deploys — done** (agreed: builds without a Dockerfile and previews move to 2g)
+- [x] Git apps: a repository (https, or SSH with a deploy key the panel makes), a branch, a
+      Dockerfile and build folder. The agent clones and builds on the app's server; the output
+      streams live to the deployment's log in the panel. Variables are also build arguments,
+      passed through the environment, never on a command line
+- [x] Zero-downtime releases: each Git app has two host ports. The new build starts on the
+      free one next to the running container; once it answers (or its health check passes)
+      the old one stops. The web server lists both ports, the running one first. A release
+      that does not start is removed and the previous one keeps serving; the deploy fails and
+      the app keeps naming the build that runs. Unchanged apps are not restarted (Compose's
+      config hash decides)
+- [x] Deployments: number, status, commit and message, who or what started it, duration and
+      the full log. The last five builds stay on the server; rolling back to one releases it
+      again without building
+- [x] Webhooks for GitHub, Gitea, Forgejo and Gogs (HMAC-SHA256 of the body) and GitLab (its
+      token), for pushes to the app's branch; the pushed commit is built even if the branch
+      moved on since. Failures are rate limited
+- [x] Git runs with no local configuration, no prompts, only the https and ssh transports
+      (no file:// or helper programs), and paths are kept inside the repository, also
+      through links. Deploy keys and webhook secrets are sealed with the panel's key
+- [x] Git apps are for administrators for now (builds run as root's Docker)
+- [x] Tested in the VM with a repository served over SSH by the VM itself: deploy with the
+      deploy key and a build argument (15 s); 889 requests during two releases all answered
+      200, slowest 63 ms; a release whose container exits was refused within seconds while
+      the old one kept serving; rollback; a signed push of an older commit built that commit;
+      a wrong signature was refused
+- [x] Found and fixed while testing: revoking an agent's certificate (new connection command,
+      or deleting the server) did not close the connection the agent already had; it now does
+- [ ] Deploy notifications on success, cancelling a running build: later
+
 **Next**
-- [ ] 2f. Git deployments: builds, zero-downtime deploys, rollbacks, previews
+- [ ] 2g. Builds without a Dockerfile (Railpack), preview deploys per pull request, Git apps
+      for customers as a package option

@@ -115,6 +115,7 @@ func (s *Server) handleDeleteServer(w http.ResponseWriter, r *http.Request) {
 		s.internalError(w, r, err)
 		return
 	}
+	s.hub.Disconnect(id)
 	s.hub.Forget(id)
 	s.audit(r, "server.deleted", srv.Name, map[string]any{"server_id": id})
 	w.WriteHeader(http.StatusNoContent)
@@ -126,6 +127,7 @@ func (s *Server) handleRenewEnrollToken(w http.ResponseWriter, r *http.Request) 
 	if s.serverLookupFailed(w, r, err) {
 		return
 	}
+	s.hub.Disconnect(srv.ID) // its certificate is revoked
 	s.audit(r, "server.enroll_token_renewed", srv.Name, map[string]any{"server_id": srv.ID})
 	writeJSON(w, http.StatusOK, s.enrollResponse(srv, token))
 }

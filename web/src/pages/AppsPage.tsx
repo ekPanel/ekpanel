@@ -30,6 +30,7 @@ import { CronCard } from "../components/CronCard";
 import { LogsCard, TrafficCard } from "../components/WebInsights";
 import { OwnerField } from "./CustomersPage";
 import { TemplateMark, useCatalog } from "./CatalogPage";
+import { DeployButton, DeploymentsCard, GitCard } from "../components/Deployments";
 
 const textarea = "rounded-lg border border-line bg-surface px-3 py-2 font-mono text-sm text-ink";
 const select = "h-10 rounded-lg border border-line bg-surface px-3 text-ink";
@@ -47,6 +48,11 @@ interface AppForm {
   memory: string;
   cpus: string;
   publicPorts: boolean;
+  gitUrl: string;
+  gitBranch: string;
+  dockerfile: string;
+  buildContext: string;
+  autoDeploy: boolean;
 }
 
 const emptyForm: AppForm = {
@@ -61,6 +67,11 @@ const emptyForm: AppForm = {
   memory: "",
   cpus: "",
   publicPorts: false,
+  gitUrl: "",
+  gitBranch: "main",
+  dockerfile: "Dockerfile",
+  buildContext: ".",
+  autoDeploy: true,
 };
 
 function formFromApp(a: App): AppForm {
@@ -76,6 +87,11 @@ function formFromApp(a: App): AppForm {
     memory: a.memory_mb ? String(a.memory_mb) : "",
     cpus: a.cpus ? String(a.cpus) : "",
     publicPorts: a.public_ports,
+    gitUrl: a.git_url ?? "",
+    gitBranch: a.git_branch ?? "",
+    dockerfile: a.dockerfile ?? "Dockerfile",
+    buildContext: a.build_context ?? ".",
+    autoDeploy: a.auto_deploy,
   };
 }
 
@@ -102,7 +118,7 @@ function requestBody(kind: App["kind"], f: AppForm) {
     tls: f.tls,
     env: parseEnv(f.env),
     volumes:
-      kind === "image"
+      kind !== "compose"
         ? f.volumes
             .split("\n")
             .map((v) => v.trim())
@@ -111,6 +127,11 @@ function requestBody(kind: App["kind"], f: AppForm) {
     memory_mb: num(f.memory),
     cpus: num(f.cpus),
     public_ports: kind === "compose" && f.publicPorts,
+    git_url: f.gitUrl,
+    git_branch: f.gitBranch,
+    dockerfile: f.dockerfile,
+    build_context: f.buildContext,
+    auto_deploy: f.autoDeploy,
   };
 }
 
@@ -122,6 +143,47 @@ function AppFields({ kind, value, onChange, fromTemplate }: { kind: App["kind"];
     <div className="grid gap-4">
       {fromTemplate ? (
         <p className="rounded-lg bg-sunk px-3 py-2 text-sm text-muted">{t("catalog.compose_fixed")}</p>
+      ) : kind === "git" ? (
+        <div className="grid gap-4">
+          <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
+            <Field
+              label={t("deploys.repo")}
+              hint={t("deploys.repo_hint")}
+              value={value.gitUrl}
+              onChange={(e) => set("gitUrl", e.target.value.trim())}
+              dir="ltr"
+              className="[&_input]:font-mono"
+              placeholder="https://github.com/owner/app.git"
+              required
+            />
+            <Field label={t("deploys.branch")} value={value.gitBranch} onChange={(e) => set("gitBranch", e.target.value.trim())} dir="ltr" required />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label={t("deploys.dockerfile")}
+              hint={t("deploys.dockerfile_hint")}
+              value={value.dockerfile}
+              onChange={(e) => set("dockerfile", e.target.value.trim())}
+              dir="ltr"
+              className="[&_input]:font-mono"
+            />
+            <Field
+              label={t("deploys.context")}
+              hint={t("deploys.context_hint")}
+              value={value.buildContext}
+              onChange={(e) => set("buildContext", e.target.value.trim())}
+              dir="ltr"
+              className="[&_input]:font-mono"
+            />
+          </div>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" checked={value.autoDeploy} onChange={(e) => set("autoDeploy", e.target.checked)} className="mt-1 accent-[var(--accent)]" />
+            <span>
+              <span className="font-medium">{t("deploys.auto")}</span>
+              <span className="block text-muted">{t("deploys.auto_hint")}</span>
+            </span>
+          </label>
+        </div>
       ) : kind === "image" ? (
         <Field
           label={t("apps.image")}
@@ -155,7 +217,8 @@ function AppFields({ kind, value, onChange, fromTemplate }: { kind: App["kind"];
           )}
           <Field
             label={t("apps.port")}
-            hint={t("apps.port_hint")}
+            hint={kind === "git" ? t("deploys.port_hint") : t("apps.port_hint")}
+            required={kind === "git"}
             value={value.port}
             onChange={(e) => set("port", e.target.value.replace(/\D/g, ""))}
             inputMode="numeric"
@@ -193,9 +256,11 @@ function AppFields({ kind, value, onChange, fromTemplate }: { kind: App["kind"];
           className={textarea}
           placeholder={"TZ=Asia/Dhaka\nAPP_SECRET=…"}
         />
-        <span className="text-sm text-muted">{kind === "image" ? t("apps.env_hint_image") : t("apps.env_hint_compose")}</span>
+        <span className="text-sm text-muted">
+          {kind === "git" ? t("deploys.env_hint") : kind === "image" ? t("apps.env_hint_image") : t("apps.env_hint_compose")}
+        </span>
       </label>
-      {kind === "image" && (
+      {kind !== "compose" && (
         <label className="grid gap-1.5">
           <span className="text-sm font-medium">{t("apps.volumes")}</span>
           <textarea
@@ -270,7 +335,7 @@ function AddAppDialog({ open, onClose }: { open: boolean; onClose: () => void })
   const [kind, setKind] = useState<App["kind"]>("image");
   const [owner, setOwner] = useState("");
   const me = useMe();
-  // Compose files can do anything Docker can, so only administrators run them, and only for themselves.
+  // Compose files and Git builds can do anything Docker can, so only administrators use them, and only for themselves.
   const composeAllowed = me.data?.role === "admin" && owner === "";
   useEffect(() => {
     if (!composeAllowed) setKind("image");
@@ -308,8 +373,8 @@ function AddAppDialog({ open, onClose }: { open: boolean; onClose: () => void })
     <Dialog open={open} onClose={onClose} title={t("apps.add")} wide>
       <form onSubmit={submit} className="grid gap-5">
         <ErrorAlert>{error}</ErrorAlert>
-        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t("apps.kind_label")}>
-          {(composeAllowed ? (["image", "compose"] as const) : (["image"] as const)).map((k) => (
+        <div className={cx("grid gap-2", composeAllowed && "sm:grid-cols-3")} role="radiogroup" aria-label={t("apps.kind_label")}>
+          {(composeAllowed ? (["image", "compose", "git"] as const) : (["image"] as const)).map((k) => (
             <label
               key={k}
               className={cx("flex cursor-pointer gap-3 rounded-lg border p-3", kind === k ? "border-accent bg-accent-soft" : "border-line hover:bg-sunk")}
@@ -424,7 +489,7 @@ export function AppsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span className="font-mono text-xs" dir="ltr">
-                      {a.kind === "image" ? a.image : (a.template ?? t("apps.kind.compose"))}
+                      {a.kind === "image" ? a.image : a.kind === "git" ? a.git_url : (a.template ?? t("apps.kind.compose"))}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-muted">
@@ -596,7 +661,9 @@ export function AppDetailPage() {
       </Link>
       <PageHeader
         title={app.name}
-        description={app.kind === "image" ? (app.image ?? "") : app.template ? t("catalog.from") : t("apps.kind.compose")}
+        description={
+          app.kind === "image" ? (app.image ?? "") : app.kind === "git" ? (app.git_url ?? "") : app.template ? t("catalog.from") : t("apps.kind.compose")
+        }
         actions={
           <>
             {url && (
@@ -643,16 +710,20 @@ export function AppDetailPage() {
                 </Button>
               </>
             )}
-            <Button
-              size="sm"
-              disabled={!ready || !!busy || !!updating}
-              loading={busy === "update" || !!updating}
-              onClick={() => act("update", () => api.post(`/apps/${id}/update`))}
-            >
-              <Download className="size-4" aria-hidden />
-              {t("apps.pull")}
-            </Button>
-            {ready && !app.stopped && (
+            {app.kind === "git" ? (
+              <DeployButton app={app} onError={setError} />
+            ) : (
+              <Button
+                size="sm"
+                disabled={!ready || !!busy || !!updating}
+                loading={busy === "update" || !!updating}
+                onClick={() => act("update", () => api.post(`/apps/${id}/update`))}
+              >
+                <Download className="size-4" aria-hidden />
+                {t("apps.pull")}
+              </Button>
+            )}
+            {ready && !app.stopped && (app.kind !== "git" || app.image) && (
               <Link to={`/apps/${id}/terminal`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-sm hover:bg-sunk">
                 <SquareTerminal className="size-4" aria-hidden />
                 {t("terminal.shell")}
@@ -691,6 +762,12 @@ export function AppDetailPage() {
         </Card>
 
         {app.template && <TemplateCard app={app} />}
+        {app.kind === "git" && app.state !== "deleting" && (
+          <>
+            <GitCard app={app} />
+            <DeploymentsCard app={app} />
+          </>
+        )}
         <div className="grid gap-6 xl:grid-cols-[2fr_3fr]">
           <Containers app={app} />
           <Logs app={app} />

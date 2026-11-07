@@ -98,6 +98,7 @@ func newTestPanel(t *testing.T) *testPanel {
 	notifier := notify.New(st, box, log)
 	notifier.AllowPrivate = true // test receivers listen on 127.0.0.1
 	runner.SetNotifier(notifier)
+	runner.SetSecrets(box)
 	done := make(chan struct{}, 2)
 	go func() { runner.Run(ctx, 2); done <- struct{}{} }()
 	go func() { notifier.Run(ctx); done <- struct{}{} }()
@@ -381,10 +382,31 @@ func TestAgentEnrolmentAndMutualTLS(t *testing.T) {
 		t.Fatalf("bad range: %d %s", s, e.Code)
 	}
 
-	// Asking for a new connection command revokes the current certificate at once.
+	// Asking for a new connection command revokes the current certificate at once, and
+	// closes the connection the agent already has.
+	open, _, err := dialAgent(t, p, tlsCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer open.CloseNow()
+	eventually(t, "server online again", func() bool {
+		var v view
+		c.do("GET", "/api/v1/servers/"+id, nil, &v)
+		return v.Online
+	})
 	c.do("POST", "/api/v1/servers/"+id+"/enroll-token", nil, nil)
 	if _, status, err := dialAgent(t, p, tlsCfg); err == nil || status != http.StatusUnauthorized {
 		t.Fatalf("revoked certificate: status %d err %v", status, err)
+	}
+	readCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for {
+		if _, _, err := open.Read(readCtx); err != nil {
+			if websocket.CloseStatus(err) != websocket.StatusPolicyViolation {
+				t.Fatalf("the open connection must be closed as revoked, got %v", err)
+			}
+			break
+		}
 	}
 
 	var audit []store.AuditEntry

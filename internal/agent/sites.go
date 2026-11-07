@@ -61,13 +61,15 @@ func runCommand(ctx context.Context, input *string, name string, args ...string)
 	return out, nil
 }
 
-// command is a process for system.exec. With Stdout set, the returned bytes are stderr only.
+// command is a process for system.exec. With Stdout set, the returned bytes are stderr only;
+// with Stderr set too, nothing is returned.
 type command struct {
 	name   string
 	args   []string
 	env    []string
 	stdin  io.Reader
 	stdout io.Writer
+	stderr io.Writer
 }
 
 func execCommand(ctx context.Context, c command) ([]byte, error) {
@@ -76,7 +78,10 @@ func execCommand(ctx context.Context, c command) ([]byte, error) {
 	cmd.Stdin = c.stdin
 	var out []byte
 	var err error
-	if c.stdout != nil {
+	if c.stdout != nil && c.stderr != nil {
+		cmd.Stdout, cmd.Stderr = c.stdout, c.stderr
+		err = cmd.Run()
+	} else if c.stdout != nil {
 		var stderr bytes.Buffer
 		cmd.Stdout, cmd.Stderr = c.stdout, &stderr
 		err = cmd.Run()

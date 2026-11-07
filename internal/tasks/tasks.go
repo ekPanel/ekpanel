@@ -14,6 +14,7 @@ import (
 	"ekpanel/internal/agentproto"
 	"ekpanel/internal/hub"
 	"ekpanel/internal/notify"
+	"ekpanel/internal/secretbox"
 	"ekpanel/internal/store"
 )
 
@@ -48,7 +49,11 @@ type Runner struct {
 	wake     chan struct{}
 	vault    *vault
 	notify   *notify.Notifier
+	secrets  *secretbox.Box
 }
+
+// SetSecrets lets the runner open sealed secrets, such as Git apps' deploy keys.
+func (r *Runner) SetSecrets(b *secretbox.Box) { r.secrets = b }
 
 // SetNotifier lets the runner send notifications. Without one, events are only logged.
 func (r *Runner) SetNotifier(n *notify.Notifier) { r.notify = n }
@@ -68,6 +73,7 @@ func New(st *store.Store, h *hub.Hub, log *slog.Logger) *Runner {
 	r.handlers[KindBackupRun] = r.runBackup
 	r.handlers[KindBackupRestore] = r.restoreBackup
 	r.handlers[KindAppUpdate] = r.appUpdate
+	r.handlers[KindAppDeploy] = r.appDeploy
 	return r
 }
 
@@ -89,6 +95,10 @@ func (r *Runner) Enqueue(ctx context.Context, n store.NewTask) (store.Task, erro
 // Run starts the workers and housekeeping, and blocks until ctx ends and every running
 // task has returned.
 func (r *Runner) Run(ctx context.Context, workers int) {
+	// Nothing is deploying yet, so a deploy still marked as running was cut off.
+	if err := r.store.FailInterruptedDeployments(ctx); err != nil {
+		r.log.Error("end interrupted deployments", "err", err)
+	}
 	var wg sync.WaitGroup
 	for range workers {
 		wg.Add(1)
@@ -350,6 +360,11 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		}
 		spec := AppSpec(a)
 		spec.Owner = id
+		if a.Kind == "git" && a.State != "deleting" {
+			if spec.KeepImages, err = r.store.KeptImages(ctx, a.ID); err != nil {
+				return sum, err
+			}
+		}
 		params.Apps = append(params.Apps, spec)
 	}
 	jobs, err := r.store.ListCronJobs(ctx, store.CronFilter{ServerID: serverID})

@@ -85,6 +85,27 @@ func validateApp(ap agentproto.AppSpec) error {
 		if ap.Compose == "" || len(ap.Compose) > maxComposeBytes {
 			return errors.New("the Compose file is empty or too large")
 		}
+	case "git":
+		// No image yet means the app has not been deployed.
+		if ap.Image != "" && !gitImageOK(ap.Name, ap.Image) {
+			return fmt.Errorf("invalid build %q", ap.Image)
+		}
+		for _, img := range ap.KeepImages {
+			if !gitImageOK(ap.Name, img) {
+				return fmt.Errorf("invalid build %q", img)
+			}
+		}
+		if ap.ContainerPort == 0 || ap.Service != agentproto.AppServiceName || ap.HostPort > 29998 {
+			return errors.New("a Git app needs the port it listens on")
+		}
+		for _, v := range ap.Volumes {
+			if !volumePathR.MatchString(v) || strings.Contains(v, "..") {
+				return fmt.Errorf("invalid volume path %q", v)
+			}
+		}
+		if len(ap.Volumes) > 20 {
+			return errors.New("too many volumes")
+		}
 	default:
 		return fmt.Errorf("unknown app kind %q", ap.Kind)
 	}
@@ -177,7 +198,7 @@ func compose(ctx context.Context, sys *system, name string, env []agentproto.Env
 	return sys.exec(ctx, composeCommand(sys, name, env, args...))
 }
 
-// imageCompose is the Compose file of an image app, written as JSON (valid YAML), so no
+// imageCompose is the Compose file of an image app (and of a Git app's build), written as JSON (valid YAML), so no
 // value can change its structure. Dollar signs are doubled so Compose keeps them literally.
 func imageCompose(ap agentproto.AppSpec) []byte {
 	svc := map[string]any{
@@ -202,7 +223,11 @@ func imageCompose(ap agentproto.AppSpec) []byte {
 	if len(mounts) > 0 {
 		svc["volumes"] = mounts
 	}
-	if ap.ContainerPort != 0 {
+	if ap.Kind == "git" {
+		// During a release the new container takes whichever of the two ports is free.
+		svc["ports"] = []string{fmt.Sprintf("127.0.0.1:%d-%d:%d", ap.HostPort, ap.HostPort+1, ap.ContainerPort)}
+		svc["stop_grace_period"] = "30s"
+	} else if ap.ContainerPort != 0 {
 		svc["ports"] = []string{fmt.Sprintf("127.0.0.1:%d:%d", ap.HostPort, ap.ContainerPort)}
 	}
 	if ap.MemoryMB > 0 {
@@ -384,8 +409,17 @@ func (a *applier) ensureApp(ctx context.Context, ap agentproto.AppSpec) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
+	if ap.Kind == "git" && ap.Image == "" {
+		// Not deployed yet: nothing to run, and the domain waits for the first release.
+		st, _ := json.Marshal(appState{ID: ap.ID, Stopped: ap.Stopped, Env: ap.Env})
+		if _, err := writeSecretIfChanged(filepath.Join(dir, appStateFile), st); err != nil {
+			return err
+		}
+		a.removeCaddyFile(appCaddyPath(ap.ID), ap.ID)
+		return nil
+	}
 	file := []byte(ap.Compose)
-	if ap.Kind == "image" {
+	if ap.Kind != "compose" {
 		file = imageCompose(ap)
 	}
 	changed, err := writeSecretIfChanged(filepath.Join(dir, appComposeFile), file)
@@ -430,6 +464,11 @@ func (a *applier) ensureApp(ctx context.Context, ap agentproto.AppSpec) error {
 		if _, err := compose(ctx, a.sys, ap.Name, ap.Env, "stop"); err != nil {
 			return err
 		}
+	} else if ap.Kind == "git" {
+		if err := releaseGitApp(ctx, a.sys, ap); err != nil {
+			return err
+		}
+		pruneBuilds(ctx, a.sys, ap)
 	} else {
 		args := []string{"up", "--detach", "--remove-orphans"}
 		if changed {
@@ -441,7 +480,11 @@ func (a *applier) ensureApp(ctx context.Context, ap agentproto.AppSpec) error {
 			return fmt.Errorf("%w %s", err, lastLines(append(out, logs...), 5))
 		}
 	}
-	return a.writeAppCaddy(ap)
+	var ports []int
+	if ap.Kind == "git" {
+		ports = gitPorts(ctx, a.sys, ap)
+	}
+	return a.writeAppCaddy(ap, ports)
 }
 
 var appCaddyTemplate = template.Must(template.New("app").Parse(
@@ -451,7 +494,15 @@ var appCaddyTemplate = template.Must(template.New("app").Parse(
 	tls internal
 {{- end}}
 	encode zstd gzip
-	reverse_proxy 127.0.0.1:{{.Port}}
+	reverse_proxy{{range .Ports}} 127.0.0.1:{{.}}{{end}}
+{{- if gt (len .Ports) 1}} {
+		# The running release's port comes first; during a release both answer.
+		lb_policy first
+		lb_try_duration 10s
+		lb_try_interval 20ms
+		fail_duration 30s
+	}
+{{- end}}
 	log {
 		output file /var/log/caddy/app-{{.ID}}.log {
 			roll_size 20MiB
@@ -461,14 +512,19 @@ var appCaddyTemplate = template.Must(template.New("app").Parse(
 }
 `))
 
-func (a *applier) writeAppCaddy(ap agentproto.AppSpec) error {
+// writeAppCaddy writes the app's web server configuration, proxying to ports in order
+// (the app's host port, if nil).
+func (a *applier) writeAppCaddy(ap agentproto.AppSpec, ports []int) error {
 	path := appCaddyPath(ap.ID)
 	if ap.Domain == "" {
 		a.removeCaddyFile(path, ap.ID)
 		return nil
 	}
 	var buf bytes.Buffer
-	appCaddyTemplate.Execute(&buf, map[string]any{"ID": ap.ID, "Domain": ap.Domain, "Internal": ap.TLS == "internal", "Port": ap.HostPort})
+	if ports == nil {
+		ports = []int{ap.HostPort}
+	}
+	appCaddyTemplate.Execute(&buf, map[string]any{"ID": ap.ID, "Domain": ap.Domain, "Internal": ap.TLS == "internal", "Ports": ports})
 	changed, prev, err := a.writeIfChanged(path, buf.Bytes())
 	if err != nil {
 		return err
@@ -510,8 +566,18 @@ func (a *applier) removeApp(ctx context.Context, ap agentproto.AppSpec) error {
 	if ap.DeleteData {
 		args = append(args, "--volumes")
 	}
-	if _, err := compose(ctx, a.sys, ap.Name, st.Env, args...); err != nil {
-		return err
+	if _, err := os.Stat(a.sys.path(appDir(ap.Name) + "/" + appComposeFile)); err == nil {
+		if _, err := compose(ctx, a.sys, ap.Name, st.Env, args...); err != nil {
+			return err
+		}
+	}
+	if ap.Kind == "git" {
+		// Builds can be made again from the repository.
+		if out, err := a.sys.run(ctx, "docker", "images", "--quiet", agentproto.GitImageRepo(ap.Name)); err == nil {
+			if ids := strings.Fields(string(out)); len(ids) > 0 {
+				a.sys.run(ctx, "docker", append([]string{"rmi", "--force"}, ids...)...)
+			}
+		}
 	}
 	if ap.DeleteData {
 		// "down --volumes" only knows the volumes in the current file; earlier versions of

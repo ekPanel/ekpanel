@@ -235,7 +235,7 @@ export interface App extends Owned {
   server_id: string;
   server_name: string;
   name: string;
-  kind: "image" | "compose";
+  kind: "image" | "compose" | "git";
   image: string | null;
   compose: string | null;
   service: string | null;
@@ -256,8 +256,34 @@ export interface App extends Owned {
   applied_generation: number;
   template: string | null;
   template_version: number | null;
+  git_url: string | null;
+  git_branch: string | null;
+  dockerfile: string | null;
+  build_context: string | null;
+  auto_deploy: boolean;
+  deploy_key_public: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** One build and release of a Git app, or a rollback to an earlier build. */
+export interface Deployment {
+  id: string;
+  app_id: string;
+  number: number;
+  status: "queued" | "building" | "releasing" | "live" | "failed" | "superseded" | "cancelled";
+  trigger: "manual" | "webhook" | "rollback";
+  branch: string;
+  commit_sha: string | null;
+  commit_message: string | null;
+  image: string | null;
+  rollback_of: string | null;
+  error: string | null;
+  created_by_name: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  rollback_possible: boolean;
 }
 
 /** A one-click service of the catalogue. Its description is translated in catalog.apps.<id>. */

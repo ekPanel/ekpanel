@@ -28,6 +28,10 @@
       "title": "অ্যাপ {{name}}-এ সমস্যা",
       "body": "{{message}}"
     },
+    "deploy_failed": {
+      "title": "{{name}}-এর ডিপ্লয় ব্যর্থ হয়েছে",
+      "body": "{{message}}"
+    },
     "database_error": {
       "title": "ডেটাবেস {{name}}-এ সমস্যা",
       "body": "{{message}}"
