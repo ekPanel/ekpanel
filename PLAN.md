@@ -231,16 +231,19 @@ Decided (2026-11-07):
   - a translation checker runs in CI; a Weblate instance comes before the first release.
 - **Stack** as in section 3: Go panel and agent, React + TypeScript UI, PostgreSQL.
 - **Phase 1 order**: PHP/WordPress hosting first, then Docker apps.
+- <a id="license"></a>**License: AGPL-3.0-only** for the panel and agent. Companies that run
+  HostPanel as a hosted service must share their changes (the model used by Plausible and
+  Grafana); MIT/Apache would allow closed forks. All current dependencies (MIT, BSD, Apache-2.0,
+  OFL fonts) are compatible.
+- **Branches**: all work happens on `dev`; `prod` holds production code and changes only
+  through a pull request from `dev`.
+- **Test server**: a local Ubuntu 24.04 VM (QEMU/KVM) on the development machine, stopped
+  when not in use.
 
 Still open:
 
 1. **Name.** "HostPanel" is a working name (binaries `hostpanel`, `hostpanel-agent`, Go module
    `hostpanel`). Renaming now is a search-and-replace; it gets costly after the first release.
-2. <a id="license"></a>**License.** Recommended: **AGPL-3.0** for the panel and agent, so
-   companies that offer HostPanel as a hosted service must share their changes (the model
-   used by Plausible and Grafana). MIT/Apache-2.0 (Coolify, Pterodactyl) allow closed forks.
-3. **Test server** for phase 0's installer and phase 1: an Ubuntu 24.04 VPS (2 GB+ RAM) or a
-   local VM.
 
 ## 9. Phase 0 progress
 
@@ -256,5 +259,9 @@ Still open:
 - [ ] mTLS between panel and agent (replaces the bearer secret)
 - [ ] Desired-state / reconcile engine and job queue (River)
 - [ ] Metric history in PostgreSQL (30 days, downsampled)
-- [ ] `install.sh` for a fresh Ubuntu/Debian server: Caddy, PostgreSQL, systemd units, setup token
+- [x] `deploy/install.sh` for Ubuntu 24.04+/Debian 12+: PostgreSQL, Caddy (domain → Let's Encrypt,
+      no domain → self-signed for the IP), sandboxed systemd units, auto-connects the server's own
+      agent, prints the setup token; re-runnable as an upgrade. Tested in a local VM incl. reboot
+- [x] `scripts/test-vm.sh`: disposable Ubuntu 24.04 VM (QEMU/KVM) for testing server changes
+- [ ] One-line install from release downloads (after the first release)
 - [ ] Release builds (signed binaries for amd64 and arm64)

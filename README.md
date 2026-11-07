@@ -56,6 +56,21 @@ make dev-agent TOKEN=<token from the dialog>
 For UI work with hot reload, run `make dev` and `make dev-ui` together, then open
 http://localhost:5173. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
+## Install on a server
+
+On a fresh **Ubuntu 24.04+ or Debian 12+** server (amd64 or arm64), as root:
+
+```bash
+make panel agent                        # on your machine, then copy bin/ and deploy/install.sh over
+sudo ./install.sh --local-dir ./bin --domain panel.example.com
+```
+
+The installer sets up PostgreSQL and Caddy, runs the panel as an unprivileged, sandboxed
+systemd service, connects the server's own agent, and prints the one-time setup token.
+Leave out `--domain` to use the server's IP address with a self-signed certificate. Running it
+again upgrades the binaries and keeps your data. One-line installs from release downloads come
+with the first release.
+
 ## Languages
 
 The panel is built to be translated. All UI text lives in `web/src/i18n/locales/`, and dates,
@@ -74,4 +89,6 @@ vulnerabilities privately as described in [SECURITY.md](SECURITY.md), never in p
 
 ## License
 
-To be decided before the first public release. See [PLAN.md](PLAN.md#license).
+HostPanel is free software under the [GNU Affero General Public License v3.0](LICENSE)
+(`AGPL-3.0-only`). You can use, study, change and share it. If you run a modified version as
+a service for others, you must offer them your changes under the same license.

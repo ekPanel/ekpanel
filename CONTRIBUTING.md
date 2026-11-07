@@ -19,6 +19,26 @@ make test        # everything CI runs
 
 `make help` lists all tasks. To start over, stop the panel and delete `.data/`.
 
+### A real test server
+
+Anything that changes a server (the installer, and every hosting feature from phase 1 on)
+must be tested on a real Ubuntu machine. `scripts/test-vm.sh` makes a throwaway Ubuntu 24.04
+VM with QEMU/KVM, without root:
+
+```bash
+scripts/test-vm.sh create                         # first time: downloads Ubuntu (~600 MB)
+make panel agent
+scripts/test-vm.sh copy bin/hostpanel bin/hostpanel-agent deploy/install.sh
+scripts/test-vm.sh ssh 'sudo ./install.sh --local-dir .'
+# the panel is now at https://127.0.0.1:8443 (self-signed certificate)
+scripts/test-vm.sh stop                           # or destroy, to delete its disk
+```
+
+## Branches
+
+All work happens on **`dev`**. **`prod`** holds production-ready code and changes only through
+a pull request from `dev`. Open your pull requests against `dev`.
+
 ## Project layout
 
 | Path | What it is |
@@ -48,6 +68,11 @@ make test        # everything CI runs
 - **Tests.** New behaviour comes with tests. API behaviour is tested end to end against a real
   PostgreSQL in `internal/api/api_test.go`.
 - Run `gofmt` and `make test` before opening a pull request.
+
+## License of contributions
+
+HostPanel is licensed under [AGPL-3.0-only](LICENSE). By opening a pull request you agree
+that your contribution is released under the same license.
 
 ## Reporting bugs
 
