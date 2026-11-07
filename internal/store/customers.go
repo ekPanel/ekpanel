@@ -35,6 +35,11 @@ type PackageLimits struct {
 	ServerIDs    []string `json:"server_ids"`
 	SFTP         bool     `json:"sftp"`
 	GitApps      bool     `json:"git_apps"`
+	// Email: domains and mailboxes over all the customer's domains, and the largest
+	// quota of one mailbox (nil: no limit).
+	MaxMailDomains int  `json:"max_mail_domains"`
+	MaxMailboxes   int  `json:"max_mailboxes"`
+	MailboxQuotaMB *int `json:"mailbox_quota_mb"`
 }
 
 type Package struct {
@@ -45,13 +50,15 @@ type Package struct {
 }
 
 const packageColumns = `p.id, p.name, p.max_sites, p.max_databases, p.max_apps, p.max_cron_jobs, p.disk_mb, p.memory_mb, p.cpu_percent,
-	p.php_versions, p.app_images, p.server_ids::text[], p.sftp, p.git_apps, p.created_at,
+	p.php_versions, p.app_images, p.server_ids::text[], p.sftp, p.git_apps, p.max_mail_domains, p.max_mailboxes,
+	p.mailbox_quota_mb, p.created_at,
 	(SELECT count(*) FROM users u WHERE u.package_id = p.id)`
 
 func scanPackage(row pgx.Row) (Package, error) {
 	var p Package
 	err := row.Scan(&p.ID, &p.Name, &p.MaxSites, &p.MaxDatabases, &p.MaxApps, &p.MaxCronJobs, &p.DiskMB, &p.MemoryMB, &p.CPUPercent,
-		&p.PHPVersions, &p.AppImages, &p.ServerIDs, &p.SFTP, &p.GitApps, &p.CreatedAt, &p.Customers)
+		&p.PHPVersions, &p.AppImages, &p.ServerIDs, &p.SFTP, &p.GitApps, &p.MaxMailDomains, &p.MaxMailboxes, &p.MailboxQuotaMB,
+		&p.CreatedAt, &p.Customers)
 	return p, notFound(err)
 }
 
@@ -62,10 +69,10 @@ func (s *Store) CreatePackage(ctx context.Context, l PackageLimits) (Package, er
 	var id string
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO packages (name, max_sites, max_databases, max_apps, disk_mb, memory_mb, cpu_percent, php_versions,
-			app_images, server_ids, sftp, max_cron_jobs, git_apps)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::text[]::uuid[], $11, $12, $13) RETURNING id`,
+			app_images, server_ids, sftp, max_cron_jobs, git_apps, max_mail_domains, max_mailboxes, mailbox_quota_mb)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::text[]::uuid[], $11, $12, $13, $14, $15, $16) RETURNING id`,
 		l.Name, l.MaxSites, l.MaxDatabases, l.MaxApps, l.DiskMB, l.MemoryMB, l.CPUPercent, l.PHPVersions, l.AppImages,
-		l.ServerIDs, l.SFTP, l.MaxCronJobs, l.GitApps).Scan(&id)
+		l.ServerIDs, l.SFTP, l.MaxCronJobs, l.GitApps, l.MaxMailDomains, l.MaxMailboxes, l.MailboxQuotaMB).Scan(&id)
 	if isUniqueViolation(err) {
 		return Package{}, ErrPackageNameTaken
 	}
@@ -92,10 +99,11 @@ func (s *Store) UpdatePackage(ctx context.Context, id string, l PackageLimits) (
 	tag, err := s.pool.Exec(ctx, `
 		UPDATE packages SET name = $2, max_sites = $3, max_databases = $4, max_apps = $5, disk_mb = $6, memory_mb = $7,
 			cpu_percent = $8, php_versions = $9, app_images = $10, server_ids = $11::text[]::uuid[], sftp = $12,
-			max_cron_jobs = $13, git_apps = $14, updated_at = now()
+			max_cron_jobs = $13, git_apps = $14, max_mail_domains = $15, max_mailboxes = $16, mailbox_quota_mb = $17,
+			updated_at = now()
 		WHERE id = $1`,
 		id, l.Name, l.MaxSites, l.MaxDatabases, l.MaxApps, l.DiskMB, l.MemoryMB, l.CPUPercent, l.PHPVersions, l.AppImages,
-		l.ServerIDs, l.SFTP, l.MaxCronJobs, l.GitApps)
+		l.ServerIDs, l.SFTP, l.MaxCronJobs, l.GitApps, l.MaxMailDomains, l.MaxMailboxes, l.MailboxQuotaMB)
 	if isUniqueViolation(err) {
 		return Package{}, ErrPackageNameTaken
 	}
@@ -123,11 +131,13 @@ func (s *Store) DeletePackage(ctx context.Context, id string) error {
 
 // Usage is what a customer has, against their package.
 type Usage struct {
-	Sites     int   `json:"sites"`
-	Databases int   `json:"databases"`
-	Apps      int   `json:"apps"`
-	CronJobs  int   `json:"cron_jobs"`
-	DiskBytes int64 `json:"disk_bytes"` // files of sites, app volumes and folders, databases
+	Sites       int   `json:"sites"`
+	Databases   int   `json:"databases"`
+	Apps        int   `json:"apps"`
+	CronJobs    int   `json:"cron_jobs"`
+	MailDomains int   `json:"mail_domains"`
+	Mailboxes   int   `json:"mailboxes"`
+	DiskBytes   int64 `json:"disk_bytes"` // files of sites, app volumes and folders, databases, mail
 }
 
 type Customer struct {
@@ -143,13 +153,17 @@ const usageSQL = `
 	(SELECT count(*) FROM apps WHERE owner_id = $1 AND state <> 'deleting'),
 	(SELECT count(*) FROM cron_jobs c LEFT JOIN sites st ON st.id = c.site_id LEFT JOIN apps ap ON ap.id = c.app_id
 	 WHERE COALESCE(st.owner_id, ap.owner_id) = $1 AND c.state <> 'deleting'),
+	(SELECT count(*) FROM mail_domains WHERE owner_id = $1 AND state <> 'deleting'),
+	(SELECT count(*) FROM mailboxes b JOIN mail_domains d ON d.id = b.domain_id WHERE d.owner_id = $1 AND d.state <> 'deleting'),
 	COALESCE((SELECT sum(disk_bytes) FROM sites WHERE owner_id = $1 AND state <> 'deleting'), 0) +
 	COALESCE((SELECT sum(size_bytes) FROM databases WHERE owner_id = $1 AND state <> 'deleting'), 0) +
-	COALESCE((SELECT sum(disk_bytes) FROM apps WHERE owner_id = $1 AND state <> 'deleting'), 0)`
+	COALESCE((SELECT sum(disk_bytes) FROM apps WHERE owner_id = $1 AND state <> 'deleting'), 0) +
+	COALESCE((SELECT sum(b.used_bytes) FROM mailboxes b JOIN mail_domains d ON d.id = b.domain_id
+	          WHERE d.owner_id = $1 AND d.state <> 'deleting'), 0)`
 
 func (s *Store) OwnerUsage(ctx context.Context, ownerID string) (Usage, error) {
 	var u Usage
-	err := s.pool.QueryRow(ctx, `SELECT `+usageSQL, ownerID).Scan(&u.Sites, &u.Databases, &u.Apps, &u.CronJobs, &u.DiskBytes)
+	err := s.pool.QueryRow(ctx, `SELECT `+usageSQL, ownerID).Scan(&u.Sites, &u.Databases, &u.Apps, &u.CronJobs, &u.MailDomains, &u.Mailboxes, &u.DiskBytes)
 	return u, err
 }
 

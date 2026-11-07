@@ -4,12 +4,18 @@ package dnssync
 
 import (
 	"slices"
+	"strings"
 
 	"ekpanel/internal/cloudflare"
 )
 
-// Want is a record ekPanel wants in the zone.
-type Want struct{ Name, Type, Content string }
+// Want is a record ekPanel wants in the zone. Mail records are DNSOnly: Cloudflare's proxy
+// carries only web traffic.
+type Want struct {
+	Name, Type, Content string
+	Priority            int // MX
+	DNSOnly             bool
+}
 
 // Managed is a record ekPanel made, as it last wrote it.
 type Managed struct {
@@ -56,7 +62,12 @@ func Plan(want []Want, ours []Managed, have []cloudflare.Record, proxied bool, f
 	}
 	wanted := map[string]bool{}
 	record := func(w Want, p bool) cloudflare.Record {
-		return cloudflare.Record{Type: w.Type, Name: w.Name, Content: w.Content, TTL: 1, Proxied: p, Comment: cloudflare.ManagedComment}
+		r := cloudflare.Record{Type: w.Type, Name: w.Name, Content: w.Content, TTL: 1, Proxied: p && !w.DNSOnly, Comment: cloudflare.ManagedComment}
+		if w.Type == "MX" {
+			prio := w.Priority
+			r.Priority = &prio
+		}
+		return r
 	}
 	for _, w := range want {
 		wanted[w.key()] = true
@@ -66,8 +77,8 @@ func Plan(want []Want, ours []Managed, have []cloudflare.Record, proxied bool, f
 			case !exists:
 				// Deleted by hand while the site still needs it: make it again.
 				actions = append(actions, Action{Kind: "create", Record: record(w, m.Proxied), Forget: m.RecordID})
-			case cf.Content != m.Content || cf.Proxied != m.Proxied:
-				if cf.Content == w.Content {
+			case !sameContent(w.Type, cf.Content, m.Content) || cf.Proxied != m.Proxied:
+				if sameContent(w.Type, cf.Content, w.Content) {
 					// Changed by hand to what is wanted anyway (or only proxied): keep it so.
 					actions = append(actions, Action{Kind: "adopt", Record: cf})
 				} else if force[w.key()] {
@@ -77,7 +88,7 @@ func Plan(want []Want, ours []Managed, have []cloudflare.Record, proxied bool, f
 				} else {
 					issues = append(issues, Issue{Kind: "changed", Name: w.Name, Type: w.Type, Want: w.Content, Have: cf.Content})
 				}
-			case m.Content != w.Content:
+			case !sameContent(w.Type, m.Content, w.Content):
 				r := record(w, m.Proxied)
 				r.ID = m.RecordID
 				actions = append(actions, Action{Kind: "update", Record: r})
@@ -91,7 +102,8 @@ func Plan(want []Want, ours []Managed, have []cloudflare.Record, proxied bool, f
 				continue
 			}
 			switch {
-			case r.Type == w.Type:
+			case r.Type == w.Type && (w.Type != "TXT" || txtKind(r.Content) == txtKind(w.Content)):
+				// Other TXT records at a name (site verifications and such) are left alone.
 				same = append(same, r)
 			case r.Type == "CNAME" || w.Type == "CNAME":
 				blocking = append(blocking, r)
@@ -105,8 +117,8 @@ func Plan(want []Want, ours []Managed, have []cloudflare.Record, proxied bool, f
 			actions = append(actions, Action{Kind: "create", Record: record(w, proxied)})
 		case len(blocking) > 0:
 			issues = append(issues, Issue{Kind: "conflict", Name: w.Name, Type: w.Type, Want: w.Content, Have: blocking[0].Type + " " + blocking[0].Content})
-		case slices.ContainsFunc(same, func(r cloudflare.Record) bool { return r.Content == w.Content }):
-			i := slices.IndexFunc(same, func(r cloudflare.Record) bool { return r.Content == w.Content })
+		case slices.ContainsFunc(same, func(r cloudflare.Record) bool { return sameContent(w.Type, r.Content, w.Content) }):
+			i := slices.IndexFunc(same, func(r cloudflare.Record) bool { return sameContent(w.Type, r.Content, w.Content) })
 			actions = append(actions, Action{Kind: "adopt", Record: same[i]})
 		case len(same) > 0 && force[w.key()]:
 			r := record(w, same[0].Proxied)
@@ -127,11 +139,57 @@ func Plan(want []Want, ours []Managed, have []cloudflare.Record, proxied bool, f
 		switch {
 		case !exists:
 			actions = append(actions, Action{Kind: "forget", Forget: m.RecordID})
-		case cf.Content == m.Content && cf.Proxied == m.Proxied:
+		case sameContent(m.Type, cf.Content, m.Content) && cf.Proxied == m.Proxied:
 			actions = append(actions, Action{Kind: "delete", Record: cf, Forget: m.RecordID})
 		default:
 			actions = append(actions, Action{Kind: "forget", Forget: m.RecordID})
 		}
 	}
 	return actions, issues
+}
+
+// sameContent compares record contents as DNS does: TXT data whether or not it is quoted
+// or split into strings, host names without case or a final dot.
+func sameContent(typ, a, b string) bool {
+	switch typ {
+	case "TXT":
+		return unquoteTXT(a) == unquoteTXT(b)
+	case "MX", "CNAME":
+		return strings.EqualFold(strings.TrimSuffix(a, "."), strings.TrimSuffix(b, "."))
+	}
+	return a == b
+}
+
+// unquoteTXT turns `"a" "b"` into ab; unquoted text stays as it is.
+func unquoteTXT(s string) string {
+	s = strings.TrimSpace(s)
+	if !strings.HasPrefix(s, `"`) {
+		return s
+	}
+	var b strings.Builder
+	for s != "" {
+		if s[0] != '"' {
+			return s
+		}
+		end := 1
+		for end < len(s) && s[end] != '"' {
+			if s[end] == '\\' {
+				end++
+			}
+			end++
+		}
+		if end >= len(s) {
+			return s
+		}
+		b.WriteString(strings.NewReplacer(`\"`, `"`, `\\`, `\`).Replace(s[1:end]))
+		s = strings.TrimSpace(s[end+1:])
+	}
+	return b.String()
+}
+
+// txtKind is what a TXT record is for, by its version tag ("v=spf1", "v=DKIM1", …).
+func txtKind(content string) string {
+	tag, _, _ := strings.Cut(unquoteTXT(content), ";")
+	tag, _, _ = strings.Cut(tag, " ")
+	return strings.ToLower(tag)
 }

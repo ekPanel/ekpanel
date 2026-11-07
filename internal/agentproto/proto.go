@@ -245,6 +245,8 @@ type StateApplyParams struct {
 	Owners []OwnerSpec `json:"owners"`
 	// Firewall is nil when ekPanel does not manage the server's firewall.
 	Firewall *FirewallSpec `json:"firewall,omitempty"`
+	// Mail is nil when the server has no email.
+	Mail *MailSpec `json:"mail,omitempty"`
 }
 
 // AppSpec is one Docker app: a Compose project named "ekpanel-<Name>" kept in
@@ -299,6 +301,7 @@ const AppServiceName = "app"
 type FirewallSpec struct {
 	Enabled bool               `json:"enabled"`
 	Rules   []FirewallRuleSpec `json:"rules"`
+	Mail    bool               `json:"mail,omitempty"` // also open MailPorts
 }
 
 type FirewallRuleSpec struct {
@@ -337,6 +340,7 @@ type StateApplyResult struct {
 	Apps      []AppResult      `json:"apps"`
 	Cron      []AppResult      `json:"cron"`
 	Firewall  *FirewallResult  `json:"firewall,omitempty"`
+	Mail      *MailResult      `json:"mail,omitempty"`
 }
 
 type AppResult struct {

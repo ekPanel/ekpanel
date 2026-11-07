@@ -260,6 +260,11 @@ func stateApply(ctx context.Context, sys *system, p agentproto.StateApplyParams)
 	}
 	a.removeAppOrphans(p.Apps)
 	res.Cron = a.applyCron(ctx, p.Cron)
+	// Webmail is a PHP site of its own, reloaded with the others.
+	a.results[webmailID] = &agentproto.SiteResult{ID: webmailID, OK: true}
+	if err := a.prepareWebmail(ctx, p.Mail); err != nil {
+		a.fail(webmailID, fmt.Errorf("webmail: %w", err))
+	}
 	a.finish(ctx)
 	for i := range res.Sites {
 		res.Sites[i] = *a.results[res.Sites[i].ID]
@@ -271,6 +276,11 @@ func stateApply(ctx context.Context, sys *system, p agentproto.StateApplyParams)
 	res.Databases = applyDatabases(ctx, sys, p.Databases)
 	if p.Firewall != nil {
 		res.Firewall = applyFirewall(ctx, sys, *p.Firewall)
+	}
+	res.Mail = applyMail(ctx, sys, p.Mail)
+	if w := a.results[webmailID]; res.Mail != nil && !w.OK {
+		res.Mail.OK = false
+		res.Mail.Error = strings.TrimPrefix(strings.Join([]string{res.Mail.Error, w.Error}, "; "), "; ")
 	}
 	return res, nil
 }

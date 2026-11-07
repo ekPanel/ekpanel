@@ -36,6 +36,10 @@
       "title": "{{name}}-এর ডিপ্লয় ব্যর্থ হয়েছে",
       "body": "{{message}}"
     },
+    "mail_error": {
+      "title": "{{name}}-এর ইমেইলে সমস্যা",
+      "body": "{{message}}"
+    },
     "database_error": {
       "title": "ডেটাবেস {{name}}-এ সমস্যা",
       "body": "{{message}}"

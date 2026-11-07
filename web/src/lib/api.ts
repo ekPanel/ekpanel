@@ -30,6 +30,10 @@ export interface Package {
   server_ids: string[];
   sftp: boolean;
   git_apps: boolean;
+  max_mail_domains: number;
+  max_mailboxes: number;
+  /** Largest size of one mailbox; null means no limit. */
+  mailbox_quota_mb: number | null;
   customers: number;
   created_at: string;
 }
@@ -39,6 +43,8 @@ export interface Usage {
   databases: number;
   apps: number;
   cron_jobs: number;
+  mail_domains: number;
+  mailboxes: number;
   disk_bytes: number;
 }
 
@@ -242,6 +248,98 @@ export interface Database extends Owned {
   applied_generation: number;
   created_at: string;
   updated_at: string;
+}
+
+// ---- Email ----
+
+/** A server with email: Stalwart and webmail at its mail host name. */
+export interface MailServer {
+  server_id: string;
+  server_name: string;
+  hostname: string;
+  tls: "auto" | "internal";
+  state: "pending" | "active" | "error";
+  message: string | null;
+  domains: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MailDNSRecord {
+  type: string;
+  name: string;
+  content: string;
+  priority?: number;
+}
+
+export interface MailDomain extends Owned {
+  id: string;
+  server_id: string;
+  server_name: string;
+  /** The server's mail host name: MX target, webmail and mail app settings. */
+  hostname: string;
+  domain: string;
+  catch_all: string | null;
+  state: SiteState;
+  message: string | null;
+  dns_records: MailDNSRecord[];
+  generation: number;
+  applied_generation: number;
+  mailboxes: number;
+  forwarders: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutoReply {
+  subject: string;
+  body: string;
+  start?: string;
+  end?: string;
+}
+
+export interface Mailbox {
+  id: string;
+  domain_id: string;
+  local_part: string;
+  quota_mb: number;
+  forward_to: string[];
+  keep_copy: boolean;
+  auto_reply: AutoReply | null;
+  used_bytes: number | null;
+  created_at: string;
+}
+
+/** Returned when the panel chose a mailbox password; it is shown only this once. */
+export interface MailboxWithPassword {
+  mailbox: Mailbox;
+  password?: string;
+}
+
+export interface MailForwarder {
+  id: string;
+  domain_id: string;
+  local_part: string;
+  destinations: string[];
+  created_at: string;
+}
+
+export interface MailDomainDetail {
+  domain: MailDomain;
+  mailboxes: Mailbox[];
+  forwarders: MailForwarder[];
+  /** The Cloudflare zone the records are published to; null: add them by hand. */
+  zone: DNSZone | null;
+}
+
+export interface MailCheck {
+  check: {
+    hostname: string;
+    hostname_addresses: string[];
+    port25: "open" | "blocked";
+    addresses: { address: string; ptr: string[]; ptr_ok: boolean; listed: string[]; unknown: string[]; checked: string[] }[];
+  };
+  public_addresses: string[];
 }
 
 /** Returned when a password is created or reset. The password is shown only this once. */

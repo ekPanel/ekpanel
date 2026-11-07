@@ -80,6 +80,15 @@ copy of the parts of Cloudflare's API ekPanel uses. Start the panel with
 `EKPANEL_CLOUDFLARE_API=http://127.0.0.1:18080/client/v4` and connect with the token
 `test-token`.
 
+## Trying email
+
+Turn email on for the test VM's server with a host name such as `mail.php.test` and the
+self-signed certificate. Mail delivered inside the VM (to 127.0.0.1 port 25) reaches
+mailboxes; webmail answers with `curl -k --resolve mail.php.test:443:127.0.0.1
+https://mail.php.test/`. Mail to the outside cannot leave the VM and stays queued. The
+agent's administrator login for Stalwart's API (127.0.0.1:18900) is in
+`/etc/ekpanel/mail/admin.env` on the server.
+
 ## Adding a service to the catalogue
 
 Each service is a Compose file in `internal/catalog/templates/<id>.yaml` and an entry in

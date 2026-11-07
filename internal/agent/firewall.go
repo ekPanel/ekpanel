@@ -135,6 +135,11 @@ func firewallRules(spec agentproto.FirewallSpec, ssh []int) ([][]string, error) 
 	for _, p := range basePorts {
 		rules = append(rules, []string{"allow", p})
 	}
+	if spec.Mail {
+		for _, p := range agentproto.MailPorts {
+			rules = append(rules, []string{"allow", strconv.Itoa(p) + "/tcp"})
+		}
+	}
 	for _, r := range spec.Rules {
 		rs, err := firewallRule(r)
 		if err != nil {

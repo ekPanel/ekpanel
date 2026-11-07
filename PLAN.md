@@ -632,19 +632,43 @@ Agreed (2026-11-07):
       hand reported and restored, records following a new address; a request from a Cloudflare
       address logged with the visitor's address, a spoofed header from elsewhere ignored
 - [ ] Not yet tried against the real Cloudflare API: needs an account and a test domain
-- [ ] DNS-01 certificates (wildcards) through Cloudflare, and mail records: with 3c
+- [x] Mail records: with 3c
+- [ ] DNS-01 certificates (wildcards) through Cloudflare
 
-**3c. Email**
-- [ ] Stalwart on the server, installed on first use (pinned version, checked download)
-- [ ] Mail domains, mailboxes with quotas and passwords, aliases, forwarders, catch-all,
-      autoresponders; package limits on mailboxes
-- [ ] DKIM keys made per domain; DKIM, SPF, DMARC and MX published to Cloudflare (3b), or
-      shown to copy for other DNS
-- [ ] Roundcube webmail as a PHP site on a domain the user picks
-- [ ] Deliverability check: reverse DNS (PTR), outgoing port 25 (many providers block it),
-      blocklists, and the published records
-- [ ] Tested in the VM: delivery inside the VM, IMAP, DKIM signatures, spam filtering
-      (delivery to outside mailboxes cannot be tested from the VM)
+**3c. Email — done**
+- [x] Email per server: an administrator picks the mail host name (MX target, SMTP greeting,
+      webmail address); the agent installs Stalwart 1.0.3 (checked against its published
+      SHA-256), first in Stalwart's recovery mode to move its listeners off ports 443 and 8080,
+      then keeps them to SMTP 25, submission 465 and 587, IMAPS 993 and POP3S 995, with the
+      management API on loopback only. The mail ports are opened in a managed firewall.
+      Turning email off stops the mail server and keeps its data
+- [x] Mail domains (customers: only the domains of their own websites), mailboxes with sizes
+      and passwords (SHA-512 crypt; the panel makes one if none is given and shows it once),
+      forwarders to local or outside addresses, catch-all, forwarding with or without a kept
+      copy, and auto-replies with optional dates (one Sieve script per mailbox, which mail
+      apps cannot change). Usage per mailbox. Packages limit mail domains, mailboxes and
+      mailbox size; mail counts toward the package's disk
+- [x] DKIM keys (RSA and Ed25519) made by Stalwart per domain. MX, SPF, DKIM, DMARC and TLS
+      reporting records, and the mail host name's A/AAAA records (never proxied), are
+      published to Cloudflare with 3b's sync, next to other TXT records at the same names; or
+      shown to copy for other DNS hosts
+- [x] Webmail: Roundcube 1.7.5 (checked download) at https://<mail host name>/, run by its own
+      PHP-FPM pool and account, signing in to the mail server over loopback. Caddy gets the
+      host name's certificate, and the agent hands the same certificate to the mail server
+      (and again after each renewal)
+- [x] Delivery check: the host name's DNS, outgoing port 25, reverse DNS of each public
+      address, and three blocklists
+- [x] Tested in the VM: mail to a mailbox, a forwarder and an unknown address (catch-all)
+      arrived; forwarding queued for outside; the auto-reply answered; sending as another
+      address was refused; IMAP served the Caddy certificate; webmail signed in; Roundcube's
+      installer and configuration were not reachable; a deleted mailbox could no longer sign
+      in; deleting the domain and turning email off removed everything and stopped the
+      service
+- [x] Found and fixed while testing: Stalwart refuses to delete its default domain, so the
+      last mail domain could never go. The mail host name is now the default domain
+- [ ] Not yet tried with real outside mail (needs a server with port 25 open and reverse DNS)
+- [ ] Later: per-domain mail host names and autoconfig for mail apps, DNS-01 wildcard
+      certificates, mailing lists with archives
 
 **3d. WordPress toolkit and app installer**
 - [ ] Every WordPress site in one list: core, plugin and theme updates (WP-CLI), automatic
@@ -670,4 +694,4 @@ Agreed (2026-11-07):
       (AXFR/NOTIFY); guidance for glue records
 
 **Next**
-- [ ] 3c. Email
+- [ ] 3d. WordPress toolkit and app installer

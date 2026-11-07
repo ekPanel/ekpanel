@@ -36,6 +36,10 @@
       "title": "Deploy of {{name}} failed",
       "body": "{{message}}"
     },
+    "mail_error": {
+      "title": "Email for {{name}} has a problem",
+      "body": "{{message}}"
+    },
     "database_error": {
       "title": "Database {{name}} has a problem",
       "body": "{{message}}"

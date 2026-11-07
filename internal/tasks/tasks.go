@@ -432,6 +432,13 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			params.Firewall.Rules = append(params.Firewall.Rules, spec)
 		}
 	}
+	mailDomains, err := r.mailSpec(ctx, serverID, &params)
+	if err != nil {
+		return sum, err
+	}
+	if params.Firewall != nil && params.Mail != nil {
+		params.Firewall.Mail = true
+	}
 	callCtx, cancel := context.WithTimeout(ctx, lease-5*time.Minute)
 	defer cancel()
 	raw, err := r.hub.Call(callCtx, serverID, agentproto.OpStateApply, params)
@@ -449,6 +456,9 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			r.log.Error("record apply failure", "server", serverID, "err", ferr)
 		}
 		if ferr := r.store.FailUnappliedCron(ctx, serverID, opErr.Message); ferr != nil {
+			r.log.Error("record apply failure", "server", serverID, "err", ferr)
+		}
+		if ferr := r.store.FailUnappliedMail(ctx, serverID, opErr.Message); ferr != nil {
 			r.log.Error("record apply failure", "server", serverID, "err", ferr)
 		}
 	}
@@ -531,6 +541,17 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			sum.Failed++
 		}
 	}
+	if params.Mail != nil && res.Mail == nil {
+		res.Mail = &agentproto.MailResult{OK: false, Error: "the agent does not support email; update the agent"}
+	}
+	if res.Mail != nil {
+		n, err := r.applyMailResult(ctx, serverID, mailDomains, res.Mail)
+		if err != nil {
+			return sum, err
+		}
+		sum.Applied += n.Applied
+		sum.Failed += n.Failed
+	}
 	if res.Firewall != nil {
 		st := store.FirewallStatus{Active: res.Firewall.Active, SSHPorts: res.Firewall.SSHPorts, Error: res.Firewall.Error, At: time.Now()}
 		if err := r.store.RecordFirewallStatus(ctx, serverID, st); err != nil {
@@ -541,8 +562,8 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		}
 	}
 	if sum.Failed > 0 {
-		return sum, fmt.Errorf("%d of %d items could not be applied; see each website, database or app for the reason",
-			sum.Failed, len(res.Sites)+len(res.Databases)+len(res.Apps)+len(res.Cron))
+		return sum, fmt.Errorf("%d of %d items could not be applied; see each website, database, app or mail domain for the reason",
+			sum.Failed, sum.Applied+sum.Failed)
 	}
 	return sum, nil
 }

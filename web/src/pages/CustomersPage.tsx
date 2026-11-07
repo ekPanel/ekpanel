@@ -69,6 +69,12 @@ export function UsageList({ usage, pkg }: { usage: Usage; pkg: Package }) {
       <UsageLine label={t("nav.sites")} have={usage.sites} limit={pkg.max_sites} text={count(usage.sites, pkg.max_sites)} />
       <UsageLine label={t("nav.databases")} have={usage.databases} limit={pkg.max_databases} text={count(usage.databases, pkg.max_databases)} />
       {pkg.max_apps > 0 && <UsageLine label={t("nav.apps")} have={usage.apps} limit={pkg.max_apps} text={count(usage.apps, pkg.max_apps)} />}
+      {pkg.max_mail_domains > 0 && (
+        <UsageLine label={t("packages.mail_domains")} have={usage.mail_domains} limit={pkg.max_mail_domains} text={count(usage.mail_domains, pkg.max_mail_domains)} />
+      )}
+      {pkg.max_mail_domains > 0 && (
+        <UsageLine label={t("packages.mailboxes")} have={usage.mailboxes} limit={pkg.max_mailboxes} text={count(usage.mailboxes, pkg.max_mailboxes)} />
+      )}
       {pkg.max_cron_jobs > 0 && (
         <UsageLine label={t("cron.title")} have={usage.cron_jobs} limit={pkg.max_cron_jobs} text={count(usage.cron_jobs, pkg.max_cron_jobs)} />
       )}
@@ -413,6 +419,9 @@ interface PackageForm {
   server_ids: string[];
   sftp: boolean;
   gitApps: boolean;
+  max_mail_domains: string;
+  max_mailboxes: string;
+  mailbox_gb: string;
 }
 
 const newPackage: PackageForm = {
@@ -429,6 +438,9 @@ const newPackage: PackageForm = {
   server_ids: [],
   sftp: true,
   gitApps: false,
+  max_mail_domains: "1",
+  max_mailboxes: "10",
+  mailbox_gb: "1",
 };
 
 function formFromPackage(p: Package): PackageForm {
@@ -446,6 +458,9 @@ function formFromPackage(p: Package): PackageForm {
     server_ids: p.server_ids,
     sftp: p.sftp,
     gitApps: p.git_apps,
+    max_mail_domains: String(p.max_mail_domains),
+    max_mailboxes: String(p.max_mailboxes),
+    mailbox_gb: p.mailbox_quota_mb === null ? "" : String(Math.round((p.mailbox_quota_mb / 1024) * 100) / 100),
   };
 }
 
@@ -525,6 +540,9 @@ function PackageDialog({ open, pkg, onClose }: { open: boolean; pkg: Package | n
       server_ids: f.server_ids,
       sftp: f.sftp,
       git_apps: f.gitApps,
+      max_mail_domains: Number(f.max_mail_domains || 0),
+      max_mailboxes: Number(f.max_mailboxes || 0),
+      mailbox_quota_mb: opt(f.mailbox_gb, 1024),
     };
     try {
       if (pkg) await api.put(`/packages/${pkg.id}`, body);
@@ -551,6 +569,12 @@ function PackageDialog({ open, pkg, onClose }: { open: boolean; pkg: Package | n
           <Field label={t("cron.title")} value={f.max_cron_jobs} onChange={digits("max_cron_jobs")} inputMode="numeric" dir="ltr" required />
         </div>
         <p className="-mt-3 text-sm text-muted">{t("packages.counts_hint")}</p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label={t("packages.mail_domains")} value={f.max_mail_domains} onChange={digits("max_mail_domains")} inputMode="numeric" dir="ltr" required />
+          <Field label={t("packages.mailboxes")} value={f.max_mailboxes} onChange={digits("max_mailboxes")} inputMode="numeric" dir="ltr" required />
+          <Field label={t("packages.mailbox_size")} value={f.mailbox_gb} onChange={digits("mailbox_gb", true)} inputMode="decimal" dir="ltr" />
+        </div>
+        <p className="-mt-3 text-sm text-muted">{t("packages.mailbox_size_hint")}</p>
         <div className="grid gap-3 sm:grid-cols-3">
           <Field
             label={t("packages.disk")}

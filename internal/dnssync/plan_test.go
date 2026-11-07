@@ -98,3 +98,66 @@ func TestPlan(t *testing.T) {
 		t.Fatalf("forced: %q %+v", kinds(actions), issues)
 	}
 }
+
+func TestPlanMailRecords(t *testing.T) {
+	want := []Want{
+		{Name: "example.com", Type: "MX", Content: "mail.example.net", Priority: 10, DNSOnly: true},
+		{Name: "example.com", Type: "TXT", Content: "v=spf1 mx -all", DNSOnly: true},
+		{Name: "_dmarc.example.com", Type: "TXT", Content: "v=DMARC1; p=reject", DNSOnly: true},
+		{Name: "sel._domainkey.example.com", Type: "TXT", Content: "v=DKIM1; k=rsa; p=AB", DNSOnly: true},
+		{Name: "mail.example.net", Type: "A", Content: "203.0.113.1", DNSOnly: true},
+	}
+	ours := []Managed{
+		// Cloudflare hands TXT content back quoted, and long data split into strings.
+		{RecordID: "r-dkim", Name: "sel._domainkey.example.com", Type: "TXT", Content: `"v=DKIM1; k=rsa; " "p=AB"`},
+	}
+	have := []cloudflare.Record{
+		{ID: "r-dkim", Type: "TXT", Name: "sel._domainkey.example.com", Content: `"v=DKIM1; k=rsa; " "p=AB"`},
+		{ID: "r-verify", Type: "TXT", Name: "example.com", Content: `"google-site-verification=abc"`},
+		{ID: "r-dmarc", Type: "TXT", Name: "_dmarc.example.com", Content: `"v=DMARC1; p=none"`},
+	}
+	actions, issues := Plan(want, ours, have, true, nil)
+	got := kinds(actions)
+	exp := []string{"create MX example.com mail.example.net ", "create TXT example.com v=spf1 mx -all ", "create A mail.example.net 203.0.113.1 "}
+	if len(got) != len(exp) {
+		t.Fatalf("actions %q, want %q", got, exp)
+	}
+	for i := range exp {
+		if got[i] != exp[i] {
+			t.Errorf("action %d: %q, want %q", i, got[i], exp[i])
+		}
+	}
+	for _, a := range actions {
+		if a.Record.Proxied {
+			t.Errorf("mail records are never proxied: %+v", a.Record)
+		}
+		if a.Record.Type == "MX" && (a.Record.Priority == nil || *a.Record.Priority != 10) {
+			t.Errorf("MX priority: %+v", a.Record)
+		}
+	}
+	// Someone else's DMARC policy is in the way; the site verification is not.
+	if len(issues) != 1 || issues[0].Kind != "conflict" || issues[0].Name != "_dmarc.example.com" {
+		t.Errorf("issues: %+v", issues)
+	}
+}
+
+func TestSameContent(t *testing.T) {
+	for _, c := range []struct {
+		typ, a, b string
+		same      bool
+	}{
+		{"TXT", `"v=spf1 mx -all"`, "v=spf1 mx -all", true},
+		{"TXT", `"a" "b"`, "ab", true},
+		{"TXT", `"say \"hi\""`, `say "hi"`, true},
+		{"TXT", "v=spf1 a", "v=spf1 mx", false},
+		{"MX", "Mail.Example.com.", "mail.example.com", true},
+		{"A", "203.0.113.1", "203.0.113.2", false},
+	} {
+		if sameContent(c.typ, c.a, c.b) != c.same {
+			t.Errorf("%s %q %q: want %v", c.typ, c.a, c.b, c.same)
+		}
+	}
+	if txtKind(`"v=DKIM1; k=rsa"`) != "v=dkim1" || txtKind("v=spf1 mx -all") != "v=spf1" {
+		t.Error("txtKind")
+	}
+}

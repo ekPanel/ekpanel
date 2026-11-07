@@ -8,7 +8,9 @@
     "done": "Done",
     "delete": "Delete",
     "back": "Back",
-    "language": "Language"
+    "language": "Language",
+    "save": "Save",
+    "edit": "Edit"
   },
   "nav": {
     "main": "Main navigation",
@@ -27,7 +29,8 @@
     "customers": "Customers",
     "packages": "Packages",
     "notifications": "Notifications",
-    "dns": "DNS"
+    "dns": "DNS",
+    "mail": "Email"
   },
   "theme": {
     "label": "Theme",
@@ -325,6 +328,20 @@
         "record_deleted": "DNS record deleted",
         "ssl_mode": "Cloudflare SSL mode changed",
         "cache_purged": "Cloudflare cache purged"
+      },
+      "mail": {
+        "server_set": "Email turned on or changed",
+        "server_removed": "Email turned off",
+        "domain_created": "Mail domain added",
+        "catch_all_set": "Catch-all changed",
+        "domain_deleted": "Mail domain deleted",
+        "mailbox_created": "Mailbox created",
+        "mailbox_updated": "Mailbox changed",
+        "mailbox_password_reset": "Mailbox password reset",
+        "mailbox_deleted": "Mailbox deleted",
+        "forwarder_created": "Forwarder created",
+        "forwarder_updated": "Forwarder changed",
+        "forwarder_deleted": "Forwarder deleted"
       }
     }
   },
@@ -489,7 +506,23 @@
     "invalid_record": "This record is not valid.",
     "managed_record": "ekPanel made this record for a website or app; it goes when that does.",
     "invalid_ssl_mode": "Choose off, flexible, full or strict.",
-    "invalid_address": "Enter an IPv4 and an IPv6 address, or leave them empty."
+    "invalid_address": "Enter an IPv4 and an IPv6 address, or leave them empty.",
+    "mail_not_found": "That mail domain, mailbox or forwarder does not exist.",
+    "mail_host_taken": "Another server already uses this mail host name.",
+    "mail_domain_taken": "This domain already has email in the panel.",
+    "mail_address_taken": "This domain already has a mailbox or forwarder with that address.",
+    "mail_in_use": "Delete the server's mail domains first.",
+    "mail_not_enabled": "This server has no email. Turn it on first.",
+    "mail_domain_not_owned": "Add a website with this domain first. You can only add email for your own websites' domains.",
+    "invalid_hostname": "Enter a host name such as mail.example.com.",
+    "invalid_local_part": "Use lowercase letters, digits and . _ + - , starting and ending with a letter or digit.",
+    "invalid_quota": "Enter a size in MB, or leave it empty for no limit.",
+    "quota_too_large": "The package allows smaller mailboxes. Enter a size within its mailbox size.",
+    "invalid_forward": "Check the forwarding addresses. A mailbox that keeps no copy must forward its mail.",
+    "invalid_auto_reply": "The auto-reply needs a subject, a message and dates in the right order.",
+    "invalid_catch_all": "Choose one of the domain's mailboxes.",
+    "limit_reached_mail_domain": "Your package allows no more mail domains.",
+    "limit_reached_mailbox": "Your package allows no more mailboxes."
   },
   "not_found": {
     "title": "Page not found",
@@ -722,6 +755,148 @@
       "warning": "All tables and data in this database are deleted permanently. Applications using it stop working.",
       "confirm": "Type {{name}} to confirm",
       "button": "Delete database"
+    }
+  },
+  "mail": {
+    "intro": "Mailboxes, forwarders and webmail for your domains. Records for receiving mail and proving it is genuine are published to Cloudflare when the domain is there.",
+    "state": {
+      "pending": "Applying",
+      "active": "Active",
+      "error": "Error",
+      "deleting": "Deleting"
+    },
+    "error_title": "Email for this domain could not be set up",
+    "applying": "Applying the change on the server…",
+    "empty": {
+      "title": "No email yet",
+      "body": "Add a domain to create mailboxes such as info@yourdomain.com.",
+      "no_server": "Email is not available yet. Ask your hosting provider to turn it on.",
+      "no_server_admin": "Turn on email on a server above first."
+    },
+    "server": {
+      "title": "Mail servers",
+      "intro": "Each server with email runs its own mail server and webmail. Its host name is where mail apps connect and where other mail servers deliver.",
+      "off": "Email is off",
+      "enable": "Turn on email",
+      "disable": "Turn off",
+      "enable_title": "Turn on email on {{name}}",
+      "enable_body": "This installs a mail server (Stalwart) and webmail (Roundcube) and opens the mail ports in the firewall. It takes a minute or two.",
+      "edit": "Email on {{name}}",
+      "hostname": "Mail host name",
+      "hostname_hint": "A name of its own, such as mail.example.com, pointing at this server. Webmail opens there too.",
+      "tls": "Certificate",
+      "tls_auto": "Let's Encrypt (the host name must point at this server)",
+      "tls_internal": "Self-signed (for testing)",
+      "domains_one": "{{n}} domain",
+      "domains_other": "{{n}} domains",
+      "state": {
+        "pending": "Setting up",
+        "active": "Running",
+        "error": "Problem"
+      }
+    },
+    "check": {
+      "button": "Check delivery",
+      "title": "Will other mail servers accept this server's mail?",
+      "running": "Checking DNS, the reverse name and blocklists…",
+      "again": "Check again",
+      "nothing": "nothing",
+      "no_public": "This server has no public address. Set one under the server's addresses.",
+      "host_ok": "{{host}} points at this server.",
+      "host_bad": "{{host}} points at {{have}}, but should point at {{want}}. Add an A record for it.",
+      "port25_open": "This server can reach other mail servers on port 25.",
+      "port25_blocked": "Outgoing port 25 is blocked, so mail cannot be sent. Many providers block it until you ask them to open it.",
+      "ptr_ok": "The reverse name of this address is {{host}}.",
+      "ptr_bad": "The reverse name of this address is {{have}}. Ask your provider to set it to {{host}}; many mail servers refuse mail without it.",
+      "listed": "Listed as a spam source by {{lists}}. Ask for removal on their websites.",
+      "unknown": "Could not ask {{lists}} (they do not answer this server's DNS resolver).",
+      "clean_one": "Not listed on the blocklist checked.",
+      "clean_other": "Not listed on any of the {{count}} blocklists checked."
+    },
+    "domain": {
+      "name": "Domain",
+      "name_hint": "Mail will be addressed to name@ this domain.",
+      "add": "Add mail domain",
+      "create": "Add domain",
+      "delete": "Delete mail domain",
+      "delete_title": "Delete email for {{domain}}?",
+      "delete_title_short": "Delete mail domain",
+      "delete_body": "Removes every mailbox of this domain with all its mail, and its forwarders.",
+      "delete_warning": "Every mailbox of this domain is deleted with all its mail. This cannot be undone."
+    },
+    "apps": {
+      "title": "Mail apps and webmail",
+      "intro": "Use these settings in Thunderbird, Outlook or a phone's mail app for any mailbox of {{domain}}.",
+      "server": "Server",
+      "imap": "IMAP",
+      "imap_value": "993, SSL/TLS",
+      "pop3": "POP3",
+      "pop3_value": "995, SSL/TLS",
+      "smtp": "Sending (SMTP)",
+      "smtp_value": "465 SSL/TLS, or 587 STARTTLS",
+      "username": "User name",
+      "username_value": "the whole address, name@{{domain}}",
+      "webmail": "Open webmail"
+    },
+    "dns": {
+      "title": "DNS records",
+      "published": "ekPanel keeps these records in the Cloudflare zone {{zone}}.",
+      "manual": "Add these records where this domain's DNS is hosted. With the domain on Cloudflare, ekPanel adds and updates them for you.",
+      "open_zone": "Open the zone",
+      "use_cloudflare": "Connect Cloudflare",
+      "waiting": "The records appear once the mail server has set up the domain.",
+      "type": "Type",
+      "name": "Name",
+      "value": "Value",
+      "hint": "MX brings mail to this server; SPF, DKIM and DMARC let other servers trust the mail it sends."
+    },
+    "mailboxes": {
+      "title": "Mailboxes",
+      "add": "Add mailbox",
+      "create": "Create mailbox",
+      "edit": "Mailbox {{address}}",
+      "empty": "No mailboxes yet.",
+      "address": "Address",
+      "password": "Password",
+      "new_password": "New password",
+      "password_hint": "At least 10 characters. Leave empty and the panel makes one.",
+      "password_once": "This password is shown only now. Save it in a password manager or give it to the mailbox's owner.",
+      "quota": "Size (MB)",
+      "quota_hint": "Empty for no limit (if the package allows).",
+      "forwarding": "Forwarding",
+      "forward_hint": "Send a copy of every message to these addresses, one per line.",
+      "keep_copy": "Keep a copy in this mailbox",
+      "forwards_copy": "Forwards a copy",
+      "forwards_only": "Forwards only",
+      "auto_reply": "Auto-reply",
+      "auto_reply_on": "Answer incoming mail automatically",
+      "auto_reply_hint": "Each sender gets the answer at most once a day. Without dates it stays on until you turn it off.",
+      "subject": "Subject",
+      "message": "Message",
+      "from": "From",
+      "until": "Until",
+      "reset": "New password",
+      "usage": "{{used}} used",
+      "usage_of": "{{used}} of {{limit}}",
+      "delete_title": "Delete {{address}}?",
+      "delete_body": "The mailbox and all its mail are deleted. This cannot be undone."
+    },
+    "forwarders": {
+      "title": "Forwarders",
+      "intro": "Addresses without a mailbox that pass mail on, such as sales@ to several people.",
+      "add": "Add forwarder",
+      "create": "Create forwarder",
+      "edit": "Forwarder {{address}}",
+      "to": "Forward to",
+      "to_hint": "One address per line. They may be mailboxes here or anywhere else.",
+      "delete_title": "Delete {{address}}?",
+      "delete_body": "Mail to this address will be refused."
+    },
+    "catch_all": {
+      "title": "Catch-all",
+      "intro": "Mail to addresses of {{domain}} that do not exist goes to this mailbox instead of being refused. It attracts spam.",
+      "off": "Off: refuse unknown addresses",
+      "badge": "Catch-all"
     }
   },
   "files": {
@@ -1371,7 +1546,11 @@
     "includes_text": "{{sites}} websites · {{databases}} databases · {{apps}} apps · {{cron}} cron jobs",
     "disk_unlimited": "Unlimited disk",
     "git_apps": "Git apps",
-    "git_apps_hint": "Customers can build and deploy their own repositories. Builds run on the server, within the package's memory and CPU."
+    "git_apps_hint": "Customers can build and deploy their own repositories. Builds run on the server, within the package's memory and CPU.",
+    "mail_domains": "Mail domains",
+    "mailboxes": "Mailboxes",
+    "mailbox_size": "Mailbox size (GB)",
+    "mailbox_size_hint": "Largest size of one mailbox. Leave empty for no limit."
   },
   "cron": {
     "title": "Cron jobs",
@@ -1509,6 +1688,7 @@
       "app_error": "App problem",
       "deploy_failed": "Deploy failed",
       "database_error": "Database problem",
+      "mail_error": "Email problem",
       "quota_warning": "Disk space almost used up",
       "quota_full": "Disk space used up",
       "task_failed": "Task failed",

@@ -52,6 +52,10 @@ email, DNS and game servers, with a modern UI in your own language.
 - **Cloudflare DNS**: connect your Cloudflare account once and every website and app gets
   its DNS records, kept in sync when servers or domains change, with a zone editor, the SSL
   mode check, cache purge, and visitors' real addresses in your logs
+- **Email**: mailboxes with sizes, forwarders, catch-all, forwarding and auto-replies, and
+  webmail (Roundcube) on a mail server (Stalwart) the panel sets up for you. MX, SPF, DKIM
+  and DMARC records go to Cloudflare by themselves, or are shown to copy elsewhere, and a
+  delivery check looks at reverse DNS, port 25 and blocklists
 - **Docker apps**: run any image or Compose file, with a domain and free HTTPS, variables,
   kept folders, limits, logs and one-click image updates. App ports stay private to the
   server, so Docker cannot open holes in the firewall

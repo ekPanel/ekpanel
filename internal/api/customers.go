@@ -27,7 +27,8 @@ func (s *Server) validPackage(w http.ResponseWriter, r *http.Request, l *store.P
 	case l.Name == "" || utf8.RuneCountInString(l.Name) > 60:
 		return fail("invalid_name", "enter a name of up to 60 characters")
 	case l.MaxSites < 0 || l.MaxDatabases < 0 || l.MaxApps < 0 || l.MaxCronJobs < 0 || l.MaxSites > 100000 || l.MaxDatabases > 100000 ||
-		l.MaxApps > 100000 || l.MaxCronJobs > 100000:
+		l.MaxApps > 100000 || l.MaxCronJobs > 100000 || l.MaxMailDomains < 0 || l.MaxMailDomains > 100000 ||
+		l.MaxMailboxes < 0 || l.MaxMailboxes > 100000:
 		return fail("invalid_package", "counts must be between 0 and 100,000")
 	case l.DiskMB != nil && (*l.DiskMB < 1 || *l.DiskMB > 1<<30):
 		return fail("invalid_package", "the disk space must be at least 1 MB")
@@ -35,6 +36,8 @@ func (s *Server) validPackage(w http.ResponseWriter, r *http.Request, l *store.P
 		return fail("invalid_package", "the memory limit must be at least 64 MB")
 	case l.CPUPercent != nil && (*l.CPUPercent < 5 || *l.CPUPercent > 102400):
 		return fail("invalid_package", "the CPU limit must be at least 5%")
+	case l.MailboxQuotaMB != nil && (*l.MailboxQuotaMB < 1 || *l.MailboxQuotaMB > agentproto.MaxMailboxQuotaMB):
+		return fail("invalid_package", "the mailbox size must be at least 1 MB")
 	}
 	if l.PHPVersions == nil {
 		l.PHPVersions = []string{}

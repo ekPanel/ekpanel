@@ -94,7 +94,7 @@ func zoneFor(host string, owner *string, zones []store.DNSZone) *store.DNSZone {
 	return best
 }
 
-// SyncZones brings one zone (or all, zoneID "") in line with the panel's websites and apps.
+// SyncZones brings one zone (or all, zoneID "") in line with the panel's websites, apps and email.
 // Keys in force ("A www.example.com") overwrite what is in the way.
 func (r *Runner) SyncZones(ctx context.Context, zoneID string, force map[string]bool) error {
 	zones, err := r.store.ListZones(ctx, true, "")
@@ -121,6 +121,42 @@ func (r *Runner) SyncZones(ctx context.Context, zoneID string, force map[string]
 		}
 		if v4 == "" && v6 == "" {
 			noAddress[z.ID] = append(noAddress[z.ID], dnssync.Issue{Kind: "no_address", Name: t.Hostname, Type: "A", Server: t.ServerName})
+		}
+	}
+	// Email: the mail host name points at its server (never through Cloudflare's proxy,
+	// which carries only web traffic), and each mail domain gets its MX, SPF, DKIM, DMARC
+	// and TLS reporting records.
+	mailHosts, err := r.store.MailHostTargets(ctx)
+	if err != nil {
+		return err
+	}
+	for _, t := range mailHosts {
+		z := zoneFor(t.Hostname, nil, zones)
+		if z == nil {
+			continue
+		}
+		v4, v6 := publicAddress(t, "A"), publicAddress(t, "AAAA")
+		if v4 != "" {
+			want[z.ID] = append(want[z.ID], dnssync.Want{Name: t.Hostname, Type: "A", Content: v4, DNSOnly: true})
+		}
+		if v6 != "" {
+			want[z.ID] = append(want[z.ID], dnssync.Want{Name: t.Hostname, Type: "AAAA", Content: v6, DNSOnly: true})
+		}
+		if v4 == "" && v6 == "" {
+			noAddress[z.ID] = append(noAddress[z.ID], dnssync.Issue{Kind: "no_address", Name: t.Hostname, Type: "A", Server: t.ServerName})
+		}
+	}
+	mail, err := r.store.MailTargets(ctx)
+	if err != nil {
+		return err
+	}
+	for _, m := range mail {
+		z := zoneFor(m.Domain, m.OwnerID, zones)
+		if z == nil {
+			continue
+		}
+		for _, rec := range m.Records {
+			want[z.ID] = append(want[z.ID], dnssync.Want{Name: rec.Name, Type: rec.Type, Content: rec.Content, Priority: rec.Priority, DNSOnly: true})
 		}
 	}
 	var errs []error
@@ -226,3 +262,12 @@ func isNotFound(err error) bool {
 	var e *cloudflare.Error
 	return errors.As(err, &e) && e.Status == 404
 }
+
+// ZoneFor is the zone, among zones, that holds host for its owner, or nil.
+func ZoneFor(host string, owner *string, zones []store.DNSZone) *store.DNSZone {
+	return zoneFor(host, owner, zones)
+}
+
+// PublicAddress is the address of type ("A" or "AAAA") that DNS records point at for t,
+// or "".
+func PublicAddress(t store.HostTarget, typ string) string { return publicAddress(t, typ) }

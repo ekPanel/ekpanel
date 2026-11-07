@@ -19,3 +19,10 @@ func LinuxPasswordHash(password string) (string, error) {
 func CheckLinuxPassword(hash, password string) bool {
 	return crypt.SHA512.New().Verify(hash, []byte(password)) == nil
 }
+
+// MailPasswordHash is a SHA-512 crypt hash for a mailbox, with the standard 5,000 rounds:
+// the mail server checks it on every sign-in, and webmail and mail apps sign in often.
+func MailPasswordHash(password string) (string, error) {
+	salt := NewDatabasePassword()[:16]
+	return crypt.SHA512.New().Generate([]byte(password), []byte("$6$"+salt))
+}

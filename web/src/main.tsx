@@ -22,6 +22,7 @@ import { AppDetailPage, AppsPage } from "./pages/AppsPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { DNSPage } from "./pages/DNSPage";
 import { ZonePage } from "./pages/ZonePage";
+import { MailDomainPage, MailPage } from "./pages/MailPage";
 import { CustomersPage, PackagesPage } from "./pages/CustomersPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { AppTerminalPage, ServerTerminalPage } from "./pages/TerminalPage";
@@ -86,6 +87,8 @@ const router = createBrowserRouter([
       { path: "/databases", element: <DatabasesPage /> },
       { path: "/databases/:id", element: <DatabaseDetailPage /> },
       { path: "/apps", element: <AppsPage /> },
+      { path: "/mail", element: <MailPage /> },
+      { path: "/mail/:id", element: <MailDomainPage /> },
       { path: "/dns", element: <DNSPage /> },
       { path: "/dns/:id", element: <ZonePage /> },
       { path: "/apps/catalog", element: <CatalogPage /> },

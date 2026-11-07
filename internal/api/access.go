@@ -118,6 +118,8 @@ func (s *Server) allowNew(w http.ResponseWriter, r *http.Request, p placement, k
 		limit, have = pkg.MaxApps, usage.Apps
 	case "cron":
 		limit, have = pkg.MaxCronJobs, usage.CronJobs
+	case "mail_domain":
+		limit, have = pkg.MaxMailDomains, usage.MailDomains
 	}
 	if have >= limit {
 		writeError(w, http.StatusConflict, "limit_reached_"+kind, "the package allows no more of these")

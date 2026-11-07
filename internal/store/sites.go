@@ -288,10 +288,11 @@ func (s *Store) FailUnappliedSites(ctx context.Context, serverID, message string
 }
 
 // ServersWithSites lists servers that host at least one site, database or app, or whose
-// firewall ekPanel manages.
+// firewall ekPanel manages, or that have email.
 func (s *Store) ServersWithSites(ctx context.Context) ([]string, error) {
 	rows, err := s.pool.Query(ctx, `SELECT server_id::text FROM sites UNION SELECT server_id::text FROM databases
-		UNION SELECT server_id::text FROM apps UNION SELECT id::text FROM servers WHERE firewall <> 'unmanaged'`)
+		UNION SELECT server_id::text FROM apps UNION SELECT id::text FROM servers WHERE firewall <> 'unmanaged'
+		UNION SELECT server_id::text FROM mail_servers`)
 	if err != nil {
 		return nil, err
 	}

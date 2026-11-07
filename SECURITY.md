@@ -77,6 +77,15 @@ ekPanel is in early development and has no stable release yet. Fixes go into the
   manage only their zones, which only get their own websites and apps. ekPanel changes or
   deletes only DNS records it made, and none that someone changed since. Caddy trusts the
   CF-Connecting-IP header only from Cloudflare's published address ranges.
+- Email: the mail server (Stalwart) and webmail (Roundcube) are pinned versions checked
+  against their published SHA-256. The mail server's management API listens on loopback
+  only; the agent signs in with a random password kept in a root-only file on the server.
+  Mailbox passwords are stored only as SHA-512 crypt hashes (with the usual 5,000 rounds,
+  since every mail sign-in checks them). Mailbox and forwarder addresses are checked by
+  panel and agent alike, so no input reaches the mail server's settings or filter scripts
+  unchecked. Mail apps cannot change filter scripts (ManageSieve is off). Webmail accepts only full
+  addresses as user names and three failed sign-ins a minute. Customers can add
+  email only for the domains of their own websites.
 - Revoking an agent's certificate (a new connection command, or deleting the server) also
   closes any connection the agent has open.
 - Secrets the panel must reuse (notification channel tokens, webhook addresses and keys, the
