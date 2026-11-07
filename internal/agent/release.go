@@ -54,7 +54,20 @@ func releaseGitApp(ctx context.Context, sys *system, ap agentproto.AppSpec) erro
 		return nil
 	}
 	if len(running) == 0 {
-		return up("--remove-orphans", "--wait", "--wait-timeout", "120")
+		// Nothing to keep serving: start it, then make sure it stays up.
+		if err := up("--remove-orphans", "--wait", "--wait-timeout", "120"); err != nil {
+			return err
+		}
+		started, err := gitContainers(ctx, sys, ap.Name)
+		if err != nil || len(started) != 1 {
+			return fmt.Errorf("expected one container, found %d", len(started))
+		}
+		if err := waitForContainer(ctx, sys, started[0], ap.ContainerPort); err != nil {
+			logs, _ := sys.run(ctx, "docker", "logs", "--tail", "10", started[0])
+			sys.run(context.WithoutCancel(ctx), "docker", "rm", "--force", started[0])
+			return fmt.Errorf("the app did not start: %v %s", err, lastLines(logs, 5))
+		}
+		return nil
 	}
 	if len(running) == 1 {
 		// Compose labels each container with a hash of its settings (image, variables,

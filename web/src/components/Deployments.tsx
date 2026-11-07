@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, GitBranch, Rocket, Undo2, Webhook } from "lucide-react";
+import { Link } from "react-router";
+import { ExternalLink, Eye, EyeOff, GitBranch, GitPullRequest, Rocket, Undo2, Webhook } from "lucide-react";
 import { api, errorMessage, type App, type Deployment } from "../lib/api";
 import { formatElapsed, formatRelative } from "../lib/format";
 import { Badge, Button, Card, CopyButton, ErrorAlert, Spinner, cx, type Tone } from "./ui";
@@ -273,5 +274,75 @@ function DeploymentLog({ app, deployment }: { app: App; deployment: Deployment }
         {text || (running ? t("deploys.waiting") : t("deploys.no_log"))}
       </pre>
     </div>
+  );
+}
+
+/** On a preview: which app and pull request it previews. */
+export function PreviewOfNote({ app }: { app: App }) {
+  const { t } = useTranslation();
+  const parent = useQuery({ queryKey: ["apps", app.preview_of], queryFn: () => api.get<App>(`/apps/${app.preview_of}`) });
+  return (
+    <p className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
+      <GitPullRequest className="size-4 text-accent" aria-hidden />
+      {t("previews.of", { number: app.preview_number, branch: app.git_branch })}
+      {parent.data && (
+        <Link to={`/apps/${parent.data.id}`} className="font-medium text-accent hover:underline" dir="ltr">
+          {parent.data.name}
+        </Link>
+      )}
+      <span className="text-muted">{t("previews.goes_away")}</span>
+    </p>
+  );
+}
+
+/** The previews of an app's pull requests. */
+export function PreviewsCard({ app }: { app: App }) {
+  const { t } = useTranslation();
+  const list = useQuery({
+    queryKey: ["previews", app.id],
+    queryFn: () => api.get<App[]>(`/apps/${app.id}/previews`),
+    refetchInterval: (q) => (q.state.data?.some((p) => p.state === "pending" || p.state === "deleting") ? 3000 : 30000),
+  });
+  return (
+    <Card className="overflow-hidden">
+      <div className="border-b border-line px-4 py-3">
+        <h2 className="font-semibold">{t("previews.title")}</h2>
+        <p className="text-sm text-muted">{t("previews.intro", { domain: app.preview_domain ?? "" })}</p>
+      </div>
+      {list.isPending && <Spinner />}
+      {list.error && (
+        <div className="p-4">
+          <ErrorAlert>{errorMessage(t, list.error)}</ErrorAlert>
+        </div>
+      )}
+      {list.data?.length === 0 && <p className="px-4 py-6 text-center text-sm text-muted">{t("previews.none")}</p>}
+      <ul className="divide-y divide-line">
+        {list.data?.map((p) => (
+          <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm">
+            <GitPullRequest className="size-4 text-muted" aria-hidden />
+            <Link to={`/apps/${p.id}`} className="font-semibold hover:text-accent">
+              #{p.preview_number}
+            </Link>
+            <span className="min-w-0 truncate font-mono text-xs" dir="ltr">
+              {p.git_branch}
+            </span>
+            <Badge tone={p.state === "error" ? "crit" : p.state === "active" ? (p.image ? "ok" : "neutral") : "warn"}>
+              {p.state === "active" && !p.image ? t("previews.building") : t(`sites.state.${p.state}`)}
+            </Badge>
+            {p.domain && p.image && p.state !== "deleting" && (
+              <a
+                href={`https://${p.domain_display}`}
+                target="_blank"
+                rel="noreferrer"
+                className="ms-auto inline-flex items-center gap-1 text-accent hover:underline"
+              >
+                <bdi>{p.domain_display}</bdi>
+                <ExternalLink className="size-3.5" aria-hidden />
+              </a>
+            )}
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }

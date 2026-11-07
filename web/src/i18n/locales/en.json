@@ -275,7 +275,9 @@
         "update_started": "App update started",
         "deleted": "App deleted",
         "deploy_started": "Deploy started",
-        "rolled_back": "Rolled back"
+        "rolled_back": "Rolled back",
+        "preview_created": "Preview created",
+        "preview_removed": "Preview removed"
       },
       "package": {
         "created": "Package created",
@@ -445,7 +447,7 @@
     "confirm_required": "Enter your password again to open a terminal.",
     "domain_required": "This service is used through its domain; enter one.",
     "template_not_found": "That service is not in the catalogue.",
-    "git_not_allowed": "Git apps are for administrators for now.",
+    "git_not_allowed": "The package does not include Git apps.",
     "invalid_repo": "Enter the repository's https:// address, or its SSH address (git@host:owner/repo.git).",
     "invalid_branch": "Enter a branch name, such as main.",
     "invalid_repo_path": "The Dockerfile and build folder are paths inside the repository.",
@@ -453,7 +455,9 @@
     "not_git_app": "Only Git apps are deployed.",
     "deployment_not_found": "That deployment does not exist.",
     "rollback_not_possible": "Only the last five earlier releases can be returned to.",
-    "git_app_update": "A Git app is updated by deploying it."
+    "git_app_update": "A Git app is updated by deploying it.",
+    "invalid_builder": "Build with the Dockerfile, with Railpack, or automatically.",
+    "preview_domain_required": "Enter the domain previews go under, such as preview.example.com."
   },
   "not_found": {
     "title": "Page not found",
@@ -1055,7 +1059,30 @@
       "manual": "By {{name}}",
       "webhook": "By a push",
       "rollback": "Rollback by {{name}}"
+    },
+    "builder": "Build with",
+    "builders": {
+      "auto": "Automatic",
+      "dockerfile": "Dockerfile",
+      "railpack": "Railpack"
+    },
+    "builder_hint": {
+      "auto": "The Dockerfile if the repository has one, otherwise Railpack.",
+      "dockerfile": "The repository's own Dockerfile.",
+      "railpack": "Detects the language and framework; no Dockerfile needed."
     }
+  },
+  "previews": {
+    "enable": "Preview each pull request",
+    "enable_hint": "A pull request to the branch gets an app of its own, rebuilt on every push and removed when the request closes. Pull requests from forks are not previewed. At most 5 at a time.",
+    "domain": "Domain for previews",
+    "domain_hint": "Point *.{{domain}} at the server; a preview of pull request 12 is at <app>-pr12.{{domain}}.",
+    "title": "Previews",
+    "intro": "Pull requests to this app's branch, each at its own address under {{domain}}.",
+    "none": "No open pull requests. Open one in the repository to see its preview here.",
+    "building": "Not built yet",
+    "of": "Preview of pull request #{{number}} ({{branch}}) of",
+    "goes_away": "It is removed when the pull request closes."
   },
   "customers": {
     "intro": "People who host with you. Each customer sees only their own websites, databases and apps, within the limits of their package.",
@@ -1116,7 +1143,9 @@
     "includes": "Includes",
     "resources": "Resources",
     "includes_text": "{{sites}} websites · {{databases}} databases · {{apps}} apps · {{cron}} cron jobs",
-    "disk_unlimited": "Unlimited disk"
+    "disk_unlimited": "Unlimited disk",
+    "git_apps": "Git apps",
+    "git_apps_hint": "Customers can build and deploy their own repositories. Builds run on the server, within the package's memory and CPU."
   },
   "cron": {
     "title": "Cron jobs",

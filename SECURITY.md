@@ -69,7 +69,10 @@ ekPanel is in early development and has no stable release yet. Fixes go into the
   transports, keep the Dockerfile and build folder inside the repository (also through
   links), and pass variables to builds through the environment. Each app's deploy key and
   webhook secret are sealed with the panel's key; webhooks must be signed (HMAC-SHA256, or
-  GitLab's token) and failures are rate limited. Only administrators can create Git apps.
+  GitLab's token) and failures are rate limited. Git apps are for administrators, and for
+  customers whose package includes them; a customer's builds and containers run in their
+  slice. Pull requests from forks are never previewed, since their code would run on the
+  server. Railpack is a pinned version, checked against its published SHA-256.
 - Revoking an agent's certificate (a new connection command, or deleting the server) also
   closes any connection the agent has open.
 - Secrets the panel must reuse (notification channel tokens, webhook addresses and keys, the

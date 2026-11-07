@@ -240,6 +240,10 @@ func (s *Server) handleGitHook(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		return
 	}
+	if event == "pull_request" || event == "Merge Request Hook" {
+		s.handlePullRequest(w, r, app, event, body)
+		return
+	}
 	var push struct {
 		Ref     string `json:"ref"`
 		After   string `json:"after"`

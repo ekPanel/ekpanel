@@ -1,10 +1,16 @@
 package agent
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -35,6 +41,10 @@ func gitDocker(t *testing.T, f *fakeSystem) (*fakeContainers, *[]command) {
 			d.running = append(d.running, id)
 			d.labels[id] = d.hash
 		}
+		if slices.Contains(c.args, "--wait") && !slices.Contains(c.args, "--scale") && len(d.running) == 0 {
+			d.running = append(d.running, "c0")
+			d.labels["c0"] = d.hash
+		}
 		if slices.Contains(c.args, "--hash") {
 			return []byte("app " + d.hash + "\n"), nil
 		}
@@ -56,6 +66,9 @@ func gitDocker(t *testing.T, f *fakeSystem) (*fakeContainers, *[]command) {
 			}
 			return []byte(d.labels[id]), nil
 		case "port":
+			if args[1] == "c0" {
+				return []byte("127.0.0.1:20010\n"), nil
+			}
 			return []byte("127.0.0.1:20011\n"), nil
 		case "images":
 			return []byte(strings.Join(d.images, "\n")), nil
@@ -104,7 +117,8 @@ func TestGitRelease(t *testing.T) {
 		t.Fatalf("first release: %+v %q", r, composeVerbs(*calls))
 	}
 	file, _ := os.ReadFile(filepath.Join(f.root, appsDir, "shop", appComposeFile))
-	if !strings.Contains(string(file), `"127.0.0.1:20010-20011:3000"`) || !strings.Contains(string(file), `"image": "ekpanel/shop:aaa111"`) {
+	if !strings.Contains(string(file), `"127.0.0.1:20010-20011:3000"`) || !strings.Contains(string(file), `"image": "ekpanel/shop:aaa111"`) ||
+		!strings.Contains(string(file), `"PORT": "3000"`) {
 		t.Fatalf("compose file:\n%s", file)
 	}
 	conf, _ := os.ReadFile(caddy)
@@ -170,6 +184,26 @@ func TestGitRelease(t *testing.T) {
 	}
 }
 
+func TestGitFirstReleaseFails(t *testing.T) {
+	f := newFakeSystem(t)
+	d, calls := gitDocker(t, f)
+	d.ready = errors.New("it did not answer within 3 minutes")
+	ap := gitApp()
+	ap.Image, ap.Generation = "ekpanel/shop:aaa111", 2
+	if r := applyOne(t, f, ap); r.OK || !strings.Contains(r.Error, "the app did not start") || !slices.Contains(f.calls, "docker rm --force c0") {
+		t.Fatalf("a first release that does not start must fail and go: %+v %q", r, f.calls)
+	}
+	// The panel then goes back to no build: whatever is left stops, the domain goes.
+	*calls = nil
+	ap.Image, ap.Generation = "", 3
+	if r := applyOne(t, f, ap); !r.OK || !slices.Contains(composeVerbs(*calls), "down --remove-orphans") {
+		t.Fatalf("back to undeployed: %+v %q", r, composeVerbs(*calls))
+	}
+	if _, err := os.Stat(filepath.Join(f.root, appsDir, "shop", appComposeFile)); err == nil {
+		t.Error("the Compose file of a build that is gone must go")
+	}
+}
+
 func TestValidateGitApp(t *testing.T) {
 	ok := gitApp()
 	ok.Image = "ekpanel/shop:abc123"
@@ -194,7 +228,7 @@ func TestValidateGitApp(t *testing.T) {
 
 func TestValidateBuild(t *testing.T) {
 	ok := agentproto.BuildParams{Stream: "s1", App: "shop", Image: "ekpanel/shop:abc", Repo: "https://github.com/acme/shop.git",
-		Branch: "main", Dockerfile: "Dockerfile", Context: "."}
+		Branch: "main", Builder: "dockerfile", Dockerfile: "Dockerfile", Context: "."}
 	for _, repo := range []string{"https://github.com/acme/shop.git", "git@github.com:acme/shop.git", "ssh://git@git.example.com:2222/acme/shop.git", "https://gitea.example.com/acme/shop"} {
 		p := ok
 		p.Repo = repo
@@ -216,6 +250,9 @@ func TestValidateBuild(t *testing.T) {
 		func(p *agentproto.BuildParams) { p.Context = "/" },
 		func(p *agentproto.BuildParams) { p.Image = "nginx:latest" },
 		func(p *agentproto.BuildParams) { p.Env = []agentproto.EnvVar{{Key: "BAD KEY"}} },
+		func(p *agentproto.BuildParams) { p.Builder = "nixpacks" },
+		func(p *agentproto.BuildParams) { p.Ref = "refs/heads/main" },
+		func(p *agentproto.BuildParams) { p.Ref = "refs/pull/7/head; rm -rf /" },
 	} {
 		p := ok
 		change(&p)
@@ -257,7 +294,7 @@ func TestRunBuild(t *testing.T) {
 	}
 	var out []byte
 	w := &streamWriter{id: "s1", send: func(env agentproto.Envelope) error { out = append(out, env.Data...); return nil }}
-	p := agentproto.BuildParams{Stream: "s1", App: "shop", Image: "ekpanel/shop:abc", Repo: "git@github.com:acme/shop.git", Branch: "main",
+	p := agentproto.BuildParams{Stream: "s1", App: "shop", Image: "ekpanel/shop:abc", Repo: "git@github.com:acme/shop.git", Branch: "main", Builder: "auto",
 		Dockerfile: "app/Dockerfile", Context: "app", SSHKey: "-----BEGIN OPENSSH PRIVATE KEY-----\nxyz\n-----END OPENSSH PRIVATE KEY-----",
 		Env: []agentproto.EnvVar{{Key: "TOKEN", Value: "s3cret"}}}
 	res, err := runBuild(context.Background(), f.system, p, w)
@@ -317,5 +354,106 @@ func TestRunBuild(t *testing.T) {
 	}
 	if !slices.ContainsFunc(verbs, func(v string) bool { return strings.HasSuffix(v, "fetch --depth 200 origin main") }) {
 		t.Errorf("history not deepened: %q", verbs)
+	}
+}
+
+// fakeRailpack makes a release archive holding a railpack program, and trusts it.
+func fakeRailpack(t *testing.T) []byte {
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	program := []byte("#!/bin/sh\n")
+	tw.WriteHeader(&tar.Header{Name: "railpack-v0/railpack", Mode: 0o755, Size: int64(len(program)), Typeflag: tar.TypeReg})
+	tw.Write(program)
+	tw.Close()
+	gz.Close()
+	sum := sha256.Sum256(buf.Bytes())
+	prev := railpackSHA256[runtime.GOARCH]
+	railpackSHA256[runtime.GOARCH] = hex.EncodeToString(sum[:])
+	t.Cleanup(func() { railpackSHA256[runtime.GOARCH] = prev })
+	return buf.Bytes()
+}
+
+func TestRailpackBuild(t *testing.T) {
+	f := newFakeSystem(t)
+	f.installed["git"] = true
+	archive := fakeRailpack(t)
+	fetched := 0
+	f.system.fetch = func(_ context.Context, url string) ([]byte, error) {
+		fetched++
+		if !strings.Contains(url, "/v"+railpackVersion+"/railpack-v"+railpackVersion+"-") {
+			t.Errorf("download %s", url)
+		}
+		return archive, nil
+	}
+	var calls []command
+	f.system.exec = func(_ context.Context, c command) ([]byte, error) {
+		calls = append(calls, c)
+		args := strings.Join(c.args, " ")
+		switch {
+		case c.name == "git" && (strings.Contains(args, " clone ") || strings.Contains(args, " init ")):
+			src := c.args[len(c.args)-1]
+			os.MkdirAll(src, 0o755)
+			os.WriteFile(filepath.Join(src, "package.json"), []byte("{}"), 0o644)
+		case c.name == "git" && strings.Contains(args, " log "):
+			return []byte("0123456789abcdef0123456789abcdef01234567\nNo Dockerfile here\n"), nil
+		}
+		return nil, nil
+	}
+	w := &streamWriter{id: "s1", send: func(agentproto.Envelope) error { return nil }}
+	p := agentproto.BuildParams{Stream: "s1", App: "web", Image: "ekpanel/web:abc", Repo: "https://github.com/acme/web.git", Branch: "main",
+		Builder: "auto", Dockerfile: "Dockerfile", Context: ".", Env: []agentproto.EnvVar{{Key: "TOKEN", Value: "s3cret"}}}
+	if _, err := runBuild(context.Background(), f.system, p, w); err != nil {
+		t.Fatal(err)
+	}
+	bin := filepath.Join(f.root, railpackDir, "railpack-"+railpackVersion)
+	if info, err := os.Stat(bin); err != nil || info.Mode().Perm() != 0o755 || fetched != 1 {
+		t.Fatalf("railpack installed: %v %v, fetched %d", info, err, fetched)
+	}
+	var prepare, build command
+	for _, c := range calls {
+		if c.name == bin {
+			prepare = c
+		}
+		if c.name == "docker" {
+			build = c
+		}
+	}
+	if args := strings.Join(prepare.args, " "); !strings.HasPrefix(args, "prepare ") || !strings.HasSuffix(args, "--env TOKEN") || strings.Contains(args, "s3cret") {
+		t.Errorf("prepare: %s", args)
+	}
+	args := strings.Join(build.args, " ")
+	if !strings.Contains(args, "BUILDKIT_SYNTAX="+railpackFrontend) || !strings.Contains(args, "--secret id=TOKEN,env=TOKEN") ||
+		!strings.Contains(args, "--tag ekpanel/web:abc") || !strings.Contains(args, "--file "+filepath.Join(f.root, buildsDir)) ||
+		strings.Contains(args, "s3cret") || !slices.Contains(build.env, "TOKEN=s3cret") || !slices.Contains(prepare.env, "TOKEN=s3cret") {
+		t.Errorf("railpack build: %s %v", args, build.env)
+	}
+
+	// Railpack is downloaded once.
+	runBuild(context.Background(), f.system, p, w)
+	if fetched != 1 {
+		t.Errorf("downloaded %d times", fetched)
+	}
+
+	// A download that does not match its checksum is refused.
+	os.Remove(bin)
+	railpackSHA256[runtime.GOARCH] = strings.Repeat("0", 64)
+	if _, err := runBuild(context.Background(), f.system, p, w); err == nil || !strings.Contains(err.Error(), "checksum") {
+		t.Errorf("bad checksum: %v", err)
+	}
+
+	// A pull request's ref is fetched instead of the branch.
+	calls = nil
+	p.Builder, p.Ref = "dockerfile", "refs/pull/7/head"
+	runBuild(context.Background(), f.system, p, w)
+	var verbs []string
+	for _, c := range calls {
+		if c.name == "git" {
+			verbs = append(verbs, strings.Join(c.args[4:], " "))
+		}
+	}
+	if !slices.ContainsFunc(verbs, func(v string) bool { return strings.HasSuffix(v, "fetch --depth 1 origin refs/pull/7/head") }) ||
+		slices.ContainsFunc(verbs, func(v string) bool { return strings.HasPrefix(v, "clone") }) {
+		t.Errorf("pull request fetch: %q", verbs)
 	}
 }

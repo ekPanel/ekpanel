@@ -41,7 +41,8 @@ export function Field({ label, hint, error, id, className, ...rest }: FieldProps
   const auto = useId();
   const fieldId = id ?? auto;
   return (
-    <div className={cx("grid gap-1.5", className)}>
+    // One column of at most the space given: an input's default width must not widen it.
+    <div className={cx("grid min-w-0 grid-cols-1 gap-1.5", className)}>
       <label htmlFor={fieldId} className="text-sm font-medium">
         {label}
       </label>
@@ -49,7 +50,7 @@ export function Field({ label, hint, error, id, className, ...rest }: FieldProps
         id={fieldId}
         aria-invalid={error ? true : undefined}
         aria-describedby={hint || error ? fieldId + "-desc" : undefined}
-        className="h-10 rounded-lg border border-line bg-surface px-3 text-ink placeholder:text-muted focus:border-accent focus:outline-none aria-[invalid]:border-crit"
+        className="h-10 w-full min-w-0 rounded-lg border border-line bg-surface px-3 text-ink placeholder:text-muted focus:border-accent focus:outline-none aria-[invalid]:border-crit"
         {...rest}
       />
       {(error || hint) && (

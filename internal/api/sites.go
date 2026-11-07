@@ -234,9 +234,13 @@ func (s *Server) handleCreateSite(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, site)
 }
 
+// queueReconcile applies the server's state soon. Webhooks have no user behind them.
 func (s *Server) queueReconcile(r *http.Request, serverID string) {
-	u := currentUser(r)
-	if _, err := s.opts.Tasks.QueueReconcile(r.Context(), serverID, &u.ID); err != nil {
+	var by *string
+	if u := currentUser(r); u != nil {
+		by = &u.ID
+	}
+	if _, err := s.opts.Tasks.QueueReconcile(r.Context(), serverID, by); err != nil {
 		s.log.Error("queue reconcile", "server", serverID, "err", err)
 	}
 }

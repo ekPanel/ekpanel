@@ -653,12 +653,17 @@ type TerminalParams struct {
 const OpAppBuild = "app.build"
 
 type BuildParams struct {
-	Stream     string `json:"stream"`
-	App        string `json:"app"`   // the app's name
-	Image      string `json:"image"` // the tag to build, ekpanel/<app>:<deployment>
-	Repo       string `json:"repo"`
-	Branch     string `json:"branch"`
-	Commit     string `json:"commit,omitempty"` // build this commit of the branch, if given
+	Stream string `json:"stream"`
+	App    string `json:"app"`   // the app's name
+	Image  string `json:"image"` // the tag to build, ekpanel/<app>:<deployment>
+	Repo   string `json:"repo"`
+	Branch string `json:"branch"`
+	Commit string `json:"commit,omitempty"` // build this commit of the branch, if given
+	// Ref is fetched instead of the branch, for a pull request (refs/pull/<n>/head).
+	Ref string `json:"ref,omitempty"`
+	// Builder is "dockerfile", "railpack" (no Dockerfile needed), or "auto": the
+	// Dockerfile if the repository has one, otherwise Railpack.
+	Builder    string `json:"builder"`
 	Dockerfile string `json:"dockerfile"`
 	Context    string `json:"context"`
 	// SSHKey is the app's private deploy key, for repositories reached over SSH.

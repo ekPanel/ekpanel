@@ -16,6 +16,7 @@ type Deployment struct {
 	Status        string     `json:"status"`
 	Trigger       string     `json:"trigger"`
 	Branch        string     `json:"branch"`
+	Ref           *string    `json:"ref"` // pull requests: the ref built instead of the branch
 	CommitSHA     *string    `json:"commit_sha"`
 	CommitMessage *string    `json:"commit_message"`
 	Image         *string    `json:"image"`
@@ -36,14 +37,14 @@ const KeptBuilds = 5
 // MaxDeploymentLog bounds a deployment's stored log; output after it is dropped.
 const MaxDeploymentLog = 2 << 20
 
-const deploymentColumns = `d.id, d.app_id, d.number, d.status, d.trigger, d.branch, d.commit_sha, d.commit_message, d.image,
+const deploymentColumns = `d.id, d.app_id, d.number, d.status, d.trigger, d.branch, d.ref, d.commit_sha, d.commit_message, d.image,
 	d.rollback_of, d.error, d.created_by, u.name, d.created_at, d.started_at, d.finished_at`
 
 const deploymentFrom = ` FROM deployments d LEFT JOIN users u ON u.id = d.created_by`
 
 func scanDeployment(row pgx.Row) (Deployment, error) {
 	var d Deployment
-	err := row.Scan(&d.ID, &d.AppID, &d.Number, &d.Status, &d.Trigger, &d.Branch, &d.CommitSHA, &d.CommitMessage, &d.Image,
+	err := row.Scan(&d.ID, &d.AppID, &d.Number, &d.Status, &d.Trigger, &d.Branch, &d.Ref, &d.CommitSHA, &d.CommitMessage, &d.Image,
 		&d.RollbackOf, &d.Error, &d.CreatedBy, &d.CreatedByName, &d.CreatedAt, &d.StartedAt, &d.FinishedAt)
 	return d, notFound(err)
 }
@@ -52,6 +53,7 @@ type NewDeployment struct {
 	AppID         string
 	Trigger       string
 	Branch        string
+	Ref           *string
 	CommitSHA     *string
 	CommitMessage *string
 	Image         *string // rollbacks: the build to return to
@@ -72,9 +74,9 @@ func (s *Store) CreateDeployment(ctx context.Context, n NewDeployment) (Deployme
 	}
 	var id string
 	err = tx.QueryRow(ctx, `
-		INSERT INTO deployments (app_id, number, trigger, branch, commit_sha, commit_message, image, rollback_of, created_by)
-		VALUES ($1, COALESCE((SELECT max(number) FROM deployments WHERE app_id = $1), 0) + 1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING id`, n.AppID, n.Trigger, n.Branch, n.CommitSHA, n.CommitMessage, n.Image, n.RollbackOf, n.CreatedBy).Scan(&id)
+		INSERT INTO deployments (app_id, number, trigger, branch, ref, commit_sha, commit_message, image, rollback_of, created_by)
+		VALUES ($1, COALESCE((SELECT max(number) FROM deployments WHERE app_id = $1), 0) + 1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING id`, n.AppID, n.Trigger, n.Branch, n.Ref, n.CommitSHA, n.CommitMessage, n.Image, n.RollbackOf, n.CreatedBy).Scan(&id)
 	if err != nil {
 		return Deployment{}, err
 	}

@@ -49,6 +49,11 @@ type App struct {
 	Dockerfile        *string   `json:"dockerfile"`
 	BuildContext      *string   `json:"build_context"`
 	AutoDeploy        bool      `json:"auto_deploy"`
+	Builder           string    `json:"builder"`
+	Previews          bool      `json:"previews"`
+	PreviewDomain     *string   `json:"preview_domain"`
+	PreviewOf         *string   `json:"preview_of"` // previews: the app they preview
+	PreviewNumber     *int      `json:"preview_number"`
 	DeployKeyPublic   *string   `json:"deploy_key_public"`
 	WebhookSecret     []byte    `json:"-"` // sealed
 	DeployKey         []byte    `json:"-"` // sealed
@@ -61,7 +66,8 @@ const appColumns = `a.id, a.server_id, sv.name, a.name, a.kind, a.image, a.compo
 	a.host_port, a.domain, a.tls, a.env, a.volumes, a.memory_mb, a.cpus::float8, a.public_ports, a.stopped,
 	a.delete_data, a.state, a.message, a.generation, a.applied_generation, a.created_at, a.updated_at,
 	a.owner_id, ow.name, a.disk_bytes, a.template, a.template_version, a.git_url, a.git_branch, a.dockerfile,
-	a.build_context, a.auto_deploy, a.deploy_key_public, a.webhook_secret, a.deploy_key`
+	a.build_context, a.auto_deploy, a.deploy_key_public, a.webhook_secret, a.deploy_key, a.builder, a.previews,
+	a.preview_domain, a.preview_of, a.preview_number`
 
 const appFrom = ` FROM apps a JOIN servers sv ON sv.id = a.server_id LEFT JOIN users ow ON ow.id = a.owner_id`
 
@@ -71,7 +77,8 @@ func scanApp(row pgx.Row) (App, error) {
 		&a.HostPort, &a.Domain, &a.TLS, &a.Env, &a.Volumes, &a.MemoryMB, &a.CPUs, &a.PublicPorts, &a.Stopped,
 		&a.DeleteData, &a.State, &a.Message, &a.Generation, &a.AppliedGeneration, &a.CreatedAt, &a.UpdatedAt,
 		&a.OwnerID, &a.OwnerName, &a.DiskBytes, &a.Template, &a.TemplateVersion, &a.GitURL, &a.GitBranch, &a.Dockerfile,
-		&a.BuildContext, &a.AutoDeploy, &a.DeployKeyPublic, &a.WebhookSecret, &a.DeployKey)
+		&a.BuildContext, &a.AutoDeploy, &a.DeployKeyPublic, &a.WebhookSecret, &a.DeployKey, &a.Builder, &a.Previews,
+		&a.PreviewDomain, &a.PreviewOf, &a.PreviewNumber)
 	if a.Env == nil {
 		a.Env = []EnvVar{}
 	}
@@ -95,11 +102,14 @@ type AppSettings struct {
 	CPUs          *float64
 	PublicPorts   bool
 	// Git apps.
-	GitURL       *string
-	GitBranch    *string
-	Dockerfile   *string
-	BuildContext *string
-	AutoDeploy   bool
+	GitURL        *string
+	GitBranch     *string
+	Dockerfile    *string
+	BuildContext  *string
+	AutoDeploy    bool
+	Builder       string
+	Previews      bool
+	PreviewDomain *string
 }
 
 type NewApp struct {
@@ -115,6 +125,9 @@ type NewApp struct {
 	WebhookSecret   []byte
 	DeployKey       []byte
 	DeployKeyPublic *string
+	// Previews: the app and pull request they preview.
+	PreviewOf     *string
+	PreviewNumber *int
 	AppSettings
 }
 
@@ -160,12 +173,14 @@ func (s *Store) CreateApp(ctx context.Context, n NewApp) (App, error) {
 	_, err = tx.Exec(ctx, `
 		INSERT INTO apps (id, server_id, kind, name, image, compose, service, container_port, host_port, domain, tls,
 			env, volumes, memory_mb, cpus, public_ports, created_by, owner_id, template, template_version,
-			git_url, git_branch, dockerfile, build_context, auto_deploy, webhook_secret, deploy_key, deploy_key_public)
+			git_url, git_branch, dockerfile, build_context, auto_deploy, webhook_secret, deploy_key, deploy_key_public,
+			builder, previews, preview_domain, preview_of, preview_number)
 		VALUES ($1, $3, $4, $5, $6, $7, $8, $2, `+hostPortSQL+`, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
-			$20, $21, $22, $23, $24, $25, $26, $27)`,
+			$20, $21, $22, $23, $24, $25, $26, $27, COALESCE(NULLIF($28, ''), 'auto'), $29, $30, $31, $32)`,
 		id, n.ContainerPort, n.ServerID, n.Kind, n.Name, n.Image, n.Compose, n.Service, n.Domain, n.TLS,
 		n.Env, n.Volumes, n.MemoryMB, n.CPUs, n.PublicPorts, n.CreatedBy, n.OwnerID, n.Template, n.TemplateVersion,
-		n.GitURL, n.GitBranch, n.Dockerfile, n.BuildContext, n.AutoDeploy, n.WebhookSecret, n.DeployKey, n.DeployKeyPublic)
+		n.GitURL, n.GitBranch, n.Dockerfile, n.BuildContext, n.AutoDeploy, n.WebhookSecret, n.DeployKey, n.DeployKeyPublic,
+		n.Builder, n.Previews, n.PreviewDomain, n.PreviewOf, n.PreviewNumber)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "apps_server_id_name_key" {
 		return App{}, ErrAppNameTaken
@@ -218,10 +233,12 @@ func (s *Store) UpdateApp(ctx context.Context, id string, c AppSettings) (App, e
 		UPDATE apps SET image = CASE WHEN kind = 'git' THEN image ELSE $5 END, compose = $6, service = $7, container_port = $2,
 			host_port = `+hostPortSQL+`, domain = $8, tls = $9, env = $10, volumes = $11, memory_mb = $12, cpus = $13,
 			public_ports = $14, git_url = $15, git_branch = $16, dockerfile = $17, build_context = $18, auto_deploy = $19,
+			builder = COALESCE(NULLIF($20, ''), builder), previews = $21, preview_domain = $22,
 			generation = generation + 1, state = 'pending', message = NULL, updated_at = now()
 		WHERE id = $1`,
 		id, c.ContainerPort, serverID, kind, c.Image, c.Compose, c.Service, c.Domain, c.TLS, c.Env, c.Volumes,
-		c.MemoryMB, c.CPUs, c.PublicPorts, c.GitURL, c.GitBranch, c.Dockerfile, c.BuildContext, c.AutoDeploy)
+		c.MemoryMB, c.CPUs, c.PublicPorts, c.GitURL, c.GitBranch, c.Dockerfile, c.BuildContext, c.AutoDeploy,
+		c.Builder, c.Previews, c.PreviewDomain)
 	if err != nil {
 		return App{}, err
 	}
@@ -232,6 +249,15 @@ func (s *Store) UpdateApp(ctx context.Context, id string, c AppSettings) (App, e
 		return App{}, err
 	}
 	return s.GetApp(ctx, id)
+}
+
+// Previews returns the preview apps of an app, by pull request number.
+func (s *Store) Previews(ctx context.Context, appID string) ([]App, error) {
+	rows, err := s.pool.Query(ctx, `SELECT `+appColumns+appFrom+` WHERE a.preview_of = $1 ORDER BY a.preview_number`, appID)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (App, error) { return scanApp(r) })
 }
 
 // SetAppImage makes image the live build of a Git app (nil: none) and marks the app for

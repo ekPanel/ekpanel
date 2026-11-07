@@ -127,9 +127,12 @@ func (r *Runner) appDeploy(ctx context.Context, t store.Task) (any, error) {
 func (r *Runner) build(ctx context.Context, app store.App, d store.Deployment, image string) (agentproto.BuildResult, error) {
 	var res agentproto.BuildResult
 	p := agentproto.BuildParams{App: app.Name, Image: image, Repo: *app.GitURL, Branch: d.Branch,
-		Dockerfile: "Dockerfile", Context: "."}
+		Builder: app.Builder, Dockerfile: "Dockerfile", Context: "."}
 	if d.CommitSHA != nil {
 		p.Commit = *d.CommitSHA
+	}
+	if d.Ref != nil {
+		p.Ref = *d.Ref
 	}
 	if app.Dockerfile != nil {
 		p.Dockerfile = *app.Dockerfile

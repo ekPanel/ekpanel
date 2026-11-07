@@ -19,7 +19,7 @@ import {
   Square,
   Trash2,
 } from "lucide-react";
-import { api, ApiError, errorMessage, type App, type AppContainer, type Server, type Task } from "../lib/api";
+import { api, ApiError, errorMessage, type App, type AppContainer, type Package, type Server, type Task } from "../lib/api";
 import { PageHeader } from "../components/AppShell";
 import { Badge, Button, Card, CopyButton, Dialog, ErrorAlert, Field, Spinner, cx, type Tone } from "../components/ui";
 import { EmptyState } from "./ServerParts";
@@ -30,7 +30,7 @@ import { CronCard } from "../components/CronCard";
 import { LogsCard, TrafficCard } from "../components/WebInsights";
 import { OwnerField } from "./CustomersPage";
 import { TemplateMark, useCatalog } from "./CatalogPage";
-import { DeployButton, DeploymentsCard, GitCard } from "../components/Deployments";
+import { DeployButton, DeploymentsCard, GitCard, PreviewOfNote, PreviewsCard } from "../components/Deployments";
 
 const textarea = "rounded-lg border border-line bg-surface px-3 py-2 font-mono text-sm text-ink";
 const select = "h-10 rounded-lg border border-line bg-surface px-3 text-ink";
@@ -53,6 +53,9 @@ interface AppForm {
   dockerfile: string;
   buildContext: string;
   autoDeploy: boolean;
+  builder: App["builder"];
+  previews: boolean;
+  previewDomain: string;
 }
 
 const emptyForm: AppForm = {
@@ -72,6 +75,9 @@ const emptyForm: AppForm = {
   dockerfile: "Dockerfile",
   buildContext: ".",
   autoDeploy: true,
+  builder: "auto",
+  previews: false,
+  previewDomain: "",
 };
 
 function formFromApp(a: App): AppForm {
@@ -92,6 +98,9 @@ function formFromApp(a: App): AppForm {
     dockerfile: a.dockerfile ?? "Dockerfile",
     buildContext: a.build_context ?? ".",
     autoDeploy: a.auto_deploy,
+    builder: a.builder,
+    previews: a.previews,
+    previewDomain: a.preview_domain ?? "",
   };
 }
 
@@ -132,11 +141,26 @@ function requestBody(kind: App["kind"], f: AppForm) {
     dockerfile: f.dockerfile,
     build_context: f.buildContext,
     auto_deploy: f.autoDeploy,
+    builder: f.builder,
+    previews: f.previews,
+    preview_domain: f.previewDomain,
   };
 }
 
 /** The settings of an app. An app from the catalogue keeps the template's Compose file and port. */
-function AppFields({ kind, value, onChange, fromTemplate }: { kind: App["kind"]; value: AppForm; onChange: (v: AppForm) => void; fromTemplate?: boolean }) {
+function AppFields({
+  kind,
+  value,
+  onChange,
+  fromTemplate,
+  preview,
+}: {
+  kind: App["kind"];
+  value: AppForm;
+  onChange: (v: AppForm) => void;
+  fromTemplate?: boolean;
+  preview?: boolean;
+}) {
   const { t } = useTranslation();
   const set = <K extends keyof AppForm>(k: K, v: AppForm[K]) => onChange({ ...value, [k]: v });
   return (
@@ -158,15 +182,28 @@ function AppFields({ kind, value, onChange, fromTemplate }: { kind: App["kind"];
             />
             <Field label={t("deploys.branch")} value={value.gitBranch} onChange={(e) => set("gitBranch", e.target.value.trim())} dir="ltr" required />
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              label={t("deploys.dockerfile")}
-              hint={t("deploys.dockerfile_hint")}
-              value={value.dockerfile}
-              onChange={(e) => set("dockerfile", e.target.value.trim())}
-              dir="ltr"
-              className="[&_input]:font-mono"
-            />
+          <div className="grid gap-4 sm:grid-cols-3">
+            <label className="grid content-start gap-1.5">
+              <span className="text-sm font-medium">{t("deploys.builder")}</span>
+              <select value={value.builder} onChange={(e) => set("builder", e.target.value as AppForm["builder"])} className={select}>
+                {(["auto", "dockerfile", "railpack"] as const).map((b) => (
+                  <option key={b} value={b}>
+                    {t(`deploys.builders.${b}`)}
+                  </option>
+                ))}
+              </select>
+              <span className="text-sm text-muted">{t(`deploys.builder_hint.${value.builder}`)}</span>
+            </label>
+            {value.builder !== "railpack" && (
+              <Field
+                label={t("deploys.dockerfile")}
+                hint={t("deploys.dockerfile_hint")}
+                value={value.dockerfile}
+                onChange={(e) => set("dockerfile", e.target.value.trim())}
+                dir="ltr"
+                className="[&_input]:font-mono"
+              />
+            )}
             <Field
               label={t("deploys.context")}
               hint={t("deploys.context_hint")}
@@ -176,13 +213,37 @@ function AppFields({ kind, value, onChange, fromTemplate }: { kind: App["kind"];
               className="[&_input]:font-mono"
             />
           </div>
-          <label className="flex items-start gap-2 text-sm">
-            <input type="checkbox" checked={value.autoDeploy} onChange={(e) => set("autoDeploy", e.target.checked)} className="mt-1 accent-[var(--accent)]" />
-            <span>
-              <span className="font-medium">{t("deploys.auto")}</span>
-              <span className="block text-muted">{t("deploys.auto_hint")}</span>
-            </span>
-          </label>
+          {!preview && (
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" checked={value.autoDeploy} onChange={(e) => set("autoDeploy", e.target.checked)} className="mt-1 accent-[var(--accent)]" />
+              <span>
+                <span className="font-medium">{t("deploys.auto")}</span>
+                <span className="block text-muted">{t("deploys.auto_hint")}</span>
+              </span>
+            </label>
+          )}
+          {!preview && (
+            <div className="grid gap-3 rounded-lg border border-line p-3">
+              <label className="flex items-start gap-2 text-sm">
+                <input type="checkbox" checked={value.previews} onChange={(e) => set("previews", e.target.checked)} className="mt-1 accent-[var(--accent)]" />
+                <span>
+                  <span className="font-medium">{t("previews.enable")}</span>
+                  <span className="block text-muted">{t("previews.enable_hint")}</span>
+                </span>
+              </label>
+              {value.previews && (
+                <Field
+                  label={t("previews.domain")}
+                  hint={t("previews.domain_hint", { domain: value.previewDomain || "preview.example.com" })}
+                  value={value.previewDomain}
+                  onChange={(e) => set("previewDomain", e.target.value.trim())}
+                  dir="ltr"
+                  placeholder="preview.example.com"
+                  required
+                />
+              )}
+            </div>
+          )}
         </div>
       ) : kind === "image" ? (
         <Field
@@ -335,11 +396,20 @@ function AddAppDialog({ open, onClose }: { open: boolean; onClose: () => void })
   const [kind, setKind] = useState<App["kind"]>("image");
   const [owner, setOwner] = useState("");
   const me = useMe();
-  // Compose files and Git builds can do anything Docker can, so only administrators use them, and only for themselves.
-  const composeAllowed = me.data?.role === "admin" && owner === "";
+  const isAdmin = me.data?.role === "admin";
+  const myPackage = useQuery({
+    queryKey: ["me", "usage"],
+    queryFn: () => api.get<{ package: Package | null }>("/me/usage"),
+    enabled: open && me.data?.role === "customer",
+  });
+  // Compose files can do anything Docker can, so only administrators run them, and only for
+  // themselves. Git apps are for administrators, and for customers whose package allows them
+  // (the panel checks the package of the customer an administrator picks).
+  const kinds: App["kind"][] =
+    isAdmin && owner === "" ? ["image", "compose", "git"] : isAdmin || myPackage.data?.package?.git_apps ? ["image", "git"] : ["image"];
   useEffect(() => {
-    if (!composeAllowed) setKind("image");
-  }, [composeAllowed]);
+    if (!kinds.includes(kind)) setKind("image");
+  }, [kinds, kind]);
   const [name, setName] = useState("");
   const [form, setForm] = useState<AppForm>(emptyForm);
   const [busy, setBusy] = useState(false);
@@ -373,8 +443,12 @@ function AddAppDialog({ open, onClose }: { open: boolean; onClose: () => void })
     <Dialog open={open} onClose={onClose} title={t("apps.add")} wide>
       <form onSubmit={submit} className="grid gap-5">
         <ErrorAlert>{error}</ErrorAlert>
-        <div className={cx("grid gap-2", composeAllowed && "sm:grid-cols-3")} role="radiogroup" aria-label={t("apps.kind_label")}>
-          {(composeAllowed ? (["image", "compose", "git"] as const) : (["image"] as const)).map((k) => (
+        <div
+          className={cx("grid gap-2", kinds.length === 3 ? "sm:grid-cols-3" : kinds.length === 2 && "sm:grid-cols-2")}
+          role="radiogroup"
+          aria-label={t("apps.kind_label")}
+        >
+          {kinds.map((k) => (
             <label
               key={k}
               className={cx("flex cursor-pointer gap-3 rounded-lg border p-3", kind === k ? "border-accent bg-accent-soft" : "border-line hover:bg-sunk")}
@@ -480,6 +554,7 @@ export function AppsPage() {
                     <Link to={`/apps/${a.id}`} className="font-semibold hover:text-accent" dir="ltr">
                       {a.name}
                     </Link>
+                    {a.preview_number && <span className="ms-2 text-xs text-muted">PR #{a.preview_number}</span>}
                     {a.domain && (
                       <div className="flex items-center gap-1 truncate text-muted">
                         {a.tls === "auto" && <Lock className="size-3 text-ok" aria-hidden />}
@@ -762,10 +837,12 @@ export function AppDetailPage() {
         </Card>
 
         {app.template && <TemplateCard app={app} />}
+        {app.preview_of && <PreviewOfNote app={app} />}
         {app.kind === "git" && app.state !== "deleting" && (
           <>
-            <GitCard app={app} />
+            {!app.preview_of && <GitCard app={app} />}
             <DeploymentsCard app={app} />
+            {app.previews && <PreviewsCard app={app} />}
           </>
         )}
         <div className="grid gap-6 xl:grid-cols-[2fr_3fr]">
@@ -790,7 +867,7 @@ export function AppDetailPage() {
               }}
             >
               <h2 className="text-lg font-semibold">{t("apps.settings")}</h2>
-              <AppFields kind={app.kind} value={form} onChange={setForm} fromTemplate={!!app.template} />
+              <AppFields kind={app.kind} value={form} onChange={setForm} fromTemplate={!!app.template} preview={!!app.preview_of} />
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="ghost" onClick={() => setForm(formFromApp(app))}>
                   {t("apps.reset")}

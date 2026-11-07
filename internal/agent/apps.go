@@ -206,11 +206,15 @@ func imageCompose(ap agentproto.AppSpec) []byte {
 		"restart": "unless-stopped",
 		"logging": map[string]any{"driver": "json-file", "options": map[string]string{"max-size": "10m", "max-file": "3"}},
 	}
-	if len(ap.Env) > 0 {
-		env := map[string]string{}
-		for _, e := range ap.Env {
-			env[e.Key] = strings.ReplaceAll(e.Value, "$", "$$")
-		}
+	env := map[string]string{}
+	for _, e := range ap.Env {
+		env[e.Key] = strings.ReplaceAll(e.Value, "$", "$$")
+	}
+	if _, set := env["PORT"]; ap.Kind == "git" && !set {
+		// Apps built by Railpack (and many others) listen on $PORT.
+		env["PORT"] = strconv.Itoa(ap.ContainerPort)
+	}
+	if len(env) > 0 {
 		svc["environment"] = env
 	}
 	vols := map[string]any{}
@@ -410,7 +414,14 @@ func (a *applier) ensureApp(ctx context.Context, ap agentproto.AppSpec) error {
 		return err
 	}
 	if ap.Kind == "git" && ap.Image == "" {
-		// Not deployed yet: nothing to run, and the domain waits for the first release.
+		// Not deployed (or its first release failed): nothing runs, and the domain waits
+		// for a release.
+		if _, err := os.Stat(filepath.Join(dir, appComposeFile)); err == nil {
+			if _, err := compose(ctx, a.sys, ap.Name, ap.Env, "down", "--remove-orphans"); err != nil {
+				return err
+			}
+			os.Remove(filepath.Join(dir, appComposeFile))
+		}
 		st, _ := json.Marshal(appState{ID: ap.ID, Stopped: ap.Stopped, Env: ap.Env})
 		if _, err := writeSecretIfChanged(filepath.Join(dir, appStateFile), st); err != nil {
 			return err

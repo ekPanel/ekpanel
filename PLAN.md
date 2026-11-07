@@ -542,6 +542,31 @@ limits are measured and enforced by the panel, real filesystem quotas come later
       or deleting the server) did not close the connection the agent already had; it now does
 - [ ] Deploy notifications on success, cancelling a running build: later
 
+**2g. Railpack builds, previews and Git apps for customers — done** (phase 2 complete)
+- [x] Builds without a Dockerfile: Railpack detects the language and framework and plans the
+      build, which BuildKit runs through Railpack's frontend. "Automatic" uses the Dockerfile
+      when the repository has one. Railpack is one pinned version (0.43.0), downloaded on first
+      use and checked against its published SHA-256; variables reach it and the build by name,
+      their values through the environment. Git apps get PORT set to their port
+- [x] Previews: with previews on, each pull request to the app's branch (GitHub, Gitea,
+      Forgejo, Gogs; merge requests on GitLab) gets an app of its own at
+      `<app>-pr<number>.<preview domain>`, built from the forge's pull request ref and rebuilt
+      on every push, then removed with its data when the request closes or merges. Pull
+      requests from forks are never previewed (their code would run on the server); at most 5
+      at a time; deleting an app deletes its previews
+- [x] Customers can have Git apps when their package includes them. Their builds run with
+      their slice as cgroup parent, and their containers inside it
+- [x] A first release that does not stay up now fails the deploy instead of being called live,
+      and its container is removed
+- [x] Tested in the VM: a Node app without a Dockerfile built with Railpack (Node detected,
+      PORT and variables at run time; 5 minutes the first time, with downloads); a pull
+      request ref deployed at its own host name next to main, a fork's pull request refused,
+      closing removed the preview's containers and builds; a customer's build ran in their
+      slice; a customer's first deploy of a crashing build failed and left nothing running
+- [x] Found and fixed while testing: closing a pull request crashed the webhook (no user
+      behind it when queueing the apply); a crashing first release was reported live
+- [ ] Comments on the pull request with the preview's address (needs a token for the forge),
+      previews of forks after approval: later
+
 **Next**
-- [ ] 2g. Builds without a Dockerfile (Railpack), preview deploys per pull request, Git apps
-      for customers as a package option
+- [ ] Phase 3: built-in DNS, email with webmail, WordPress toolkit, security suite

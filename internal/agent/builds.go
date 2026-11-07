@@ -33,6 +33,8 @@ var (
 	commitRE   = regexp.MustCompile(`^[0-9a-f]{7,64}$`)
 	repoPathRE = regexp.MustCompile(`^[A-Za-z0-9._/-]{1,250}$`)
 	buildTagRE = regexp.MustCompile(`^[a-z0-9]{1,32}$`)
+	// The refs forges keep for pull requests (GitHub, Gitea, Forgejo) and merge requests (GitLab).
+	prRefRE = regexp.MustCompile(`^refs/(pull/[0-9]{1,9}/head|merge-requests/[0-9]{1,9}/head)$`)
 )
 
 // gitImageOK says whether image is a build of the named app.
@@ -68,6 +70,10 @@ func validateBuild(p agentproto.BuildParams) error {
 		return errors.New("invalid commit")
 	case !repoPath(p.Dockerfile) || !repoPath(p.Context):
 		return errors.New("the Dockerfile and build folder must be paths inside the repository")
+	case p.Builder != "dockerfile" && p.Builder != "railpack" && p.Builder != "auto":
+		return fmt.Errorf("unknown builder %q", p.Builder)
+	case p.Ref != "" && !prRefRE.MatchString(p.Ref):
+		return errors.New("invalid ref")
 	case p.Owner != "" && !uuidRE.MatchString(p.Owner):
 		return errors.New("invalid owner")
 	}
@@ -224,9 +230,21 @@ func runBuild(ctx context.Context, sys *system, p agentproto.BuildParams, w *str
 		return err
 	}
 
-	w.step("Cloning %s, branch %s", p.Repo, p.Branch)
-	if err := git("clone", "--depth", "1", "--branch", p.Branch, "--recurse-submodules", "--shallow-submodules", "--", p.Repo, src); err != nil {
-		return res, fmt.Errorf("could not clone the repository: %w", err)
+	if p.Ref != "" {
+		// A pull request is not a branch of the repository; fetch its ref instead.
+		w.step("Fetching %s from %s", p.Ref, p.Repo)
+		for _, args := range [][]string{{"init", "--quiet", src}, {"-C", src, "remote", "add", "origin", "--", p.Repo},
+			{"-C", src, "fetch", "--depth", "1", "origin", p.Ref}, {"-C", src, "checkout", "--quiet", "--detach", "FETCH_HEAD"},
+			{"-C", src, "submodule", "update", "--init", "--recursive", "--depth", "1"}} {
+			if err := git(args...); err != nil {
+				return res, fmt.Errorf("could not fetch %s: %w", p.Ref, err)
+			}
+		}
+	} else {
+		w.step("Cloning %s, branch %s", p.Repo, p.Branch)
+		if err := git("clone", "--depth", "1", "--branch", p.Branch, "--recurse-submodules", "--shallow-submodules", "--", p.Repo, src); err != nil {
+			return res, fmt.Errorf("could not clone the repository: %w", err)
+		}
 	}
 	head := func() (string, string, error) {
 		out, err := sys.exec(ctx, command{name: "git", args: []string{"-C", src, "log", "-1", "--format=%H%n%s"}, env: env})
@@ -237,7 +255,7 @@ func runBuild(ctx context.Context, sys *system, p agentproto.BuildParams, w *str
 	if err != nil {
 		return res, err
 	}
-	if p.Commit != "" && !strings.HasPrefix(sha, p.Commit) {
+	if p.Commit != "" && p.Ref == "" && !strings.HasPrefix(sha, p.Commit) {
 		// The branch moved on since the push. Forges hand out single commits; plain Git
 		// servers do not, so then more of the branch's history is fetched instead.
 		w.step("Fetching commit %s", p.Commit)
@@ -270,16 +288,37 @@ func runBuild(ctx context.Context, sys *system, p agentproto.BuildParams, w *str
 		}
 		return abs, nil
 	}
-	dockerfile, err := inside(p.Dockerfile)
-	if err != nil {
-		return res, err
-	}
 	buildDir, err := inside(p.Context)
 	if err != nil {
 		return res, err
 	}
-
+	builder := p.Builder
+	if builder == "auto" {
+		builder = "dockerfile"
+		if _, err := os.Lstat(filepath.Join(src, p.Dockerfile)); errors.Is(err, os.ErrNotExist) {
+			builder = "railpack"
+		}
+	}
+	buildEnv := []string{"BUILDKIT_PROGRESS=plain"}
+	for _, e := range p.Env {
+		buildEnv = append(buildEnv, e.Key+"="+e.Value)
+	}
 	w.step("Building commit %.12s: %s", res.Commit, res.Message)
+	if builder == "railpack" {
+		if !buildx {
+			return res, errors.New("Railpack needs Docker BuildKit (the docker-buildx package)")
+		}
+		if err := railpackBuild(ctx, sys, p, w, dir, buildDir, buildEnv); err != nil {
+			return res, err
+		}
+		w.step("Built %s", p.Image)
+		sys.run(ctx, "docker", "builder", "prune", "--force", "--filter", "until=168h")
+		return res, nil
+	}
+	dockerfile, err := inside(p.Dockerfile)
+	if err != nil {
+		return res, err
+	}
 	args := []string{"build"}
 	if buildx {
 		args = append(args, "--progress=plain")
@@ -288,11 +327,9 @@ func runBuild(ctx context.Context, sys *system, p agentproto.BuildParams, w *str
 	if p.Owner != "" {
 		args = append(args, "--cgroup-parent", customerSlice(ownerKey(p.Owner)))
 	}
-	buildEnv := []string{"BUILDKIT_PROGRESS=plain"}
 	for _, e := range p.Env {
 		// "--build-arg NAME" takes the value from the environment, so it is not on the command line.
 		args = append(args, "--build-arg", e.Key)
-		buildEnv = append(buildEnv, e.Key+"="+e.Value)
 	}
 	args = append(args, buildDir)
 	if _, err := sys.exec(ctx, command{name: "docker", args: args, env: buildEnv, stdout: w, stderr: w}); err != nil {

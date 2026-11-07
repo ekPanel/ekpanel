@@ -6,7 +6,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"strings"
 	"sync"
@@ -350,4 +352,193 @@ func TestGitDeploys(t *testing.T) {
 	if st := signed(t, p.web.URL+"/api/v1/hooks/git/00000000-0000-4000-8000-000000000001", info.WebhookSecret, "push", push); st != http.StatusNotFound {
 		t.Errorf("hook of an unknown app: %d", st)
 	}
+}
+
+func prEvent(action string, number int, head, base string, fork bool) string {
+	headRepo := 1
+	if fork {
+		headRepo = 2
+	}
+	return fmt.Sprintf(`{"action":%q,"number":%d,"pull_request":{"number":%d,"head":{"ref":%q,"sha":"%s","repo":{"id":%d}},"base":{"ref":%q,"repo":{"id":1}}}}`,
+		action, number, number, head, strings.Repeat("cd", 20), headRepo, base)
+}
+
+func TestPreviews(t *testing.T) {
+	p := newTestPanel(t)
+	admin := newClient(t, p.web.URL)
+	setUp(t, admin)
+	serverID, cfg, _, _ := enrolled(t, p, admin, "web-1")
+	tlsCfg, _ := cfg.TLSConfig()
+	conn, _, err := dialAgent(t, p, tlsCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.CloseNow()
+	fa := &deployAgent{}
+	fa.run(conn)
+
+	var e errBody
+	base := map[string]any{"server_id": serverID, "name": "shop", "kind": "git", "git_url": "https://github.com/acme/shop.git", "git_branch": "main",
+		"container_port": 3000, "domain": "shop.example.com", "builder": "railpack", "previews": true, "env": []map[string]string{{"key": "A", "value": "1"}}}
+	for field, bad := range map[string]any{"builder": "nixpacks", "preview_domain": ""} {
+		body := maps.Clone(base)
+		body[field] = bad
+		if st := admin.do("POST", "/api/v1/apps", body, &e); st != http.StatusBadRequest {
+			t.Errorf("%s=%v: %d %s", field, bad, st, e.Code)
+		}
+	}
+	base["preview_domain"] = "Preview.Example.com"
+	var app struct {
+		ID            string `json:"id"`
+		Builder       string `json:"builder"`
+		PreviewDomain string `json:"preview_domain"`
+	}
+	if st := admin.do("POST", "/api/v1/apps", base, &app); st != http.StatusCreated || app.Builder != "railpack" || app.PreviewDomain != "preview.example.com" {
+		t.Fatalf("create: %d %+v", st, app)
+	}
+	var info struct {
+		WebhookSecret string `json:"webhook_secret"`
+	}
+	admin.do("GET", "/api/v1/apps/"+app.ID+"/git", nil, &info)
+	hook := p.web.URL + "/api/v1/hooks/git/" + app.ID
+	type preview struct {
+		ID            string `json:"id"`
+		Name          string `json:"name"`
+		Domain        string `json:"domain"`
+		State         string `json:"state"`
+		GitBranch     string `json:"git_branch"`
+		PreviewOf     string `json:"preview_of"`
+		PreviewNumber int    `json:"preview_number"`
+		Previews      bool   `json:"previews"`
+		Builder       string `json:"builder"`
+		Env           []struct{ Key, Value string }
+	}
+	previews := func() []preview {
+		var list []preview
+		admin.do("GET", "/api/v1/apps/"+app.ID+"/previews", nil, &list)
+		return list
+	}
+
+	// Opening a pull request to the branch builds its ref in an app of its own.
+	if st := signed(t, hook, info.WebhookSecret, "pull_request", prEvent("opened", 7, "feature/cart", "main", false)); st != http.StatusAccepted {
+		t.Fatalf("opened: %d", st)
+	}
+	list := previews()
+	if len(list) != 1 {
+		t.Fatalf("previews: %+v", list)
+	}
+	pv := list[0]
+	if pv.Name != "shop-pr7" || pv.Domain != "shop-pr7.preview.example.com" || pv.PreviewOf != app.ID || pv.PreviewNumber != 7 ||
+		pv.GitBranch != "feature/cart" || pv.Previews || pv.Builder != "railpack" || len(pv.Env) != 1 {
+		t.Fatalf("preview app: %+v", pv)
+	}
+	var deps []deployment
+	admin.do("GET", "/api/v1/apps/"+pv.ID+"/deployments", nil, &deps)
+	if len(deps) != 1 || waitDeployment(t, admin, pv.ID, deps[0].ID).Status != "live" {
+		t.Fatalf("preview deploy: %+v", deps)
+	}
+	fa.mu.Lock()
+	b := fa.builds[len(fa.builds)-1]
+	fa.mu.Unlock()
+	if b.Ref != "refs/pull/7/head" || b.Branch != "feature/cart" || b.Builder != "railpack" || b.Commit != strings.Repeat("cd", 20) || b.App != "shop-pr7" {
+		t.Fatalf("preview build: %+v", b)
+	}
+
+	// New commits rebuild the same preview; forks, other branches and edits do not.
+	signed(t, hook, info.WebhookSecret, "pull_request", prEvent("synchronize", 7, "feature/cart", "main", false))
+	admin.do("GET", "/api/v1/apps/"+pv.ID+"/deployments", nil, &deps)
+	if len(deps) != 2 || len(previews()) != 1 {
+		t.Fatalf("synchronize: %d deployments, %d previews", len(deps), len(previews()))
+	}
+	waitDeployment(t, admin, pv.ID, deps[0].ID)
+	for _, body := range []string{
+		prEvent("opened", 8, "evil", "main", true),
+		prEvent("opened", 9, "feature/x", "develop", false),
+		prEvent("edited", 7, "feature/cart", "main", false),
+		`{"object_attributes":{"iid":10,"action":"update","source_branch":"x","target_branch":"main","source_project_id":1,"target_project_id":1}}`,
+	} {
+		event := "pull_request"
+		if strings.Contains(body, "object_attributes") {
+			event = "Merge Request Hook"
+		}
+		signed(t, hook, "", event, body, "X-Gitlab-Event", event, "X-Gitlab-Token", info.WebhookSecret)
+		signed(t, hook, info.WebhookSecret, event, body)
+	}
+	if n := len(previews()); n != 1 {
+		t.Fatalf("forks, other branches and edits must not make previews: %d", n)
+	}
+
+	// GitLab merge requests too.
+	mr := `{"object_attributes":{"iid":11,"action":"open","source_branch":"fix","target_branch":"main","source_project_id":5,"target_project_id":5,"last_commit":{"id":"` + strings.Repeat("ef", 20) + `"}}}`
+	if st := signed(t, hook, "", "", mr, "X-Gitlab-Event", "Merge Request Hook", "X-Gitlab-Token", info.WebhookSecret); st != http.StatusAccepted || len(previews()) != 2 {
+		t.Fatalf("merge request: %d %d", st, len(previews()))
+	}
+	admin.do("GET", "/api/v1/apps/"+previews()[1].ID+"/deployments", nil, &deps)
+	waitDeployment(t, admin, previews()[1].ID, deps[0].ID)
+	fa.mu.Lock()
+	if b := fa.builds[len(fa.builds)-1]; b.Ref != "refs/merge-requests/11/head" {
+		t.Errorf("merge request ref: %+v", b)
+	}
+	fa.mu.Unlock()
+
+	// At most five at a time.
+	for n := 20; n < 25; n++ {
+		signed(t, hook, info.WebhookSecret, "pull_request", prEvent("opened", n, fmt.Sprintf("f%d", n), "main", false))
+	}
+	if n := len(previews()); n != 5 {
+		t.Fatalf("previews after many pull requests: %d", n)
+	}
+
+	// Closing removes the preview, with its data.
+	if st := signed(t, hook, info.WebhookSecret, "pull_request", prEvent("closed", 7, "feature/cart", "main", false)); st != http.StatusAccepted {
+		t.Fatalf("closed: %d", st)
+	}
+	var gone preview
+	admin.do("GET", "/api/v1/apps/"+pv.ID, nil, &gone)
+	if gone.State != "deleting" {
+		t.Fatalf("closed pull request: %+v", gone)
+	}
+
+	// Deleting the app deletes its previews.
+	admin.do("DELETE", "/api/v1/apps/"+app.ID, nil, nil)
+	for _, p := range previews() {
+		if p.State != "deleting" {
+			t.Errorf("preview %s left behind: %s", p.Name, p.State)
+		}
+	}
+
+	// Customers have Git apps when their package includes them.
+	var pkg, pkg2 struct {
+		ID string `json:"id"`
+	}
+	admin.do("POST", "/api/v1/packages", map[string]any{"name": "Dev", "max_apps": 2, "git_apps": true}, &pkg)
+	admin.do("POST", "/api/v1/packages", map[string]any{"name": "Basic", "max_apps": 2}, &pkg2)
+	var c, c2 struct {
+		Password string `json:"password"`
+	}
+	admin.do("POST", "/api/v1/customers", map[string]string{"email": "dev@example.com", "name": "Dev", "package_id": pkg.ID}, &c)
+	admin.do("POST", "/api/v1/customers", map[string]string{"email": "basic@example.com", "name": "Basic", "package_id": pkg2.ID}, &c2)
+	dev, basic := login(t, p.web.URL, "dev@example.com", c.Password), login(t, p.web.URL, "basic@example.com", c2.Password)
+	body := maps.Clone(base)
+	body["name"], body["domain"], body["previews"] = "mine", "mine.example.com", false
+	if st := basic.do("POST", "/api/v1/apps", body, &e); st != http.StatusForbidden || e.Code != "git_not_allowed" {
+		t.Errorf("customer without Git: %d %s", st, e.Code)
+	}
+	var mine struct {
+		ID      string `json:"id"`
+		OwnerID string `json:"owner_id"`
+	}
+	if st := dev.do("POST", "/api/v1/apps", body, &mine); st != http.StatusCreated || mine.OwnerID == "" {
+		t.Fatalf("customer with Git: %d %+v", st, mine)
+	}
+	var d deployment
+	if st := dev.do("POST", "/api/v1/apps/"+mine.ID+"/deploy", nil, &d); st != http.StatusAccepted {
+		t.Fatalf("customer deploy: %d", st)
+	}
+	waitDeployment(t, dev, mine.ID, d.ID)
+	fa.mu.Lock()
+	if b := fa.builds[len(fa.builds)-1]; b.App != "mine" || b.Owner != mine.OwnerID {
+		t.Errorf("customer build must run in their slice: %+v", b)
+	}
+	fa.mu.Unlock()
 }

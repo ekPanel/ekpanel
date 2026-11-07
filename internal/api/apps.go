@@ -54,6 +54,10 @@ type appRequest struct {
 	Dockerfile   string `json:"dockerfile"`
 	BuildContext string `json:"build_context"`
 	AutoDeploy   *bool  `json:"auto_deploy"`
+	Builder      string `json:"builder"`
+	// Previews deploys each pull request to the branch at <name>.<preview_domain>.
+	Previews      bool   `json:"previews"`
+	PreviewDomain string `json:"preview_domain"`
 }
 
 // customerAppRules applies a package to an app: customers run only images the package
@@ -71,8 +75,10 @@ func customerAppRules(w http.ResponseWriter, pkg *store.Package, kind string, se
 			}
 		}
 		return true
+	case kind == "git" && pkg.GitApps:
+		return true
 	case kind == "git":
-		writeError(w, http.StatusForbidden, "git_not_allowed", "Git apps are for administrators for now")
+		writeError(w, http.StatusForbidden, "git_not_allowed", "the package does not include Git apps")
 	case kind != "image":
 		writeError(w, http.StatusForbidden, "compose_not_allowed", "customers can run images, not Compose files")
 	case !imageAllowed(pkg, *set.Image):
@@ -114,6 +120,20 @@ func appSettings(w http.ResponseWriter, kind string, req appRequest) (store.AppS
 			}
 			set.GitURL, set.GitBranch, set.Dockerfile, set.BuildContext = &repo, &branch, &dockerfile, &context
 			set.AutoDeploy = req.AutoDeploy == nil || *req.AutoDeploy
+			set.Builder = req.Builder
+			if set.Builder == "" {
+				set.Builder = "auto"
+			}
+			if set.Builder != "auto" && set.Builder != "dockerfile" && set.Builder != "railpack" {
+				return fail("invalid_builder", "build with the Dockerfile, with Railpack, or automatically")
+			}
+			if req.Previews {
+				domain := normalizeHostname(req.PreviewDomain)
+				if domain == "" {
+					return fail("preview_domain_required", "enter the domain previews go under, such as preview.example.com, and point *.preview.example.com at the server")
+				}
+				set.Previews, set.PreviewDomain = true, &domain
+			}
 		}
 		set.PublicPorts = false
 		for _, v := range req.Volumes {
@@ -340,6 +360,9 @@ func (s *Server) handleUpdateApp(w http.ResponseWriter, r *http.Request) {
 		s.writeAppStoreError(w, r, err)
 		return
 	}
+	if app.PreviewOf != nil {
+		req.Previews = false // previews have no previews of their own
+	}
 	var tpl *catalog.Template
 	if app.Template != nil {
 		// The Compose file and its port stay the template's.
@@ -418,6 +441,18 @@ func (s *Server) handleDeleteApp(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.writeAppStoreError(w, r, err)
 		return
+	}
+	// Previews go with their app, data and all.
+	previews, err := s.store.Previews(r.Context(), app.ID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	for _, p := range previews {
+		if _, err := s.store.MarkAppDeleting(r.Context(), p.ID, true); err != nil {
+			s.internalError(w, r, err)
+			return
+		}
 	}
 	s.audit(r, "app.deleted", app.Name, map[string]any{"app_id": app.ID, "delete_data": deleteData})
 	s.queueReconcile(r, app.ServerID)

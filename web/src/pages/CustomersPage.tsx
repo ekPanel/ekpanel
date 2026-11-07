@@ -69,7 +69,9 @@ export function UsageList({ usage, pkg }: { usage: Usage; pkg: Package }) {
       <UsageLine label={t("nav.sites")} have={usage.sites} limit={pkg.max_sites} text={count(usage.sites, pkg.max_sites)} />
       <UsageLine label={t("nav.databases")} have={usage.databases} limit={pkg.max_databases} text={count(usage.databases, pkg.max_databases)} />
       {pkg.max_apps > 0 && <UsageLine label={t("nav.apps")} have={usage.apps} limit={pkg.max_apps} text={count(usage.apps, pkg.max_apps)} />}
-      {pkg.max_cron_jobs > 0 && <UsageLine label={t("cron.title")} have={usage.cron_jobs} limit={pkg.max_cron_jobs} text={count(usage.cron_jobs, pkg.max_cron_jobs)} />}
+      {pkg.max_cron_jobs > 0 && (
+        <UsageLine label={t("cron.title")} have={usage.cron_jobs} limit={pkg.max_cron_jobs} text={count(usage.cron_jobs, pkg.max_cron_jobs)} />
+      )}
       <UsageLine
         label={t("customers.disk")}
         have={usage.disk_bytes}
@@ -410,6 +412,7 @@ interface PackageForm {
   app_images: string;
   server_ids: string[];
   sftp: boolean;
+  gitApps: boolean;
 }
 
 const newPackage: PackageForm = {
@@ -425,6 +428,7 @@ const newPackage: PackageForm = {
   app_images: "",
   server_ids: [],
   sftp: true,
+  gitApps: false,
 };
 
 function formFromPackage(p: Package): PackageForm {
@@ -441,6 +445,7 @@ function formFromPackage(p: Package): PackageForm {
     app_images: p.app_images.join("\n"),
     server_ids: p.server_ids,
     sftp: p.sftp,
+    gitApps: p.git_apps,
   };
 }
 
@@ -519,6 +524,7 @@ function PackageDialog({ open, pkg, onClose }: { open: boolean; pkg: Package | n
         .filter(Boolean),
       server_ids: f.server_ids,
       sftp: f.sftp,
+      git_apps: f.gitApps,
     };
     try {
       if (pkg) await api.put(`/packages/${pkg.id}`, body);
@@ -603,6 +609,13 @@ function PackageDialog({ open, pkg, onClose }: { open: boolean; pkg: Package | n
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={f.sftp} onChange={(e) => set("sftp", e.target.checked)} className="accent-[var(--accent)]" />
           {t("packages.sftp")}
+        </label>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" checked={f.gitApps} onChange={(e) => set("gitApps", e.target.checked)} className="mt-1 accent-[var(--accent)]" />
+          <span>
+            <span className="font-medium">{t("packages.git_apps")}</span>
+            <span className="block text-muted">{t("packages.git_apps_hint")}</span>
+          </span>
         </label>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>

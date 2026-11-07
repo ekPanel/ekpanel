@@ -29,6 +29,7 @@ export interface Package {
   app_images: string[];
   server_ids: string[];
   sftp: boolean;
+  git_apps: boolean;
   customers: number;
   created_at: string;
 }
@@ -262,6 +263,11 @@ export interface App extends Owned {
   build_context: string | null;
   auto_deploy: boolean;
   deploy_key_public: string | null;
+  builder: "auto" | "dockerfile" | "railpack";
+  previews: boolean;
+  preview_domain: string | null;
+  preview_of: string | null;
+  preview_number: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -274,6 +280,7 @@ export interface Deployment {
   status: "queued" | "building" | "releasing" | "live" | "failed" | "superseded" | "cancelled";
   trigger: "manual" | "webhook" | "rollback";
   branch: string;
+  ref: string | null;
   commit_sha: string | null;
   commit_message: string | null;
   image: string | null;

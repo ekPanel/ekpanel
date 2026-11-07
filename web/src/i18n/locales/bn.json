@@ -275,7 +275,9 @@
         "update_started": "অ্যাপ আপডেট শুরু হয়েছে",
         "deleted": "অ্যাপ মুছে ফেলা হয়েছে",
         "deploy_started": "ডিপ্লয় শুরু",
-        "rolled_back": "আগের রিলিজে ফেরানো"
+        "rolled_back": "আগের রিলিজে ফেরানো",
+        "preview_created": "প্রিভিউ তৈরি",
+        "preview_removed": "প্রিভিউ মুছে ফেলা"
       },
       "package": {
         "created": "প্যাকেজ তৈরি হয়েছে",
@@ -445,7 +447,7 @@
     "confirm_required": "টার্মিনাল খুলতে আবার পাসওয়ার্ড দিন।",
     "domain_required": "এই সার্ভিস ডোমেইন দিয়ে ব্যবহার হয়; একটি ডোমেইন দিন।",
     "template_not_found": "সার্ভিসটি ক্যাটালগে নেই।",
-    "git_not_allowed": "আপাতত Git অ্যাপ শুধু অ্যাডমিনদের জন্য।",
+    "git_not_allowed": "প্যাকেজে Git অ্যাপ নেই।",
     "invalid_repo": "রিপোজিটরির https:// ঠিকানা, অথবা SSH ঠিকানা (git@host:owner/repo.git) দিন।",
     "invalid_branch": "একটি ব্রাঞ্চের নাম দিন, যেমন main।",
     "invalid_repo_path": "Dockerfile আর বিল্ড ফোল্ডার রিপোজিটরির ভেতরের পাথ হতে হবে।",
@@ -453,7 +455,9 @@
     "not_git_app": "শুধু Git অ্যাপ ডিপ্লয় করা যায়।",
     "deployment_not_found": "এমন কোনো ডিপ্লয়মেন্ট নেই।",
     "rollback_not_possible": "শুধু আগের পাঁচটি রিলিজে ফেরা যায়।",
-    "git_app_update": "Git অ্যাপ আপডেট হয় ডিপ্লয় করে।"
+    "git_app_update": "Git অ্যাপ আপডেট হয় ডিপ্লয় করে।",
+    "invalid_builder": "Dockerfile, Railpack অথবা স্বয়ংক্রিয় পদ্ধতিতে বিল্ড করুন।",
+    "preview_domain_required": "প্রিভিউয়ের ডোমেইন দিন, যেমন preview.example.com।"
   },
   "not_found": {
     "title": "পাতাটা পাওয়া যায়নি",
@@ -1055,7 +1059,30 @@
       "manual": "{{name}} করেছেন",
       "webhook": "push থেকে",
       "rollback": "{{name}} আগেরটায় ফিরিয়েছেন"
+    },
+    "builder": "বিল্ড পদ্ধতি",
+    "builders": {
+      "auto": "স্বয়ংক্রিয়",
+      "dockerfile": "Dockerfile",
+      "railpack": "Railpack"
+    },
+    "builder_hint": {
+      "auto": "রিপোজিটরিতে Dockerfile থাকলে সেটি, না থাকলে Railpack।",
+      "dockerfile": "রিপোজিটরির নিজের Dockerfile।",
+      "railpack": "ভাষা আর ফ্রেমওয়ার্ক নিজে চিনে নেয়; Dockerfile লাগে না।"
     }
+  },
+  "previews": {
+    "enable": "প্রতিটি pull request-এর প্রিভিউ",
+    "enable_hint": "ব্রাঞ্চে আসা প্রতিটি pull request নিজের একটি অ্যাপ পায়, প্রতি push-এ নতুন করে বিল্ড হয়, আর request বন্ধ হলে মুছে যায়। fork থেকে আসা pull request-এর প্রিভিউ হয় না। একসঙ্গে সর্বোচ্চ ৫টি।",
+    "domain": "প্রিভিউয়ের ডোমেইন",
+    "domain_hint": "*.{{domain}} সার্ভারের দিকে দিন; pull request 12-এর প্রিভিউ থাকবে <app>-pr12.{{domain}}-এ।",
+    "title": "প্রিভিউ",
+    "intro": "এই অ্যাপের ব্রাঞ্চে আসা pull request, প্রতিটি {{domain}}-এর নিচে নিজের ঠিকানায়।",
+    "none": "কোনো খোলা pull request নেই। রিপোজিটরিতে একটি খুললে এখানে তার প্রিভিউ দেখা যাবে।",
+    "building": "এখনো বিল্ড হয়নি",
+    "of": "pull request #{{number}} ({{branch}})-এর প্রিভিউ, যে অ্যাপের:",
+    "goes_away": "pull request বন্ধ হলে এটি মুছে যায়।"
   },
   "customers": {
     "intro": "যাঁরা আপনার কাছে হোস্টিং নেন। প্রত্যেক গ্রাহক শুধু নিজের ওয়েবসাইট, ডেটাবেস আর অ্যাপ দেখেন, নিজের প্যাকেজের সীমার মধ্যে।",
@@ -1116,7 +1143,9 @@
     "includes": "যা আছে",
     "resources": "রিসোর্স",
     "includes_text": "{{sites}}টি ওয়েবসাইট · {{databases}}টি ডেটাবেস · {{apps}}টি অ্যাপ · {{cron}}টি ক্রন জব",
-    "disk_unlimited": "সীমাহীন ডিস্ক"
+    "disk_unlimited": "সীমাহীন ডিস্ক",
+    "git_apps": "Git অ্যাপ",
+    "git_apps_hint": "গ্রাহকেরা নিজেদের রিপোজিটরি বিল্ড আর ডিপ্লয় করতে পারবেন। বিল্ড চলে সার্ভারে, প্যাকেজের মেমরি আর CPU-র মধ্যে।"
   },
   "cron": {
     "title": "ক্রন জব",

@@ -144,6 +144,7 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/apps/{id}/terminal", s.handleAppTerminal)
 			r.Get("/apps/{id}/traffic", s.handleAppTraffic)
 			r.Get("/apps/{id}/git", s.handleGitInfo)
+			r.Get("/apps/{id}/previews", s.handleListPreviews)
 			r.Post("/apps/{id}/deploy", s.handleDeploy)
 			r.Get("/apps/{id}/deployments", s.handleListDeployments)
 			r.Get("/apps/{id}/deployments/{did}", s.handleGetDeployment)

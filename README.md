@@ -12,7 +12,7 @@
 hosting (like cPanel and aaPanel), Git and Docker app deployment (like Coolify), and later
 email, DNS and game servers, with a modern UI in your own language.
 
-> **Status: early development (phase 2 of 4).** Do not use it for production hosting yet.
+> **Status: early development (phase 2 of 4 done).** Do not use it for production hosting yet.
 > See [PLAN.md](PLAN.md) for the full roadmap.
 
 > **ek** (এক) is Bangla for "one": one panel for everything.
@@ -42,9 +42,11 @@ email, DNS and game servers, with a modern UI in your own language.
 - **App catalogue**: one-click Nextcloud, Ghost, n8n, Gitea, Vaultwarden, Grafana, Uptime
   Kuma, Umami, listmonk, Redis and more, with passwords and keys generated for each install.
   Customers can install them too, inside their package's limits
-- **Git deploys**: build a repository's Dockerfile on your server on every push (GitHub,
-  GitLab, Gitea, Forgejo webhooks), watch the build live, release without downtime, and roll
-  back to any of the last five builds in one click. Private repositories use a deploy key
+- **Git deploys**: build a repository on your server on every push (GitHub, GitLab, Gitea,
+  Forgejo webhooks), with its Dockerfile or with Railpack when it has none; watch the build
+  live, release without downtime, and roll back to any of the last five builds in one click.
+  Each pull request can get a preview at its own address, removed when it closes. Private
+  repositories use a deploy key
 - **Docker apps**: run any image or Compose file, with a domain and free HTTPS, variables,
   kept folders, limits, logs and one-click image updates. App ports stay private to the
   server, so Docker cannot open holes in the firewall
@@ -64,7 +66,7 @@ email, DNS and game servers, with a modern UI in your own language.
 - A web UI in **English** and **বাংলা (Bangla)**, ready for right-to-left languages, with
   light/dark themes, a `Ctrl+K` command palette and phone-friendly layouts
 
-Coming next: builds without a Dockerfile and preview deploys for pull requests. [PLAN.md](PLAN.md) lists every phase.
+Coming next, phase 3: built-in DNS, email with webmail, a WordPress toolkit and a security suite. [PLAN.md](PLAN.md) lists every phase.
 
 ## How it fits together
 
