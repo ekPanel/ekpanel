@@ -698,12 +698,27 @@ Agreed (2026-11-07):
 - [ ] Laravel, Joomla, Drupal, PrestaShop, Moodle …: pinned, checked downloads; database made
       for them; their own command-line installers
 
-**3e. Security**
-- [ ] CrowdSec with the firewall bouncer: SSH, web server and WordPress attacks banned
-- [ ] Alerts, bans, manual bans and allowlists in the panel; country blocking (db-ip lite,
-      CC BY 4.0)
+**3e. Security — done** (malware scans and country blocking are 3e-2)
+- [x] CrowdSec per server, turned on from the panel: installed from CrowdSec's own package
+      repository with the nftables firewall bouncer, its local API moved off port 8080 (the
+      panel's), reading SSH and every website's and app's log; detections for SSH, web
+      attacks, known CVEs and WordPress. Turning it off stops it and its bans
+- [x] Bans: detected and by hand (single public addresses, from one hour to a year, with a
+      reason), lifted from the panel; recent attacks with country; an allowlist that also
+      covers the community blocklist, always including the server's own and Cloudflare's
+      addresses
+- [x] Behind Cloudflare the visitor's own address is detected and banned, never
+      Cloudflare's (so bans only stop direct access; noted in the panel)
+- [x] Overview per server: firewall, CrowdSec, root and password sign-in over SSH, pending
+      and security updates, automatic security updates (one click to turn on), restart
+      needed, and administrators without two-factor authentication
+- [x] Tested in the VM: installed and running beside the panel; WordPress password guessing
+      through Cloudflare and SSH password guessing banned; an allowlisted address not
+      banned; bans by hand reached nftables and were lifted; turned off cleanly
+
+**3e-2. Malware and countries**
 - [ ] Malware scans with ClamAV on a schedule, with quarantine
-- [ ] A security overview: SSH settings, pending updates, 2FA of administrators
+- [ ] Country blocking (db-ip lite, CC BY 4.0)
 
 **3f. FTP**
 - [ ] Pure-FTPd with TLS required, one login per site chrooted to it, passive ports opened in
@@ -715,4 +730,4 @@ Agreed (2026-11-07):
       (AXFR/NOTIFY); guidance for glue records
 
 **Next**
-- [ ] 3d-2. PHP app installer, or 3e. Security
+- [ ] 3d-2. PHP app installer, 3e-2. Malware and countries, or 3f. FTP

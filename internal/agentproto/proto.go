@@ -247,6 +247,8 @@ type StateApplyParams struct {
 	Firewall *FirewallSpec `json:"firewall,omitempty"`
 	// Mail is nil when the server has no email.
 	Mail *MailSpec `json:"mail,omitempty"`
+	// Security is nil from panels that do not know it; the agent then leaves it alone.
+	Security *SecuritySpec `json:"security,omitempty"`
 }
 
 // AppSpec is one Docker app: a Compose project named "ekpanel-<Name>" kept in
@@ -341,6 +343,7 @@ type StateApplyResult struct {
 	Cron      []AppResult      `json:"cron"`
 	Firewall  *FirewallResult  `json:"firewall,omitempty"`
 	Mail      *MailResult      `json:"mail,omitempty"`
+	Security  *SecurityResult  `json:"security,omitempty"`
 }
 
 type AppResult struct {

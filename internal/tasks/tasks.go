@@ -440,6 +440,11 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			params.Firewall.Rules = append(params.Firewall.Rules, spec)
 		}
 	}
+	sec, err := r.store.GetSecurity(ctx, serverID)
+	if err != nil {
+		return sum, err
+	}
+	params.Security = &agentproto.SecuritySpec{CrowdSec: sec.CrowdSec, Allowlist: sec.Allowlist}
 	mailDomains, err := r.mailSpec(ctx, serverID, &params)
 	if err != nil {
 		return sum, err
@@ -560,6 +565,14 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		sum.Applied += n.Applied
 		sum.Failed += n.Failed
 	}
+	if res.Security != nil {
+		if err := r.store.RecordSecurityStatus(ctx, serverID, *res.Security); err != nil {
+			return sum, err
+		}
+		if res.Security.Error != "" {
+			sum.Failed++
+		}
+	}
 	if res.Firewall != nil {
 		st := store.FirewallStatus{Active: res.Firewall.Active, SSHPorts: res.Firewall.SSHPorts, Error: res.Firewall.Error, At: time.Now()}
 		if err := r.store.RecordFirewallStatus(ctx, serverID, st); err != nil {
@@ -570,7 +583,7 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		}
 	}
 	if sum.Failed > 0 {
-		return sum, fmt.Errorf("%d of %d items could not be applied; see each website, database, app or mail domain for the reason",
+		return sum, fmt.Errorf("%d of %d items could not be applied; see each website, database, app, mail domain or the security page for the reason",
 			sum.Failed, sum.Applied+sum.Failed)
 	}
 	return sum, nil

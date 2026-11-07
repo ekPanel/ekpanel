@@ -30,7 +30,8 @@
     "packages": "Packages",
     "notifications": "Notifications",
     "dns": "DNS",
-    "mail": "Email"
+    "mail": "Email",
+    "security_page": "Server security"
   },
   "theme": {
     "label": "Theme",
@@ -354,6 +355,12 @@
         "forwarder_created": "Forwarder created",
         "forwarder_updated": "Forwarder changed",
         "forwarder_deleted": "Forwarder deleted"
+      },
+      "security": {
+        "set": "Security settings changed",
+        "ban": "Address banned",
+        "unban": "Ban lifted",
+        "auto_updates": "Automatic security updates changed"
       }
     }
   },
@@ -542,7 +549,11 @@
     "is_staging": "This site is itself a staging copy.",
     "staging_exists": "This site already has a staging copy.",
     "not_staging": "This website is not a staging copy.",
-    "invalid_wp_copy": "Choose what to copy."
+    "invalid_wp_copy": "Choose what to copy.",
+    "invalid_allowlist": "Use IP addresses or networks such as 203.0.113.0/24, one per line.",
+    "invalid_ban": "Enter one public IP address, a duration and a reason.",
+    "agent_crowdsec_off": "CrowdSec is not running on this server.",
+    "agent_allowlisted": "That address is on the allowlist."
   },
   "not_found": {
     "title": "Page not found",
@@ -1107,6 +1118,99 @@
       "database_hint": "Posts, pages, settings, users and orders.",
       "kept": "Before overwriting, the target's database is saved, and replaced files are kept aside, in its tmp folder.",
       "exists": "The staging copy is at"
+    }
+  },
+  "serversec": {
+    "intro": "Attacks on your servers are detected and banned by CrowdSec. The checklist shows what else to tighten.",
+    "no_server": "No server yet",
+    "overview": {
+      "title": "Checklist",
+      "firewall_on": "The firewall is on.",
+      "firewall_off": "The firewall is off: every port that a program opens is reachable.",
+      "open_firewall": "Turn it on on the server's page",
+      "crowdsec_on_one": "CrowdSec is running; {{count}} address banned now.",
+      "crowdsec_on_other": "CrowdSec is running; {{count}} addresses banned now.",
+      "crowdsec_off": "CrowdSec is off: password guessing and scans are not banned.",
+      "root_ok": "root cannot sign in over SSH with a password.",
+      "root_password": "root may sign in over SSH with a password (PermitRootLogin {{value}}). Use keys and set it to prohibit-password.",
+      "password_on": "SSH accepts passwords (port {{ports}}). Keys are safer; CrowdSec bans guessers meanwhile.",
+      "password_off": "SSH accepts keys only.",
+      "updates_none": "All packages are up to date.",
+      "updates_one": "{{count}} package update waiting, {{security}} for security.",
+      "updates_other": "{{count}} package updates waiting, {{security}} for security.",
+      "lists_old": "The package lists are {{hours}} hours old.",
+      "auto_on": "Security updates are installed automatically.",
+      "auto_off": "Security updates are not installed automatically.",
+      "auto_enable": "Turn on automatic security updates",
+      "reboot": "Updates wait for a restart of the server.",
+      "twofa_ok": "Every administrator signs in with two-factor authentication.",
+      "twofa_missing_one": "{{count}} administrator signs in with a password only:",
+      "twofa_missing_other": "{{count}} administrators sign in with a password only:",
+      "twofa_setup": "Set up two-factor authentication"
+    },
+    "crowdsec": {
+      "intro": "Reads SSH and web server logs, bans addresses that guess passwords, scan for weaknesses or try known exploits (also on WordPress), and blocks addresses its community reports. Bans are made in the firewall.",
+      "running": "Running {{version}}",
+      "starting": "Starting",
+      "stopping": "Stopping",
+      "off": "Off",
+      "enable": "Turn on CrowdSec",
+      "disable": "Turn off",
+      "checked": "Checked {{when}}",
+      "bouncer_down": "The firewall part of CrowdSec is not running, so bans have no effect. Restart crowdsec-firewall-bouncer on the server's page.",
+      "cloudflare_note": "Visitors through Cloudflare's proxy reach the server from Cloudflare's addresses, which are never banned; their attacks are logged and banned for direct access only. Block them at Cloudflare too."
+    },
+    "bans": {
+      "title": "Banned addresses",
+      "intro": "Detected attackers and addresses banned by hand. The community's list is not shown.",
+      "ip": "IP address",
+      "duration": "For",
+      "reason": "Reason",
+      "until": "Until",
+      "ban": "Ban",
+      "unban": "Lift ban",
+      "none": "No address is banned now.",
+      "by_hand": "Banned by hand",
+      "detected": "Detected",
+      "allowlisted": "{{ip}} is on the allowlist. Remove it there first.",
+      "d_1h": "1 hour",
+      "d_4h": "4 hours",
+      "d_24h": "1 day",
+      "d_168h": "1 week",
+      "d_720h": "30 days",
+      "d_8760h": "1 year"
+    },
+    "alerts": {
+      "title": "Recent attacks",
+      "intro": "What CrowdSec detected on this server.",
+      "none": "Nothing detected yet.",
+      "banned": "Banned"
+    },
+    "allowlist": {
+      "title": "Allowlist",
+      "intro": "Addresses and networks never banned, such as your office. One per line.",
+      "saved": "Saved.",
+      "always": "Always allowed as well: this server's and Cloudflare's addresses ({{count}})"
+    },
+    "scenarios": {
+      "ssh_bf": "SSH password guessing",
+      "ssh_slow_bf": "Slow SSH password guessing",
+      "ssh_user_enum": "SSH user name guessing",
+      "http_probing": "Probing for files",
+      "http_crawl_non_statics": "Aggressive crawling",
+      "http_bad_user_agent": "Known attack tool",
+      "http_sensitive_files": "Looking for secret files",
+      "http_path_traversal_probing": "Path traversal attempts",
+      "http_sqli_probing": "SQL injection attempts",
+      "http_xss_probing": "Script injection attempts",
+      "http_backdoors_attempts": "Looking for backdoors",
+      "http_admin_interface_probing": "Looking for admin pages",
+      "http_open_proxy": "Open proxy test",
+      "http_bf_wordpress_bf": "WordPress password guessing",
+      "http_wordpress_scan": "WordPress scan",
+      "http_wordpress_user_enum": "WordPress user name guessing",
+      "http_wordpress_wpconfig": "Trying to read wp-config.php",
+      "http_cve_probing": "Exploit attempts (known CVEs)"
     }
   },
   "backups": {

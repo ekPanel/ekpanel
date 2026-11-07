@@ -17,12 +17,12 @@ import (
 
 // watchedServices are the systemd units whose state the panel shows. Only names from
 // these fixed lists ever reach systemctl, so no input from the panel becomes part of a command.
-var watchedServices = []string{"ekpanel", "ekpanel-agent", "caddy", "postgresql", "ssh", "cron", "ekpanel-mail"}
+var watchedServices = []string{"ekpanel", "ekpanel-agent", "caddy", "postgresql", "ssh", "cron", "ekpanel-mail", "crowdsec", "crowdsec-firewall-bouncer"}
 
 // restartableServices may be restarted from the panel. The panel and agent themselves are
 // not on it (a restart would cut the connection running the request), nor is ssh (a bad
 // restart could lock the owner out).
-var restartableServices = []string{"caddy", "postgresql", "cron", "ekpanel-mail"}
+var restartableServices = []string{"caddy", "postgresql", "cron", "ekpanel-mail", "crowdsec", "crowdsec-firewall-bouncer"}
 
 // systemctl runs systemctl with fixed arguments. Tests replace it.
 var systemctl = func(ctx context.Context, args ...string) ([]byte, error) {
@@ -165,6 +165,30 @@ func Dispatch(ctx context.Context, op string, params json.RawMessage) (any, *age
 			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
 		}
 		return wordPressClone(ctx, realSystem, p)
+	case agentproto.OpSecurityOverview:
+		return securityOverview(ctx, realSystem)
+	case agentproto.OpSecurityBans:
+		return securityBans(ctx, realSystem)
+	case agentproto.OpSecurityAlerts:
+		return securityAlerts(ctx, realSystem)
+	case agentproto.OpSecurityBan:
+		var p agentproto.BanParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return securityBan(ctx, realSystem, p)
+	case agentproto.OpSecurityUnban:
+		var p agentproto.UnbanParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return securityUnban(ctx, realSystem, p)
+	case agentproto.OpSecurityAutoUpdates:
+		var p agentproto.AutoUpdatesParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return securityAutoUpdates(ctx, realSystem, p)
 	case agentproto.OpMailCheck:
 		var p agentproto.MailCheckParams
 		if err := json.Unmarshal(params, &p); err != nil {

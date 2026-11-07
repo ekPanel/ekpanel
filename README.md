@@ -74,6 +74,10 @@ email, DNS and game servers, with a modern UI in your own language.
 - **Customers and packages**: host other people. Each customer signs in to see only their own
   websites, databases and apps, within a package's limits on counts, disk, memory and CPU;
   memory and CPU are enforced by the kernel (cgroups) for their PHP and containers
+- **Security**: CrowdSec on any server in one click: password guessing on SSH and
+  WordPress, scans and exploit attempts are banned in the firewall (with the visitor's real
+  address behind Cloudflare), with bans, attacks and an allowlist in the panel, and a
+  checklist of SSH, updates and two-factor sign-in
 - **Firewall**: turn on ufw with SSH, web and agent ports always open, then open ports or
   block addresses from the server page
 - An append-only audit log of every change (the database itself refuses edits and deletes)
