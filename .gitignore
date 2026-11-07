@@ -6,3 +6,4 @@
 !/internal/webui/dist/.keep
 *.log
 .DS_Store
+/dist/

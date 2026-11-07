@@ -15,8 +15,10 @@ email, DNS and game servers, with a modern UI in your own language.
 - Sign-in with argon2id password hashing, optional two-factor authentication (TOTP),
   login rate limiting, and "sign out other devices"
 - Add Linux servers: run one command on the server, and its agent connects to the panel
-  (outbound only, so it works behind NAT)
-- Live CPU, memory, disk, network, load and uptime per server, streamed over WebSocket
+  (outbound only, so it works behind NAT) over **mutual TLS** with a pinned private CA
+- Live CPU, memory, disk, network, load and uptime per server, plus **30 days of history**
+- See and restart a server's services (Caddy, PostgreSQL, cron…) through background
+  **tasks** that show their progress in the UI
 - An append-only audit log of every change (the database itself refuses edits and deletes)
 - A web UI in **English** and **বাংলা (Bangla)**, ready for right-to-left languages, with
   light/dark themes, a `Ctrl+K` command palette and phone-friendly layouts
@@ -50,7 +52,7 @@ The log prints a **setup token**. Open http://127.0.0.1:8080, paste it, and crea
 Then use **Add server**, copy the token from the dialog, and connect this machine:
 
 ```bash
-make dev-agent TOKEN=<token from the dialog>
+make dev-agent TOKEN=<token> PIN=<ca pin>    # both are in the dialog's command
 ```
 
 For UI work with hot reload, run `make dev` and `make dev-ui` together, then open
@@ -61,12 +63,14 @@ http://localhost:5173. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 On a fresh **Ubuntu 24.04+ or Debian 12+** server (amd64 or arm64), as root:
 
 ```bash
-make panel agent                        # on your machine, then copy bin/ and deploy/install.sh over
-sudo ./install.sh --local-dir ./bin --domain panel.example.com
+make release                            # on your machine: dist/ekpanel-<version>-linux-<arch>.tar.gz
+tar -xzf ekpanel-*-linux-amd64.tar.gz && cd ekpanel-*-linux-amd64   # on the server
+sudo ./install.sh --local-dir . --domain panel.example.com
 ```
 
 The installer sets up PostgreSQL and Caddy, runs the panel as an unprivileged, sandboxed
 systemd service, connects the server's own agent, and prints the one-time setup token.
+Agents on other servers connect to the panel on TCP port 7443.
 Leave out `--domain` to use the server's IP address with a self-signed certificate. Running it
 again upgrades the binaries and keeps your data. One-line installs from release downloads come
 with the first release.

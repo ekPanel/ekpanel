@@ -11,7 +11,9 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"ekpanel/internal/hub"
+	"ekpanel/internal/pki"
 	"ekpanel/internal/store"
+	"ekpanel/internal/tasks"
 )
 
 type Options struct {
@@ -26,6 +28,12 @@ type Options struct {
 	UI fs.FS
 	// Version is reported by /api/v1/health and in the agent handshake.
 	Version string
+	// CA issues agent certificates; its fingerprint goes into enrolment commands.
+	CA *pki.CA
+	// AgentPort is the port of the agent listener, shown in enrolment commands.
+	AgentPort int
+	// Tasks queues background work.
+	Tasks *tasks.Runner
 }
 
 type Server struct {
@@ -64,10 +72,6 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/setup", s.handleSetup)
 		r.Post("/auth/login", s.handleLogin)
 
-		// Agents authenticate with their own credentials, not browser sessions.
-		r.Post("/agent/enroll", s.handleAgentEnroll)
-		r.Get("/agent/connect", s.handleAgentConnect)
-
 		r.Group(func(r chi.Router) {
 			r.Use(requireUser)
 			r.Post("/auth/logout", s.handleLogout)
@@ -87,6 +91,10 @@ func (s *Server) Handler() http.Handler {
 			r.Delete("/servers/{id}", s.handleDeleteServer)
 			r.Post("/servers/{id}/enroll-token", s.handleRenewEnrollToken)
 			r.Get("/servers/{id}/live", s.handleServerLive)
+			r.Get("/servers/{id}/metrics", s.handleServerMetrics)
+			r.Get("/servers/{id}/services", s.handleServerServices)
+			r.Post("/servers/{id}/services/{name}/restart", s.handleRestartService)
+			r.Get("/tasks", s.handleListTasks)
 			r.Get("/audit", s.handleListAudit)
 		})
 

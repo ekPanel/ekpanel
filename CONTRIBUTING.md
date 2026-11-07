@@ -13,7 +13,7 @@ inside `.data/`, and the tests start their own.
 make ui          # install web dependencies and build the UI into the panel
 make dev         # run the panel at http://127.0.0.1:8080 (prints a setup token)
 make dev-ui      # optional: Vite dev server with hot reload at http://localhost:5173
-make dev-agent TOKEN=...   # enrol and run an agent on this machine
+make dev-agent TOKEN=... PIN=...   # enrol and run an agent on this machine
 make test        # everything CI runs
 ```
 
@@ -30,7 +30,8 @@ scripts/test-vm.sh create                         # first time: downloads Ubuntu
 make panel agent
 scripts/test-vm.sh copy bin/ekpanel bin/ekpanel-agent deploy/install.sh
 scripts/test-vm.sh ssh 'sudo ./install.sh --local-dir .'
-# the panel is now at https://127.0.0.1:8443 (self-signed certificate)
+# the panel is now at https://127.0.0.1:8443 (self-signed certificate),
+# and its agent port at 127.0.0.1:17443 for testing agents from this machine
 scripts/test-vm.sh stop                           # or destroy, to delete its disk
 ```
 
@@ -50,7 +51,9 @@ a pull request from `dev`. Open your pull requests against `dev`.
 | `internal/db/migrations` | schema migrations, applied in name order at startup |
 | `internal/agent` | metric collection and the agent's connection loop |
 | `internal/agentproto` | messages shared by the panel and agents |
-| `internal/hub` | live server state and fan-out to browsers |
+| `internal/hub` | live server state, fan-out to browsers, routing operations to agents |
+| `internal/pki` | the panel's private CA for agent mutual TLS |
+| `internal/tasks` | background task queue and its handlers |
 | `web/` | React + TypeScript UI (Vite, Tailwind, TanStack Query, i18next) |
 
 ## Guidelines

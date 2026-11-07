@@ -47,6 +47,48 @@ export interface Server {
 export interface EnrollResult {
   server: Server;
   enroll_token: string;
+  /** Fingerprint of the panel's agent CA; the agent refuses any other panel. */
+  ca_pin: string;
+  agent_port: number;
+}
+
+export interface MetricPoint {
+  at: string;
+  cpu_percent: number;
+  load1: number;
+  mem_used: number;
+  mem_total: number;
+  disk_used: number;
+  disk_total: number;
+  net_rx_rate: number;
+  net_tx_rate: number;
+}
+
+export interface ServiceInfo {
+  name: string;
+  installed: boolean;
+  active_state: string;
+  sub_state: string;
+  since: string | null;
+  restartable: boolean;
+}
+
+export type TaskStatus = "queued" | "running" | "succeeded" | "failed";
+
+export interface Task {
+  id: string;
+  kind: string;
+  server_id: string | null;
+  server_name: string | null;
+  params: Record<string, unknown>;
+  status: TaskStatus;
+  attempts: number;
+  max_attempts: number;
+  result: unknown;
+  error: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
 }
 
 export interface AuditEntry {

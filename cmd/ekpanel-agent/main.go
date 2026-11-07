@@ -1,6 +1,6 @@
 // Command ekpanel-agent runs on every managed server and connects it to the panel.
 //
-//	ekpanel-agent enroll --panel https://panel.example.com --token <one-time token>
+//	ekpanel-agent enroll --panel panel.example.com:7443 --token <one-time token> --ca-pin sha256:…
 //	ekpanel-agent run
 package main
 
@@ -49,23 +49,24 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, `usage:
-  ekpanel-agent enroll --panel URL --token TOKEN [--config PATH]
+  ekpanel-agent enroll --panel HOST[:7443] --token TOKEN --ca-pin sha256:... [--config PATH]
   ekpanel-agent run [--config PATH]
   ekpanel-agent version`)
 }
 
 func enroll(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("enroll", flag.ContinueOnError)
-	panel := fs.String("panel", "", "panel URL, e.g. https://panel.example.com")
+	panel := fs.String("panel", "", "panel address for agents, e.g. panel.example.com:7443")
 	token := fs.String("token", "", "one-time enrolment token from the panel")
+	pin := fs.String("ca-pin", "", "fingerprint of the panel's agent CA, shown with the token (sha256:...)")
 	config := fs.String("config", defaultConfig, "where to save the agent credential")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if *panel == "" || *token == "" {
-		return fmt.Errorf("--panel and --token are required")
+	if *panel == "" || *token == "" || *pin == "" {
+		return fmt.Errorf("--panel, --token and --ca-pin are required; copy the full command from the panel")
 	}
-	cfg, err := agent.Enroll(ctx, *panel, *token, *config)
+	cfg, err := agent.Enroll(ctx, *panel, *token, *pin, *config)
 	if err != nil {
 		return err
 	}
@@ -84,5 +85,5 @@ func run(ctx context.Context, log *slog.Logger, args []string) error {
 	if err != nil {
 		return err
 	}
-	return agent.Run(ctx, log, cfg, version)
+	return agent.Run(ctx, log, cfg, *config, version)
 }

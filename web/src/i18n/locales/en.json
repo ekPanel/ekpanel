@@ -109,7 +109,8 @@
       "step2": "2. Start the agent",
       "token_note": "The token in the command works once and expires {{when}}. It will not be shown again.",
       "connected": "Connected! The server is sending live statistics.",
-      "waiting": "Waiting for the agent to connect…"
+      "waiting": "Waiting for the agent to connect…",
+      "port_note": "The agent connects to this panel on TCP port {{port}}. If the panel's server has a firewall, allow that port."
     },
     "back": "Back to servers",
     "reenroll": "New connection command",
@@ -130,7 +131,7 @@
     },
     "live": "Live",
     "reconnecting": "Reconnecting…",
-    "history_note": "Charts show about the last 20 minutes. Long-term history arrives in a later release.",
+    "history_note": "Live shows about the last 20 minutes. Pick a range to see up to 30 days.",
     "delete": {
       "title": "Delete {{name}}?",
       "body": "The panel forgets this server and its agent can no longer connect. Nothing on the server itself is deleted.",
@@ -149,7 +150,18 @@
     "cores_one": "{{formatted}} core",
     "cores_other": "{{formatted}} cores",
     "of_total": "of {{total}}",
-    "load": "Load {{l1}} · {{l5}} · {{l15}}"
+    "load": "Load {{l1}} · {{l5}} · {{l15}}",
+    "range": "Time range",
+    "ranges": {
+      "live": "Live",
+      "1h": "1 hour",
+      "24h": "24 hours",
+      "7d": "7 days",
+      "30d": "30 days"
+    },
+    "history_step_one": "Each point is the average of {{count, number}} minute.",
+    "history_step_other": "Each point is the average of {{count, number}} minutes.",
+    "no_history": "No history for this period yet. It is recorded while the agent is connected."
   },
   "dashboard": {
     "greeting": "Hello, {{name}}",
@@ -194,6 +206,9 @@
         "deleted": "Server deleted",
         "enroll_token_renewed": "New connection command",
         "enrolled": "Agent connected"
+      },
+      "service": {
+        "restart_requested": "Service restart requested"
       }
     }
   },
@@ -222,11 +237,52 @@
     "unsupported_locale": "That language is not available yet.",
     "server_not_found": "That server does not exist. It may have been deleted.",
     "invalid_enroll_token": "That connection token is wrong, used or expired.",
-    "invalid_agent_credentials": "The agent's credential is not valid. Connect the server again."
+    "invalid_agent_credentials": "The agent's credential is not valid. Connect the server again.",
+    "agent_offline": "The server's agent is not connected.",
+    "agent_timeout": "The agent did not answer in time. Try again.",
+    "agent_not_allowed": "The agent does not allow that action.",
+    "agent_failed": "The server reported an error.",
+    "agent_unknown_op": "The agent is too old for this. Update the agent.",
+    "agent_invalid_params": "The panel sent the agent something it could not read.",
+    "invalid_service": "That is not a service name.",
+    "invalid_range": "That time range is not available.",
+    "invalid_csr": "The agent sent an invalid certificate request.",
+    "agent_no_systemd": "This server does not run systemd (for example a container), so its services cannot be shown or restarted."
   },
   "not_found": {
     "title": "Page not found",
     "body": "The page you are looking for does not exist or has moved.",
     "home": "Go to the dashboard"
+  },
+  "services": {
+    "title": "Services",
+    "offline": "The agent is offline, so service status is not available.",
+    "state": {
+      "active": "Running",
+      "inactive": "Stopped",
+      "failed": "Failed",
+      "activating": "Starting",
+      "deactivating": "Stopping",
+      "reloading": "Reloading"
+    },
+    "not_installed": "Not installed",
+    "since": "since {{when}}",
+    "restart": "Restart",
+    "restart_requested": "Restart requested"
+  },
+  "tasks": {
+    "recent": "Recent tasks",
+    "none": "No tasks yet. Actions such as restarting a service show up here.",
+    "in_progress_one": "{{count, number}} task in progress",
+    "in_progress_other": "{{count, number}} tasks in progress",
+    "status": {
+      "queued": "Waiting",
+      "running": "Running",
+      "succeeded": "Done",
+      "failed": "Failed"
+    },
+    "kinds": {
+      "service_restart": "Restart {{name}}"
+    }
   }
 }

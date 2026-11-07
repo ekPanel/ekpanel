@@ -8,6 +8,7 @@ import { meKey } from "../lib/session";
 import { useTheme, type Theme } from "../lib/theme";
 import { languages } from "../i18n";
 import { CommandPalette } from "./CommandPalette";
+import { TaskTray } from "./Tasks";
 import { cx } from "./ui";
 
 export function Logo({ className }: { className?: string }) {
@@ -218,6 +219,7 @@ export function AppShell({ user }: { user: User }) {
         </footer>
       </div>
       <CommandPalette open={palette} onClose={() => setPalette(false)} user={user} />
+      {user.role === "admin" && <TaskTray />}
     </div>
   );
 }

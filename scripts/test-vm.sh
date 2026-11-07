@@ -9,7 +9,8 @@
 #   scripts/test-vm.sh stop      shut it down (keeps the disk)
 #   scripts/test-vm.sh destroy   stop and delete the VM disk (keeps the downloaded image)
 #
-# From this machine: SSH on 127.0.0.1:2222, the VM's HTTPS (port 443) on https://127.0.0.1:8443.
+# From this machine: SSH on 127.0.0.1:2222, the VM's HTTPS (port 443) on https://127.0.0.1:8443,
+# and its agent port (7443) on 127.0.0.1:17443.
 # Settings: VM_DIR (default ~/vms/panel-test), VM_RAM_MB (2048), VM_CPUS (2), VM_DISK (12G).
 
 set -euo pipefail
@@ -20,6 +21,7 @@ CPUS="${VM_CPUS:-2}"
 DISK_SIZE="${VM_DISK:-12G}"
 SSH_PORT=2222
 HTTPS_PORT=8443
+AGENT_PORT=17443
 SEED_PORT=8099
 
 IMAGE_URL="https://cloud-images.ubuntu.com/noble/current"
@@ -64,7 +66,7 @@ boot() {
   qemu-system-x86_64 \
     -name panel-test -enable-kvm -cpu host -smp "$CPUS" -m "$RAM" \
     -drive "file=$DISK,if=virtio,discard=unmap" \
-    -nic "user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$HTTPS_PORT-:443" \
+    -nic "user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$HTTPS_PORT-:443,hostfwd=tcp:127.0.0.1:$AGENT_PORT-:7443" \
     -smbios "type=1,serial=ds=nocloud;s=http://10.0.2.2:$SEED_PORT/" \
     -display none -serial "file:$VM_DIR/console.log" \
     -daemonize -pidfile "$PIDFILE"

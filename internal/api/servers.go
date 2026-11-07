@@ -48,9 +48,17 @@ type createServerRequest struct {
 }
 
 // enrollResponse carries the one-time token. It is shown once and never stored in clear.
+// The UI builds the agent command from it: the panel's host name plus AgentPort, and the
+// CA pin that lets the agent check it is talking to this panel.
 type enrollResponse struct {
 	Server      serverView `json:"server"`
 	EnrollToken string     `json:"enroll_token"`
+	CAPin       string     `json:"ca_pin"`
+	AgentPort   int        `json:"agent_port"`
+}
+
+func (s *Server) enrollResponse(srv store.Server, token string) enrollResponse {
+	return enrollResponse{Server: s.view(srv), EnrollToken: token, CAPin: s.opts.CA.Pin(), AgentPort: s.opts.AgentPort}
 }
 
 func (s *Server) handleCreateServer(w http.ResponseWriter, r *http.Request) {
@@ -70,7 +78,7 @@ func (s *Server) handleCreateServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, "server.created", srv.Name, map[string]any{"server_id": srv.ID})
-	writeJSON(w, http.StatusCreated, enrollResponse{Server: s.view(srv), EnrollToken: token})
+	writeJSON(w, http.StatusCreated, s.enrollResponse(srv, token))
 }
 
 func (s *Server) handleGetServer(w http.ResponseWriter, r *http.Request) {
@@ -115,7 +123,7 @@ func (s *Server) handleRenewEnrollToken(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	s.audit(r, "server.enroll_token_renewed", srv.Name, map[string]any{"server_id": srv.ID})
-	writeJSON(w, http.StatusOK, enrollResponse{Server: s.view(srv), EnrollToken: token})
+	writeJSON(w, http.StatusOK, s.enrollResponse(srv, token))
 }
 
 // handleServerLive streams a snapshot of recent metrics, then live events, to the browser.
@@ -174,109 +182,6 @@ func serverID(r *http.Request) string {
 		return id
 	}
 	return nilUUID
-}
-
-// ---- Agent endpoints ----
-
-func (s *Server) handleAgentEnroll(w http.ResponseWriter, r *http.Request) {
-	var req agentproto.EnrollRequest
-	if !readJSON(w, r, &req) {
-		return
-	}
-	ipKey := "enroll:" + clientIP(r)
-	if s.limiter.Blocked(ipKey) {
-		writeError(w, http.StatusTooManyRequests, "too_many_attempts", "too many attempts; try again later")
-		return
-	}
-	secret := auth.NewToken()
-	srv, err := s.store.EnrollServer(r.Context(), auth.HashToken(strings.TrimSpace(req.Token)), auth.HashToken(secret))
-	if errors.Is(err, store.ErrNotFound) {
-		s.limiter.Fail(ipKey)
-		writeError(w, http.StatusForbidden, "invalid_enroll_token", "the enrolment token is wrong, used or expired; create a new one in the panel")
-		return
-	}
-	if err != nil {
-		s.internalError(w, r, err)
-		return
-	}
-	s.auditAs(r, nil, "server.enrolled", srv.Name, map[string]any{"server_id": srv.ID})
-	writeJSON(w, http.StatusOK, agentproto.EnrollResponse{ServerID: srv.ID, Secret: secret})
-}
-
-// agentReadTimeout closes connections from agents that stop sending samples.
-const agentReadTimeout = 30 * time.Second
-
-func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
-	id, secret, ok := strings.Cut(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), ".")
-	if !ok {
-		writeError(w, http.StatusUnauthorized, "unauthenticated", "agent credentials required")
-		return
-	}
-	if !isUUID(id) {
-		id = nilUUID
-	}
-	srv, err := s.store.AuthenticateAgent(r.Context(), id, auth.HashToken(secret))
-	if errors.Is(err, store.ErrNotFound) {
-		writeError(w, http.StatusUnauthorized, "invalid_agent_credentials", "agent credentials are not valid; enrol the agent again")
-		return
-	}
-	if err != nil {
-		s.internalError(w, r, err)
-		return
-	}
-
-	// Agents are not browsers, so there is no Origin to check.
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
-	if err != nil {
-		return
-	}
-	defer conn.CloseNow()
-	conn.SetReadLimit(64 << 10)
-
-	disconnected := s.hub.Connected(srv.ID)
-	defer disconnected()
-	s.log.Info("agent connected", "server", srv.Name, "id", srv.ID, "ip", clientIP(r))
-	defer s.log.Info("agent disconnected", "server", srv.Name, "id", srv.ID)
-
-	var lastTouch time.Time
-	for {
-		ctx, cancel := context.WithTimeout(r.Context(), agentReadTimeout)
-		_, data, err := conn.Read(ctx)
-		cancel()
-		if err != nil {
-			return
-		}
-		var env agentproto.Envelope
-		if err := json.Unmarshal(data, &env); err != nil {
-			conn.Close(websocket.StatusUnsupportedData, "invalid message")
-			return
-		}
-		switch {
-		case env.Type == agentproto.TypeHello && env.Hello != nil:
-			h := env.Hello
-			err = s.store.UpdateServerFacts(r.Context(), srv.ID, store.ServerFacts{
-				Hostname: trim(h.Hostname, 255), OS: trim(h.OS, 255), Kernel: trim(h.Kernel, 255),
-				Arch: trim(h.Arch, 32), CPUCount: h.CPUCount, AgentVersion: trim(h.AgentVersion, 64),
-			})
-			lastTouch = time.Now()
-		case env.Type == agentproto.TypeMetrics && env.Metrics != nil:
-			s.hub.Publish(srv.ID, *env.Metrics)
-			if time.Since(lastTouch) > 30*time.Second {
-				err = s.store.TouchServer(r.Context(), srv.ID)
-				lastTouch = time.Now()
-			}
-		}
-		if err != nil {
-			s.log.Error("agent message", "server", srv.ID, "err", err)
-		}
-	}
-}
-
-func trim(s string, n int) string {
-	if len(s) > n {
-		return s[:n]
-	}
-	return s
 }
 
 // ---- Audit log ----

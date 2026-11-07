@@ -6,11 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -19,7 +22,9 @@ import (
 	"ekpanel/internal/config"
 	"ekpanel/internal/db"
 	"ekpanel/internal/hub"
+	"ekpanel/internal/pki"
 	"ekpanel/internal/store"
+	"ekpanel/internal/tasks"
 	"ekpanel/internal/webui"
 )
 
@@ -44,7 +49,7 @@ func main() {
 }
 
 // addServer registers a server from the command line and prints its one-time enrolment
-// token. The installer uses it to connect the panel's own server before any admin exists.
+// token and the agent CA pin. The installer uses it to connect the panel's own server before any admin exists.
 //
 //	ekpanel add-server --name "This server" [panel flags such as --database-url]
 func addServer(args []string) error {
@@ -86,7 +91,12 @@ func addServer(args []string) error {
 	if err := st.AddAudit(ctx, nil, "", "server.created", srv.Name, map[string]any{"server_id": srv.ID, "via": "cli"}); err != nil {
 		return err
 	}
-	fmt.Println(token)
+	ca, err := pki.LoadOrCreateCA(filepath.Join(cfg.DataDir, "agent-ca"))
+	if err != nil {
+		return err
+	}
+	// One line, "<token> <ca-pin>", for scripts such as the installer.
+	fmt.Println(token, ca.Pin())
 	return nil
 }
 
@@ -128,39 +138,76 @@ func run(log *slog.Logger, args []string) error {
 	}
 	st := store.New(pool)
 
-	opts := api.Options{SecureCookies: cfg.SecureCookies, UI: webui.FS(), Version: version}
+	ca, err := pki.LoadOrCreateCA(filepath.Join(cfg.DataDir, "agent-ca"))
+	if err != nil {
+		return fmt.Errorf("agent CA: %w", err)
+	}
+	agentTLS, err := ca.ServerTLSConfig()
+	if err != nil {
+		return err
+	}
+	_, portStr, err := net.SplitHostPort(cfg.AgentListen)
+	if err != nil {
+		return fmt.Errorf("--agent-listen: %w", err)
+	}
+	agentPort, _ := strconv.Atoi(portStr)
+
+	h := hub.New()
+	runner := tasks.New(st, h, log)
+	opts := api.Options{
+		SecureCookies: cfg.SecureCookies, UI: webui.FS(), Version: version,
+		CA: ca, AgentPort: agentPort, Tasks: runner,
+	}
 	if err := prepareSetup(ctx, log, st, cfg.DataDir, &opts); err != nil {
 		return err
 	}
+	apiServer := api.New(st, h, log, opts)
 
-	srv := &http.Server{
+	web := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           api.New(st, hub.New(), log, opts).Handler(),
+		Handler:           apiServer.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       2 * time.Minute,
 		// No WriteTimeout: live WebSocket streams stay open for as long as a page is open.
 	}
+	agents := &http.Server{
+		Addr:              cfg.AgentListen,
+		Handler:           apiServer.AgentHandler(),
+		TLSConfig:         agentTLS,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
 
-	go cleanupLoop(ctx, log, st)
+	var background sync.WaitGroup
+	background.Add(2)
+	go func() { defer background.Done(); runner.Run(ctx, 4) }()
+	go func() { defer background.Done(); cleanupLoop(ctx, log, st) }()
 
-	errc := make(chan error, 1)
+	errc := make(chan error, 2)
 	go func() {
-		log.Info("ekpanel listening", "addr", cfg.Listen, "version", version)
-		errc <- srv.ListenAndServe()
+		log.Info("web UI and API listening", "addr", cfg.Listen, "version", version)
+		errc <- web.ListenAndServe()
+	}()
+	go func() {
+		log.Info("agent listener (mutual TLS) listening", "addr", cfg.AgentListen, "ca_pin", ca.Pin())
+		errc <- agents.ListenAndServeTLS("", "")
 	}()
 
+	var runErr error
 	select {
 	case err := <-errc:
 		if !errors.Is(err, http.ErrServerClosed) {
-			return err
+			runErr = err
 		}
+		stop()
 	case <-ctx.Done():
 		log.Info("shutting down")
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		return srv.Shutdown(shutdownCtx)
 	}
-	return nil
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	web.Shutdown(shutdownCtx)
+	agents.Shutdown(shutdownCtx)
+	background.Wait()
+	return runErr
 }
 
 // prepareSetup creates (or reuses) the one-time setup token while the panel has no users.
@@ -192,16 +239,20 @@ func prepareSetup(ctx context.Context, log *slog.Logger, st *store.Store, dataDi
 	return nil
 }
 
+// cleanupLoop expires sessions and compacts metric history every five minutes.
 func cleanupLoop(ctx context.Context, log *slog.Logger, st *store.Store) {
-	t := time.NewTicker(time.Hour)
+	t := time.NewTicker(5 * time.Minute)
 	defer t.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			if err := st.DeleteExpiredSessions(ctx); err != nil {
+			if err := st.DeleteExpiredSessions(ctx); err != nil && ctx.Err() == nil {
 				log.Error("delete expired sessions", "err", err)
+			}
+			if err := st.CompactMetrics(ctx); err != nil && ctx.Err() == nil {
+				log.Error("compact metrics", "err", err)
 			}
 		}
 	}

@@ -3,12 +3,36 @@ import { Link, useNavigate, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, KeyRound, Trash2 } from "lucide-react";
-import { api, ApiError, errorMessage, type EnrollResult, type Server } from "../lib/api";
+import { api, ApiError, errorMessage, type EnrollResult, type MetricPoint, type Server } from "../lib/api";
 import { formatBytes, formatDateTime, formatDuration, formatNumber, formatPercent, formatRate } from "../lib/format";
 import { useServerLive } from "../lib/live";
 import { PageHeader } from "../components/AppShell";
 import { AreaChart, Sparkline } from "../components/Charts";
-import { Badge, Button, Card, Dialog, ErrorAlert, Field, Meter, Spinner } from "../components/ui";
+import { Badge, Button, Card, Dialog, ErrorAlert, Field, Meter, Spinner, cx } from "../components/ui";
+import { ServicesCard } from "../components/Services";
+import { RecentTasks } from "../components/Tasks";
+
+const ranges = ["live", "1h", "24h", "7d", "30d"] as const;
+type Range = (typeof ranges)[number];
+
+function RangePicker({ value, onChange }: { value: Range; onChange: (r: Range) => void }) {
+  const { t } = useTranslation();
+  return (
+    <div role="radiogroup" aria-label={t("metrics.range")} className="flex flex-wrap rounded-lg border border-line bg-surface p-0.5">
+      {ranges.map((r) => (
+        <button
+          key={r}
+          role="radio"
+          aria-checked={value === r}
+          onClick={() => onChange(r)}
+          className={cx("rounded-md px-3 py-1 text-sm", value === r ? "bg-accent-soft font-semibold text-accent" : "text-muted hover:text-ink")}
+        >
+          {t(`metrics.ranges.${r}`)}
+        </button>
+      ))}
+    </div>
+  );
+}
 import { EnrollInstructions, ServerStateBadge } from "./ServerParts";
 
 function Tile({ label, value, sub, children }: { label: string; value: string; sub?: string; children?: ReactNode }) {
@@ -58,6 +82,13 @@ export function ServerDetailPage() {
   const [enroll, setEnroll] = useState<EnrollResult | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState("");
+  const [range, setRange] = useState<Range>("live");
+  const history = useQuery({
+    queryKey: ["metrics", id, range],
+    queryFn: () => api.get<{ step_seconds: number; points: MetricPoint[] }>(`/servers/${id}/metrics?range=${range}`),
+    enabled: range !== "live",
+    refetchInterval: 60000,
+  });
 
   if (server.isPending) return <Spinner />;
   if (server.error) {
@@ -75,6 +106,10 @@ export function ServerDetailPage() {
   const s = { ...server.data, online: live.connected ? live.online : server.data.online };
   const h = live.history;
   const m = s.online ? (h[h.length - 1] ?? s.latest) : null;
+  // Live samples and stored history share the fields the charts use.
+  const series: Pick<MetricPoint, "cpu_percent" | "mem_used" | "mem_total" | "net_rx_rate" | "net_tx_rate">[] =
+    range === "live" ? h : (history.data?.points ?? []);
+  const memTotal = m?.mem_total ?? series[series.length - 1]?.mem_total ?? 0;
 
   const newToken = async () => {
     setError("");
@@ -150,53 +185,74 @@ export function ServerDetailPage() {
               </Tile>
               <Tile label={t("metrics.uptime")} value={formatDuration(m.uptime_seconds, lng)} sub={t("metrics.load", { l1: formatNumber(m.load1, lng, 2), l5: formatNumber(m.load5, lng, 2), l15: formatNumber(m.load15, lng, 2) })} />
             </div>
+          </>
+        )}
 
-            <div className="grid gap-4 xl:grid-cols-2">
-              <ChartCard title={t("metrics.cpu")}>
-                <AreaChart series={[{ values: h.map((x) => x.cpu_percent), color: "var(--accent)", label: t("metrics.cpu") }]} max={100} formatY={(v) => formatPercent(v, lng)} />
-              </ChartCard>
-              <ChartCard title={t("metrics.memory")}>
-                <AreaChart
-                  series={[{ values: h.map((x) => x.mem_used), color: "var(--amber)", label: t("metrics.memory") }]}
-                  max={m.mem_total || undefined}
-                  formatY={(v) => formatBytes(v, lng)}
-                />
-              </ChartCard>
-              <ChartCard
-                title={t("metrics.network")}
-                legend={<Legend items={[{ color: "var(--accent)", label: t("metrics.download") }, { color: "var(--amber)", label: t("metrics.upload") }]} />}
-              >
-                <AreaChart
-                  series={[
-                    { values: h.map((x) => x.net_rx_rate), color: "var(--accent)", label: t("metrics.download") },
-                    { values: h.map((x) => x.net_tx_rate), color: "var(--amber)", label: t("metrics.upload") },
-                  ]}
-                  formatY={(v) => formatRate(v, lng)}
-                />
-              </ChartCard>
-              <ChartCard title={t("servers.facts.title")}>
-                <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 text-sm">
-                  {(
-                    [
-                      ["hostname", s.hostname],
-                      ["os", s.os],
-                      ["kernel", s.kernel],
-                      ["arch", s.arch],
-                      ["agent", s.agent_version],
-                      ["enrolled", s.enrolled_at ? formatDateTime(s.enrolled_at, lng) : ""],
-                    ] as const
-                  ).map(([k, v]) => (
-                    <div key={k} className="contents">
-                      <dt className="text-muted">{t(`servers.facts.${k}`)}</dt>
-                      <dd className="truncate font-mono" dir="auto">{v || "—"}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </ChartCard>
+        {s.enrolled_at && (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <RangePicker value={range} onChange={setRange} />
+              <p className="text-sm text-muted">
+                {range === "live" ? (
+                  <>
+                    {live.connected ? <Badge tone="accent">{t("servers.live")}</Badge> : <Badge>{t("servers.reconnecting")}</Badge>} {t("servers.history_note")}
+                  </>
+                ) : (
+                  t("metrics.history_step", { count: Math.round((history.data?.step_seconds ?? 60) / 60) })
+                )}
+              </p>
             </div>
-            <p className="text-sm text-muted">
-              {live.connected ? <Badge tone="accent">{t("servers.live")}</Badge> : <Badge>{t("servers.reconnecting")}</Badge>} {t("servers.history_note")}
-            </p>
+            {range !== "live" && history.isPending && <Spinner />}
+            {range !== "live" && history.data?.points.length === 0 && <p className="text-muted">{t("metrics.no_history")}</p>}
+            {(range === "live" || (history.data?.points.length ?? 0) > 0) && (
+              <div className="grid gap-4 xl:grid-cols-2">
+                <ChartCard title={t("metrics.cpu")}>
+                  <AreaChart series={[{ values: series.map((x) => x.cpu_percent), color: "var(--accent)", label: t("metrics.cpu") }]} max={100} formatY={(v) => formatPercent(v, lng)} />
+                </ChartCard>
+                <ChartCard title={t("metrics.memory")}>
+                  <AreaChart
+                    series={[{ values: series.map((x) => x.mem_used), color: "var(--amber)", label: t("metrics.memory") }]}
+                    max={memTotal || undefined}
+                    formatY={(v) => formatBytes(v, lng)}
+                  />
+                </ChartCard>
+                <ChartCard
+                  title={t("metrics.network")}
+                  legend={<Legend items={[{ color: "var(--accent)", label: t("metrics.download") }, { color: "var(--amber)", label: t("metrics.upload") }]} />}
+                >
+                  <AreaChart
+                    series={[
+                      { values: series.map((x) => x.net_rx_rate), color: "var(--accent)", label: t("metrics.download") },
+                      { values: series.map((x) => x.net_tx_rate), color: "var(--amber)", label: t("metrics.upload") },
+                    ]}
+                    formatY={(v) => formatRate(v, lng)}
+                  />
+                </ChartCard>
+                <ChartCard title={t("servers.facts.title")}>
+                  <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 text-sm">
+                    {(
+                      [
+                        ["hostname", s.hostname],
+                        ["os", s.os],
+                        ["kernel", s.kernel],
+                        ["arch", s.arch],
+                        ["agent", s.agent_version],
+                        ["enrolled", s.enrolled_at ? formatDateTime(s.enrolled_at, lng) : ""],
+                      ] as const
+                    ).map(([k, v]) => (
+                      <div key={k} className="contents">
+                        <dt className="text-muted">{t(`servers.facts.${k}`)}</dt>
+                        <dd className="truncate font-mono" dir="auto">{v || "—"}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </ChartCard>
+              </div>
+            )}
+            <div className="grid gap-4 xl:grid-cols-2">
+              <ServicesCard serverId={s.id} online={s.online} />
+              <RecentTasks serverId={s.id} />
+            </div>
           </>
         )}
       </div>

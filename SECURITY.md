@@ -21,8 +21,12 @@ ekPanel is in early development and has no stable release yet. Fixes go into the
 
 ## Design principles
 
-- Agents accept only typed, validated operations. There is no endpoint that runs arbitrary commands.
-- Passwords are hashed with argon2id. Session, enrolment and agent tokens are stored only as
+- Agents accept only typed, validated operations from a fixed list (for example, only
+  allowlisted services can be restarted). There is no operation that runs arbitrary commands.
+- Panel and agents talk over mutual TLS on a separate port, using a private CA that agents
+  pin by fingerprint at enrolment. Agent keys never leave their server; certificates last
+  90 days and renew automatically; re-enrolling or deleting a server revokes its certificate.
+- Passwords are hashed with argon2id. Session and enrolment tokens are stored only as
   SHA-256 hashes.
 - A fresh install requires a one-time setup token, so nobody else can claim it first.
 - State-changing requests are protected against CSRF (`Sec-Fetch-Site`, `Origin` and

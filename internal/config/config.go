@@ -10,8 +10,10 @@ import (
 )
 
 type Config struct {
-	// Listen is the address the HTTP server binds to.
+	// Listen is the address the HTTP server (web UI and API) binds to.
 	Listen string
+	// AgentListen is the mutual-TLS listener agents connect to.
+	AgentListen string
 	// DatabaseURL is a PostgreSQL connection string. Empty means DevDB must be set.
 	DatabaseURL string
 	// DevDB starts a private embedded PostgreSQL inside DataDir (development only).
@@ -26,6 +28,7 @@ type Config struct {
 func Load(args []string) (*Config, error) {
 	c := &Config{
 		Listen:        env("EKPANEL_LISTEN", "127.0.0.1:8080"),
+		AgentListen:   env("EKPANEL_AGENT_LISTEN", ":7443"),
 		DatabaseURL:   env("EKPANEL_DATABASE_URL", ""),
 		DevDB:         envBool("EKPANEL_DEV_DB", false),
 		DataDir:       env("EKPANEL_DATA_DIR", "/var/lib/ekpanel"),
@@ -33,7 +36,8 @@ func Load(args []string) (*Config, error) {
 	}
 
 	fs := flag.NewFlagSet("ekpanel", flag.ContinueOnError)
-	fs.StringVar(&c.Listen, "listen", c.Listen, "address to listen on")
+	fs.StringVar(&c.Listen, "listen", c.Listen, "address for the web UI and API")
+	fs.StringVar(&c.AgentListen, "agent-listen", c.AgentListen, "address agents connect to (mutual TLS)")
 	fs.StringVar(&c.DatabaseURL, "database-url", c.DatabaseURL, "PostgreSQL connection URL")
 	fs.BoolVar(&c.DevDB, "dev-db", c.DevDB, "run an embedded PostgreSQL in the data dir (development only)")
 	fs.StringVar(&c.DataDir, "data-dir", c.DataDir, "directory for panel state")

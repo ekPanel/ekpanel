@@ -22,9 +22,9 @@ on a real server and use.
 ```
                  ┌──────────────────────────── Control plane ────────────────────────────┐
  Browser ──────► │  Web UI (React)  ──►  Panel API (Go)  ──►  PostgreSQL                 │
- CLI / API ────► │                         │   job queue (River, in Postgres)            │
+ CLI / API ────► │                         │   task queue (in Postgres)                  │
                  └─────────────────────────┼─────────────────────────────────────────────┘
-                                           │ mTLS gRPC stream (agent dials out → works behind NAT)
+                                           │ mutual TLS WebSocket on :7443 (agent dials out → works behind NAT)
               ┌────────────────────────────┼────────────────────────────┐
               ▼                            ▼                            ▼
         ┌──────────┐                 ┌──────────┐                 ┌──────────┐
@@ -63,8 +63,8 @@ on a real server and use.
 | Layer | Choice | Why |
 |---|---|---|
 | Agent | **Go** | Single static binary, low RAM, excellent at system/Docker work (same as Pterodactyl Wings). |
-| Panel API | **Go** (chi/huma for OpenAPI, sqlc, River jobs) | Same language as the agent: shared types, one toolchain. |
-| Database | **PostgreSQL** | Robust; also used as the job queue (no Redis required for the panel). |
+| Panel API | **Go** (chi, pgx) | Same language as the agent: shared types, one toolchain. |
+| Database | **PostgreSQL** | Robust; also holds the task queue and metric history (no Redis needed). |
 | UI | **React + TypeScript**, Vite, TanStack Router/Query, shadcn/ui, Tailwind | Fast, modern, huge ecosystem. Built into the Go binary as static files. |
 | Realtime | WebSocket (logs, terminal, metrics, deploy output) | |
 | Edge proxy | **Caddy** | Auto HTTPS (incl. wildcard via DNS-01), live API config. |
@@ -147,9 +147,9 @@ Each phase ends with something installable and usable.
 
 ### Phase 0 — Foundations
 - Repo layout, Go + React toolchain, CI, lint, tests
-- Panel ↔ agent protocol (enrolment token → mTLS, outbound gRPC stream, heartbeats)
+- Panel ↔ agent protocol (enrolment token + CA pin → mutual TLS, outbound WebSocket, typed operations)
 - Auth (users, sessions, 2FA), RBAC skeleton, audit log
-- Desired-state/reconcile framework and job queue
+- Task queue for background work; desired-state reconcile engine arrives with websites in phase 1
 - `install.sh` that installs panel + agent + Caddy on a fresh Ubuntu server
 - **Done when:** fresh VPS → one command → login page over HTTPS → server shows live metrics.
 
@@ -193,7 +193,7 @@ Each phase ends with something installable and usable.
 /internal/core       users, rbac, audit, jobs, reconcile
 /internal/modules/   sites, apps, databases, dns, mail, backups, security, files …
 /internal/agentops   typed operations the agent can perform
-/proto               panel ↔ agent gRPC definitions
+/internal/agentproto panel ↔ agent messages and typed operations
 /web                 React UI
 /deploy              install.sh, systemd units, packaging
 /docs                user + developer docs
@@ -253,12 +253,23 @@ Decided (2026-11-07):
 - [x] Append-only audit log, enforced by a database trigger
 - [x] Live server dashboard: CPU, memory, disk, network, load, uptime (about 20 minutes in memory)
 - [x] Web UI shell: English + Bangla, RTL-ready, light/dark, `Ctrl+K` palette, mobile layout
-- [ ] mTLS between panel and agent (replaces the bearer secret)
-- [ ] Desired-state / reconcile engine and job queue (River)
-- [ ] Metric history in PostgreSQL (30 days, downsampled)
+- [x] Mutual TLS between panel and agents: the panel runs a private CA; agents pin it at
+      enrolment (`--ca-pin`), get a 90-day client certificate, renew it automatically, and
+      re-enrolling revokes the old certificate at once. Agents use a separate port (7443).
+- [x] Typed panel → agent operations over the same connection (`services.status`,
+      `services.restart` with a fixed allowlist); agents reject anything else
+- [x] Task queue in PostgreSQL (`FOR UPDATE SKIP LOCKED`, leases, retries with backoff,
+      crash recovery), visible in the UI. Decision: our own ~200-line queue instead of River,
+      because tasks are user-visible records we need anyway and it adds no dependency
+- [x] Metric history in PostgreSQL: 1-minute buckets for 48 h, rolled up hourly for 31 days;
+      UI ranges Live / 1 h / 24 h / 7 d / 30 d
+- [x] Services card (live systemd state, restart) and task tray in the UI
+- [ ] Desired-state / reconcile engine. Moved to phase 1: it is built together with the first
+      resource it manages (websites), instead of guessing its shape without one
 - [x] `deploy/install.sh` for Ubuntu 24.04+/Debian 12+: PostgreSQL, Caddy (domain → Let's Encrypt,
       no domain → self-signed for the IP), sandboxed systemd units, auto-connects the server's own
       agent, prints the setup token; re-runnable as an upgrade. Tested in a local VM incl. reboot
 - [x] `scripts/test-vm.sh`: disposable Ubuntu 24.04 VM (QEMU/KVM) for testing server changes
 - [ ] One-line install from release downloads (after the first release)
-- [ ] Release builds (signed binaries for amd64 and arm64)
+- [x] `make release`: linux amd64/arm64 archives with SHA256SUMS
+- [ ] Signed releases from CI (needs the GitHub repository)

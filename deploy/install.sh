@@ -96,6 +96,7 @@ install -m 0755 "$LOCAL_DIR/ekpanel-agent" /usr/local/bin/ekpanel-agent
 
 cat > /etc/ekpanel/panel.env <<'EOF'
 EKPANEL_LISTEN=127.0.0.1:8080
+EKPANEL_AGENT_LISTEN=:7443
 EKPANEL_DATABASE_URL=postgres:///ekpanel?host=/var/run/postgresql
 EKPANEL_DATA_DIR=/var/lib/ekpanel
 EOF
@@ -166,10 +167,13 @@ curl -fsS http://127.0.0.1:8080/api/v1/health >/dev/null || fail "the panel did 
 
 # ---- Connect this server's agent ----------------------------------------------------
 
-if [ ! -s /etc/ekpanel/agent.json ]; then
+# Enrol when there is no credential yet, or only one from an agent before mutual TLS.
+if ! grep -qs '"ca_pem"' /etc/ekpanel/agent.json; then
   say "Connecting this server to the panel"
-  token="$(runuser -u ekpanel -- bash -c 'set -a; . /etc/ekpanel/panel.env; exec /usr/local/bin/ekpanel add-server --name "$1"' _ "$(hostname)")"
-  /usr/local/bin/ekpanel-agent enroll --panel http://127.0.0.1:8080 --token "$token" \
+  read -r token pin < <(runuser -u ekpanel -- bash -c \
+    'set -a; . /etc/ekpanel/panel.env; exec /usr/local/bin/ekpanel add-server --name "$1"' _ "$(hostname)")
+  [ -n "${token:-}" ] && [ -n "${pin:-}" ] || fail "could not create an enrolment token for this server."
+  /usr/local/bin/ekpanel-agent enroll --panel 127.0.0.1:7443 --token "$token" --ca-pin "$pin" \
     --config /etc/ekpanel/agent.json >/dev/null
 fi
 systemctl enable ekpanel-agent >/dev/null 2>&1
@@ -224,6 +228,7 @@ systemctl reload-or-restart caddy
 if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then
   ufw allow 80/tcp >/dev/null
   ufw allow 443/tcp >/dev/null
+  ufw allow 7443/tcp >/dev/null  # agents on other servers
 fi
 
 # ---- Done ---------------------------------------------------------------------------
@@ -242,4 +247,5 @@ if [ -s /var/lib/ekpanel/setup-token ]; then
   echo "        $(cat /var/lib/ekpanel/setup-token)"
 fi
 [ -z "$DOMAIN" ] && echo "    The certificate is self-signed, so your browser will warn you once. Use --domain for a trusted one."
+echo "    Agents on other servers connect to TCP port 7443; allow it in any cloud firewall."
 echo "    Logs:  journalctl -u ekpanel -u ekpanel-agent -f"
