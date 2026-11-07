@@ -76,6 +76,10 @@ func New(st *store.Store, h *hub.Hub, log *slog.Logger) *Runner {
 	r.handlers[KindAppDeploy] = r.appDeploy
 	r.handlers[KindPHPExtension] = r.phpExtension
 	r.handlers[KindDNSSync] = r.dnsSync
+	r.handlers[KindWordPressUpdate] = r.wordPressUpdate
+	r.handlers[KindWordPressStaging] = r.wordPressStaging
+	r.handlers[KindWordPressCopy] = r.wordPressCopy
+	r.handlers[KindWordPressScan] = r.wordPressScan
 	return r
 }
 
@@ -109,10 +113,14 @@ func (r *Runner) Run(ctx context.Context, workers int) {
 			r.work(ctx)
 		}()
 	}
-	wg.Add(6)
+	wg.Add(7)
 	go func() {
 		defer wg.Done()
 		r.driftLoop(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		r.wordPressLoop(ctx)
 	}()
 	go func() {
 		defer wg.Done()

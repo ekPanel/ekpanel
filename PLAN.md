@@ -670,12 +670,33 @@ Agreed (2026-11-07):
 - [ ] Later: per-domain mail host names and autoconfig for mail apps, DNS-01 wildcard
       certificates, mailing lists with archives
 
-**3d. WordPress toolkit and app installer**
-- [ ] Every WordPress site in one list: core, plugin and theme updates (WP-CLI), automatic
-      update rules, maintenance mode
-- [ ] Staging: a copy on a subdomain (files and database), and pushing it back
-- [ ] Hardening: no file editing from the dashboard, xmlrpc blocked, safe permissions
-- [ ] Installer for PHP apps: Laravel, Joomla, Drupal, PrestaShop, Moodle …
+**3d. WordPress toolkit — done** (the PHP app installer is 3d-2)
+- [x] Every WordPress site in one list, with what needs attention; every PHP site is looked
+      at daily, so WordPress installed by hand is found too (or right away with a button)
+- [x] Core, plugin and theme updates as a task, one at a time: the files are copied first,
+      the site's home page is fetched after each update, and an update that makes it fail
+      (server error or WordPress's critical error page) is undone; core goes back by
+      downloading the previous version. Problems are notified
+- [x] Automatic updates by rules per site (core: none, security releases or all; plugins;
+      themes), made by the daily check with the same safety
+- [x] Maintenance mode, plugins on and off (off works even when a plugin breaks WP-CLI),
+      debug mode warning
+- [x] Hardening: DISALLOW_FILE_EDIT; xmlrpc.php and PHP under wp-content/uploads refused by
+      the web server; files others could write found and fixed, wp-config.php private
+- [x] Staging: a site of its own at staging.<domain> with its own database (counted in the
+      package), files and database copied, addresses replaced (also in serialized data),
+      search engines asked not to index it. Push to live and refresh from live, of files,
+      database or both, with the target in maintenance mode meanwhile and its previous
+      database and replaced files kept in its tmp folder
+- [x] Tested in the VM: an update that broke the site was undone (and the same update
+      without the fault went through); a security release of core; maintenance mode
+      answered 503; permissions fixed; xmlrpc.php and uploads PHP refused while the site
+      and REST API kept working; a staging copy made, a post written there pushed to live,
+      live kept its address and search engine setting, no staging address left behind
+
+**3d-2. PHP app installer**
+- [ ] Laravel, Joomla, Drupal, PrestaShop, Moodle …: pinned, checked downloads; database made
+      for them; their own command-line installers
 
 **3e. Security**
 - [ ] CrowdSec with the firewall bouncer: SSH, web server and WordPress attacks banned
@@ -694,4 +715,4 @@ Agreed (2026-11-07):
       (AXFR/NOTIFY); guidance for glue records
 
 **Next**
-- [ ] 3d. WordPress toolkit and app installer
+- [ ] 3d-2. PHP app installer, or 3e. Security

@@ -40,6 +40,10 @@
       "title": "Email for {{name}} has a problem",
       "body": "{{message}}"
     },
+    "wordpress_update": {
+      "title": "WordPress update problem on {{name}}",
+      "body": "{{message}}"
+    },
     "database_error": {
       "title": "Database {{name}} has a problem",
       "body": "{{message}}"

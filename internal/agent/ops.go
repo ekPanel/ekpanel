@@ -141,6 +141,30 @@ func Dispatch(ctx context.Context, op string, params json.RawMessage) (any, *age
 			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
 		}
 		return diskUsage(ctx, realSystem, p)
+	case agentproto.OpWordPressInfo:
+		var p agentproto.WordPressInfoParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return wordPressInfo(ctx, realSystem, p)
+	case agentproto.OpWordPressUpdate:
+		var p agentproto.WordPressUpdateParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return wordPressUpdate(ctx, realSystem, p)
+	case agentproto.OpWordPressManage:
+		var p agentproto.WordPressManageParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return wordPressManage(ctx, realSystem, p)
+	case agentproto.OpWordPressClone:
+		var p agentproto.WordPressCloneParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return wordPressClone(ctx, realSystem, p)
 	case agentproto.OpMailCheck:
 		var p agentproto.MailCheckParams
 		if err := json.Unmarshal(params, &p); err != nil {

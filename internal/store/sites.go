@@ -47,14 +47,27 @@ type Site struct {
 	TLSKey       []byte     `json:"-"`
 	TLSExpiresAt *time.Time `json:"tls_expires_at"`
 	TLSNames     []string   `json:"tls_names"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	// WordPress: the last scan, the updates ekPanel makes by itself, and the live site of a
+	// staging copy.
+	WordPress   *agentproto.WordPressInfo `json:"wordpress"`
+	WPScannedAt *time.Time                `json:"wp_scanned_at"`
+	WPAuto      WordPressAuto             `json:"wp_auto"`
+	StagingOf   *string                   `json:"staging_of"`
+	CreatedAt   time.Time                 `json:"created_at"`
+	UpdatedAt   time.Time                 `json:"updated_at"`
+}
+
+// WordPressAuto is what ekPanel updates by itself: Core "off", "minor" or "all".
+type WordPressAuto struct {
+	Core    string `json:"core"`
+	Plugins bool   `json:"plugins"`
+	Themes  bool   `json:"themes"`
 }
 
 const siteColumns = `st.id, st.server_id, sv.name, st.domain, st.aliases, st.kind, st.php_version, st.tls,
 	st.linux_user, st.state, st.message, st.generation, st.applied_generation, st.created_at, st.updated_at,
 	st.sftp_enabled, st.ssh_keys, st.sftp_password_hash, st.app, st.app_version, st.owner_id, ow.name, st.disk_bytes,
-	st.web, st.tls_cert, st.tls_key, st.tls_expires_at, st.tls_names`
+	st.web, st.tls_cert, st.tls_key, st.tls_expires_at, st.tls_names, st.wp_info, st.wp_scanned_at, st.wp_auto, st.staging_of`
 
 const siteFrom = ` FROM sites st JOIN servers sv ON sv.id = st.server_id LEFT JOIN users ow ON ow.id = st.owner_id`
 
@@ -63,7 +76,7 @@ func scanSite(row pgx.Row) (Site, error) {
 	err := row.Scan(&s.ID, &s.ServerID, &s.ServerName, &s.Domain, &s.Aliases, &s.Kind, &s.PHPVersion, &s.TLS,
 		&s.LinuxUser, &s.State, &s.Message, &s.Generation, &s.AppliedGeneration, &s.CreatedAt, &s.UpdatedAt,
 		&s.SFTPEnabled, &s.SSHKeys, &s.SFTPPasswordHash, &s.App, &s.AppVersion, &s.OwnerID, &s.OwnerName, &s.DiskBytes,
-		&s.Web, &s.TLSCert, &s.TLSKey, &s.TLSExpiresAt, &s.TLSNames)
+		&s.Web, &s.TLSCert, &s.TLSKey, &s.TLSExpiresAt, &s.TLSNames, &s.WordPress, &s.WPScannedAt, &s.WPAuto, &s.StagingOf)
 	return s, notFound(err)
 }
 

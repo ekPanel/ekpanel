@@ -45,6 +45,8 @@ type system struct {
 	// socketWait is how long to wait for PHP-FPM to create a new pool's socket after a
 	// reload; systemd returns before FPM has finished restarting. Zero skips the wait.
 	socketWait time.Duration
+	// probe asks the local web server for a site's home page. Nil (tests) counts as healthy.
+	probe func(ctx context.Context, domain string) (status int, body []byte, err error)
 }
 
 func (s *system) path(p string) string { return filepath.Join(s.root, p) }
@@ -98,6 +100,7 @@ func execCommand(ctx context.Context, c command) ([]byte, error) {
 
 var realSystem = &system{
 	socketWait: 20 * time.Second,
+	probe:      probeSite,
 	exec:       execCommand,
 	run: func(ctx context.Context, name string, args ...string) ([]byte, error) {
 		return runCommand(ctx, nil, name, args...)
@@ -609,6 +612,13 @@ var caddyTemplate = template.Must(template.New("caddy").Funcs(template.FuncMap{"
 		not path /.well-known/*
 	}
 	respond @hidden 404
+{{- if .BlockXMLRPC}}
+	respond /xmlrpc.php 403
+{{- end}}
+{{- if .NoUploadsPHP}}
+	@uploadsphp path_regexp (?i)^/wp-content/uploads/.*\.(php[0-9]?|phtml|phar)$
+	respond @uploadsphp 403
+{{- end}}
 {{- if .Hotlink}}
 	@hotlink {
 		path_regexp (?i)\.({{.Hotlink.Extensions}})$
@@ -699,7 +709,7 @@ func (a *applier) writeCaddy(sp agentproto.SiteSpec) error {
 	caddyTemplate.Execute(&buf, map[string]any{
 		"ID": sp.ID, "Domain": sp.Domain, "Hosts": hosts, "AliasHosts": aliases, "Internal": sp.TLS == "internal",
 		"Cert": cert, "Key": key, "User": sp.User, "PHP": sp.Kind == "php", "Socket": groupFor(sp).socket(sp.ID),
-		"Hotlink": hotlinkRule(sp), "Redirects": caddyRedirects(sp.Web),
+		"Hotlink": hotlinkRule(sp), "Redirects": caddyRedirects(sp.Web), "BlockXMLRPC": sp.Web.BlockXMLRPC, "NoUploadsPHP": sp.Web.NoUploadsPHP,
 	})
 	path := caddySitePath(sp.ID)
 	changed, prev, err := a.writeIfChanged(path, buf.Bytes())

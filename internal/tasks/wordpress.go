@@ -114,6 +114,8 @@ func (r *Runner) installWordPress(ctx context.Context, t store.Task) (any, error
 	if err := r.store.SetSiteApp(ctx, site.ID, "wordpress", res.Version); err != nil {
 		return nil, err
 	}
+	// The toolkit's view of the new site; a failed look is retried by the daily scan.
+	r.ScanWordPress(ctx, site)
 	return WordPressResult{Version: res.Version, AdminURL: "https://" + site.Domain + "/wp-admin/", AdminUser: o.AdminUser, Database: db.Name}, nil
 }
 

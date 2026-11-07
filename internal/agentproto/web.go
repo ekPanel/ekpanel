@@ -21,6 +21,10 @@ type SiteWeb struct {
 	Hotlink *Hotlink `json:"hotlink,omitempty"`
 	// PHP holds php.ini settings named in PHPSettings.
 	PHP map[string]string `json:"php,omitempty"`
+	// WordPress hardening: refuse /xmlrpc.php (an old remote API used for password
+	// guessing), and PHP files under wp-content/uploads (where only media belongs).
+	BlockXMLRPC  bool `json:"block_xmlrpc,omitempty"`
+	NoUploadsPHP bool `json:"no_uploads_php,omitempty"`
 }
 
 // Redirect sends requests for a path elsewhere. From is an exact path, or a prefix ending

@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Loader2, ShieldAlert } from "lucide-react";
+import { Loader2, ShieldAlert } from "lucide-react";
 import { api, errorMessage, type Site, type Task } from "../lib/api";
 import { useMe } from "../lib/session";
 import { Button, Card, CopyButton, ErrorAlert, Field } from "./ui";
 import { useTasks } from "./Tasks";
+import { WordPressToolkit } from "./WordPressToolkit";
 
 /** WordPress languages offered at install; each is shown in its own language. */
 export const wordpressLocales: [string, string][] = [
@@ -73,19 +74,7 @@ export function WordPressCard({ site }: { site: Site }) {
   if (site.kind !== "php" && !site.app) return null;
 
   if (site.app === "wordpress") {
-    return (
-      <Card className="grid gap-3 p-6">
-        <h2 className="text-lg font-semibold">WordPress {site.app_version}</h2>
-        {creds.data && <WordPressCredentialsBox creds={creds.data} />}
-        <div className="flex flex-wrap gap-2">
-          <a href={`https://${site.domain}/wp-admin/`} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-lg bg-accent px-4 font-medium text-accent-ink hover:brightness-110">
-            {t("wordpress.open_admin")}
-            <ExternalLink className="size-4 rtl:-scale-x-100" aria-hidden />
-          </a>
-        </div>
-        <p className="text-sm text-muted">{t("wordpress.installed_hint")}</p>
-      </Card>
-    );
+    return <WordPressToolkit site={site}>{creds.data && <WordPressCredentialsBox creds={creds.data} />}</WordPressToolkit>;
   }
 
   const submit = async (e: FormEvent) => {

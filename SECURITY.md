@@ -77,6 +77,13 @@ ekPanel is in early development and has no stable release yet. Fixes go into the
   manage only their zones, which only get their own websites and apps. ekPanel changes or
   deletes only DNS records it made, and none that someone changed since. Caddy trusts the
   CF-Connecting-IP header only from Cloudflare's published address ranges.
+- WordPress toolkit: WP-CLI always runs as the site's own account, and without loading
+  plugins and themes except to switch a plugin on. Plugin and theme names are checked by
+  panel and agent before they reach WP-CLI. Copies between a site and its staging copy run
+  only between ekPanel's site accounts on one server and databases on that server, read from
+  the sites' own wp-config.php; the database dump in between is readable by root only, and
+  the overwritten site's previous database stays in its own tmp folder. Staging copies ask
+  search engines not to index them.
 - Email: the mail server (Stalwart) and webmail (Roundcube) are pinned versions checked
   against their published SHA-256. The mail server's management API listens on loopback
   only; the agent signs in with a random password kept in a root-only file on the server.

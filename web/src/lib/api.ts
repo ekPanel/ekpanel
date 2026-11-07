@@ -217,6 +217,12 @@ export interface Site extends Owned {
   message: string | null;
   generation: number;
   applied_generation: number;
+  /** What the last WordPress scan found, and when. */
+  wordpress: WordPressInfo | null;
+  wp_scanned_at: string | null;
+  wp_auto: WordPressAuto;
+  /** For a staging copy: the live site it copies. */
+  staging_of: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -227,6 +233,38 @@ export interface SiteWeb {
   redirects?: { from: string; to: string; code: number; keep_path?: boolean }[];
   hotlink?: { extensions: string[]; allowed?: string[] } | null;
   php?: Record<string, string>;
+  block_xmlrpc?: boolean;
+  no_uploads_php?: boolean;
+}
+
+export interface WordPressItem {
+  name: string;
+  title: string;
+  status: string;
+  version: string;
+  update?: string;
+}
+
+export interface WordPressInfo {
+  installed: boolean;
+  version?: string;
+  /** Newest version available, and newest of the installed branch. */
+  core_update?: string;
+  core_minor?: string;
+  plugins: WordPressItem[];
+  themes: WordPressItem[];
+  maintenance: boolean;
+  file_edit_disabled: boolean;
+  debug: boolean;
+  loose_permissions: number;
+  site_url?: string;
+  error?: string;
+}
+
+export interface WordPressAuto {
+  core: "off" | "minor" | "all";
+  plugins: boolean;
+  themes: boolean;
 }
 
 export interface PHPVersionInfo {

@@ -40,6 +40,10 @@
       "title": "{{name}}-এর ইমেইলে সমস্যা",
       "body": "{{message}}"
     },
+    "wordpress_update": {
+      "title": "{{name}}-এ WordPress আপডেটে সমস্যা",
+      "body": "{{message}}"
+    },
     "database_error": {
       "title": "ডেটাবেস {{name}}-এ সমস্যা",
       "body": "{{message}}"
