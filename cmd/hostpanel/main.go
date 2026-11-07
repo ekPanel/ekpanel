@@ -27,15 +27,67 @@ import (
 var version = "dev"
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "version" {
-		fmt.Println(version)
-		return
-	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	if err := run(log, os.Args[1:]); err != nil {
-		log.Error("hostpanel stopped", "err", err)
+	var err error
+	switch {
+	case len(os.Args) > 1 && os.Args[1] == "version":
+		fmt.Println(version)
+	case len(os.Args) > 1 && os.Args[1] == "add-server":
+		err = addServer(os.Args[2:])
+	default:
+		err = run(log, os.Args[1:])
+	}
+	if err != nil {
+		log.Error("hostpanel", "err", err)
 		os.Exit(1)
 	}
+}
+
+// addServer registers a server from the command line and prints its one-time enrolment
+// token. The installer uses it to connect the panel's own server before any admin exists.
+//
+//	hostpanel add-server --name "This server" [panel flags such as --database-url]
+func addServer(args []string) error {
+	name := "This server"
+	var rest []string
+	for i := 0; i < len(args); i++ {
+		switch {
+		case args[i] == "--name" && i+1 < len(args):
+			name = args[i+1]
+			i++
+		case strings.HasPrefix(args[i], "--name="):
+			name = strings.TrimPrefix(args[i], "--name=")
+		default:
+			rest = append(rest, args[i])
+		}
+	}
+	cfg, err := config.Load(rest)
+	if err != nil {
+		return err
+	}
+	if cfg.DevDB {
+		return fmt.Errorf("add-server needs --database-url; the embedded dev database only runs inside the panel process")
+	}
+	ctx := context.Background()
+	pool, err := db.Open(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	if err := db.Migrate(ctx, pool); err != nil {
+		return err
+	}
+	st := store.New(pool)
+	token := auth.NewToken()
+	srv, err := st.CreateServer(ctx, name, auth.HashToken(token))
+	if err != nil {
+		return err
+	}
+	if err := st.AddAudit(ctx, nil, "", "server.created", srv.Name, map[string]any{"server_id": srv.ID, "via": "cli"}); err != nil {
+		return err
+	}
+	fmt.Println(token)
+	return nil
 }
 
 func run(log *slog.Logger, args []string) error {
