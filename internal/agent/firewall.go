@@ -140,6 +140,9 @@ func firewallRules(spec agentproto.FirewallSpec, ssh []int) ([][]string, error) 
 			rules = append(rules, []string{"allow", p})
 		}
 	}
+	if spec.DNS {
+		rules = append(rules, [][]string{{"allow", agentproto.DNSPorts[0]}, {"allow", agentproto.DNSPorts[1]}}...)
+	}
 	if spec.Mail {
 		for _, p := range agentproto.MailPorts {
 			rules = append(rules, []string{"allow", strconv.Itoa(p) + "/tcp"})

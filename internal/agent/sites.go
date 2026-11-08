@@ -289,6 +289,7 @@ func stateApply(ctx context.Context, sys *system, p agentproto.StateApplyParams)
 	if p.Security != nil {
 		res.Security = applySecurity(ctx, sys, *p.Security)
 	}
+	res.NameServer = applyNameServer(ctx, sys, p.NameServer)
 	res.Mail = applyMail(ctx, sys, p.Mail)
 	if w := a.results[webmailID]; res.Mail != nil && !w.OK {
 		res.Mail.OK = false

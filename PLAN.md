@@ -581,6 +581,9 @@ Agreed (2026-11-07):
 - **Security: CrowdSec now, WAF later.** 3e uses the packaged Caddy. A WAF (Coraza) needs a
   Caddy built with modules, which ekPanel would then build and ship itself; that comes later.
 - **Order:** 3a → 3b → 3c → 3d → 3e → 3f → 3g, each tested in the VM like phase 2.
+- **Built-in DNS: PowerDNS with SQLite, zones kept in the panel.** The panel is the source of
+  truth and sends the primary each whole zone; secondaries copy it by zone transfer, which
+  also carries DNSSEC signatures. No database server is needed on name servers.
 
 **3a. Website extras — done**
 - [x] Redirects (301, 302, 307, 308) of exact paths or prefixes (/blog/*), keeping the rest of
@@ -773,10 +776,34 @@ Agreed (2026-11-07):
       out of the home folder, root and other accounts refused, a new password replaced the
       old, firewall ports opened and closed, Pure-FTPd stopped when the last site turned it off
 
-**3g. Built-in DNS (optional)**
-- [ ] PowerDNS Authoritative with its own PostgreSQL database; zone editor and templates;
-      records made automatically like with Cloudflare; DNSSEC; a second server as secondary
-      (AXFR/NOTIFY); guidance for glue records
+**3g. Built-in DNS — done**
+- [x] Name servers: ekPanel servers chosen on the DNS page, each with its host name
+      (ns1.example.com); one primary and any number of secondaries. PowerDNS from the
+      distribution with its SQLite backend, driven through its API on loopback, listening on
+      the server's own addresses (systemd-resolved keeps 127.0.0.53); port 53 opened in a
+      managed firewall. The primary sends zones to the secondaries by NOTIFY and AXFR, allowed
+      to those addresses only; zone transfers use public addresses, or one set by hand (a
+      private network). A server that stops being a name server stops PowerDNS
+- [x] Zones kept in the panel: administrators' and customers' (customers only for the
+      domains of their own websites and apps, never a public suffix, and not inside or around
+      another account's zone); a domain is either hosted or at Cloudflare, not both. The
+      primary gets each zone whole and only the changes are written, so the serial moves only
+      when something changed
+- [x] Zone editor: A, AAAA, CNAME, MX, TXT (any length), SRV, CAA and NS for subdomains,
+      checked by panel and agent (a CNAME alone at its name, none at the domain itself)
+- [x] Records made automatically, as with Cloudflare: websites', apps' and the mail host's
+      addresses, and every mail domain's MX, SPF, DKIM, DMARC and TLS reporting records; the
+      zone's NS records and glue for name servers named inside it. A record kept by hand with
+      the same name and type wins and is reported
+- [x] Templates: records for new zones, "@" and relative names, {domain} in values
+- [x] DNSSEC per zone: signed on the primary (ECDSA P-256, NSEC), copied signed to the
+      secondaries; the DS record for the registrar shown; turning it off warns to remove the
+      DS record first
+- [x] Guidance for the registrar: the name servers to set, and the glue (host) records when
+      they are named inside the domain
+- [x] Found while testing: PowerDNS cannot listen on all addresses beside systemd-resolved;
+      a fresh server had no package lists, so installs now refresh them and retry (also for
+      ClamAV)
 
 **Next**
-- [ ] 3g. Built-in DNS
+- [ ] Phase 3 is done; phase 4 next

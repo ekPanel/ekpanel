@@ -35,7 +35,12 @@ func (r *Runner) dnsSync(ctx context.Context, t store.Task) (any, error) {
 	if err := json.Unmarshal(t.Params, &p); err != nil {
 		return nil, err
 	}
-	return nil, r.SyncZones(ctx, p.ZoneID, nil)
+	err := r.SyncZones(ctx, p.ZoneID, nil)
+	// Hosted zones get the same records from their primary name server.
+	if p.ZoneID == "" {
+		r.QueueNameServers(ctx, t.CreatedBy)
+	}
+	return nil, err
 }
 
 func (r *Runner) dnsLoop(ctx context.Context) {
@@ -76,10 +81,32 @@ func publicAddress(t store.HostTarget, typ string) string {
 	return ""
 }
 
+// zoneRef is a zone records can go into: a Cloudflare zone or a hosted one.
+type zoneRef struct {
+	ID, Name string
+	OwnerID  *string
+}
+
+func cloudflareRefs(zones []store.DNSZone) []zoneRef {
+	refs := make([]zoneRef, len(zones))
+	for i, z := range zones {
+		refs[i] = zoneRef{ID: z.ID, Name: z.Name, OwnerID: z.OwnerID}
+	}
+	return refs
+}
+
+func hostedRefs(zones []store.HostedZone) []zoneRef {
+	refs := make([]zoneRef, len(zones))
+	for i, z := range zones {
+		refs[i] = zoneRef{ID: z.ID, Name: z.Name, OwnerID: z.OwnerID}
+	}
+	return refs
+}
+
 // zoneFor is the most specific zone a host name belongs to, among those that may hold it:
 // the administrators' zones hold anyone's, a customer's only their own.
-func zoneFor(host string, owner *string, zones []store.DNSZone) *store.DNSZone {
-	var best *store.DNSZone
+func zoneFor(host string, owner *string, zones []zoneRef) *zoneRef {
+	var best *zoneRef
 	for i, z := range zones {
 		if host != z.Name && !strings.HasSuffix(host, "."+z.Name) {
 			continue
@@ -94,61 +121,50 @@ func zoneFor(host string, owner *string, zones []store.DNSZone) *store.DNSZone {
 	return best
 }
 
-// SyncZones brings one zone (or all, zoneID "") in line with the panel's websites, apps and email.
-// Keys in force ("A www.example.com") overwrite what is in the way.
-func (r *Runner) SyncZones(ctx context.Context, zoneID string, force map[string]bool) error {
-	zones, err := r.store.ListZones(ctx, true, "")
-	if err != nil || len(zones) == 0 {
-		return err
+// wantedRecords lists, by zone ID, the records the panel's websites, apps and email need,
+// and the host names whose server has no public address.
+func (r *Runner) wantedRecords(ctx context.Context, zones []zoneRef) (map[string][]dnssync.Want, map[string][]dnssync.Issue, error) {
+	want := map[string][]dnssync.Want{}
+	noAddress := map[string][]dnssync.Issue{}
+	if len(zones) == 0 {
+		return want, noAddress, nil
 	}
 	targets, err := r.store.HostTargets(ctx)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	want := map[string][]dnssync.Want{}
-	noAddress := map[string][]dnssync.Issue{}
-	for _, t := range targets {
-		z := zoneFor(t.Hostname, t.OwnerID, zones)
+	addHost := func(t store.HostTarget, owner *string, dnsOnly bool) {
+		z := zoneFor(t.Hostname, owner, zones)
 		if z == nil {
-			continue
+			return
 		}
 		v4, v6 := publicAddress(t, "A"), publicAddress(t, "AAAA")
 		if v4 != "" {
-			want[z.ID] = append(want[z.ID], dnssync.Want{Name: t.Hostname, Type: "A", Content: v4})
+			want[z.ID] = append(want[z.ID], dnssync.Want{Name: t.Hostname, Type: "A", Content: v4, DNSOnly: dnsOnly})
 		}
 		if v6 != "" {
-			want[z.ID] = append(want[z.ID], dnssync.Want{Name: t.Hostname, Type: "AAAA", Content: v6})
+			want[z.ID] = append(want[z.ID], dnssync.Want{Name: t.Hostname, Type: "AAAA", Content: v6, DNSOnly: dnsOnly})
 		}
 		if v4 == "" && v6 == "" {
 			noAddress[z.ID] = append(noAddress[z.ID], dnssync.Issue{Kind: "no_address", Name: t.Hostname, Type: "A", Server: t.ServerName})
 		}
+	}
+	for _, t := range targets {
+		addHost(t, t.OwnerID, false)
 	}
 	// Email: the mail host name points at its server (never through Cloudflare's proxy,
 	// which carries only web traffic), and each mail domain gets its MX, SPF, DKIM, DMARC
 	// and TLS reporting records.
 	mailHosts, err := r.store.MailHostTargets(ctx)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	for _, t := range mailHosts {
-		z := zoneFor(t.Hostname, nil, zones)
-		if z == nil {
-			continue
-		}
-		v4, v6 := publicAddress(t, "A"), publicAddress(t, "AAAA")
-		if v4 != "" {
-			want[z.ID] = append(want[z.ID], dnssync.Want{Name: t.Hostname, Type: "A", Content: v4, DNSOnly: true})
-		}
-		if v6 != "" {
-			want[z.ID] = append(want[z.ID], dnssync.Want{Name: t.Hostname, Type: "AAAA", Content: v6, DNSOnly: true})
-		}
-		if v4 == "" && v6 == "" {
-			noAddress[z.ID] = append(noAddress[z.ID], dnssync.Issue{Kind: "no_address", Name: t.Hostname, Type: "A", Server: t.ServerName})
-		}
+		addHost(t, nil, true)
 	}
 	mail, err := r.store.MailTargets(ctx)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	for _, m := range mail {
 		z := zoneFor(m.Domain, m.OwnerID, zones)
@@ -158,6 +174,25 @@ func (r *Runner) SyncZones(ctx context.Context, zoneID string, force map[string]
 		for _, rec := range m.Records {
 			want[z.ID] = append(want[z.ID], dnssync.Want{Name: rec.Name, Type: rec.Type, Content: rec.Content, Priority: rec.Priority, DNSOnly: true})
 		}
+	}
+	return want, noAddress, nil
+}
+
+// SyncZones brings one Cloudflare zone (or all, zoneID "") in line with the panel's
+// websites, apps and email. Keys in force ("A www.example.com") overwrite what is in the way.
+func (r *Runner) SyncZones(ctx context.Context, zoneID string, force map[string]bool) error {
+	zones, err := r.store.ListZones(ctx, true, "")
+	if err != nil || len(zones) == 0 {
+		return err
+	}
+	// Hosted zones count too: a host name goes to the most specific zone of either kind.
+	hosted, err := r.store.ListHostedZones(ctx, true, "")
+	if err != nil {
+		return err
+	}
+	want, noAddress, err := r.wantedRecords(ctx, append(cloudflareRefs(zones), hostedRefs(hosted)...))
+	if err != nil {
+		return err
 	}
 	var errs []error
 	for _, z := range zones {
@@ -265,7 +300,16 @@ func isNotFound(err error) bool {
 
 // ZoneFor is the zone, among zones, that holds host for its owner, or nil.
 func ZoneFor(host string, owner *string, zones []store.DNSZone) *store.DNSZone {
-	return zoneFor(host, owner, zones)
+	z := zoneFor(host, owner, cloudflareRefs(zones))
+	if z == nil {
+		return nil
+	}
+	for i := range zones {
+		if zones[i].ID == z.ID {
+			return &zones[i]
+		}
+	}
+	return nil
 }
 
 // PublicAddress is the address of type ("A" or "AAAA") that DNS records point at for t,

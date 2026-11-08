@@ -22,6 +22,7 @@ import { AppDetailPage, AppsPage } from "./pages/AppsPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { DNSPage } from "./pages/DNSPage";
 import { ZonePage } from "./pages/ZonePage";
+import { HostedZonePage } from "./pages/HostedZonePage";
 import { MailDomainPage, MailPage } from "./pages/MailPage";
 import { WordPressPage } from "./pages/WordPressPage";
 import { ServerSecurityPage } from "./pages/SecurityPage";
@@ -94,6 +95,7 @@ const router = createBrowserRouter([
       { path: "/mail/:id", element: <MailDomainPage /> },
       { path: "/dns", element: <DNSPage /> },
       { path: "/dns/:id", element: <ZonePage /> },
+      { path: "/dns/hosted/:id", element: <HostedZonePage /> },
       { path: "/apps/catalog", element: <CatalogPage /> },
       { path: "/apps/:id", element: <AppDetailPage /> },
       { path: "/apps/:id/terminal", element: <AppTerminalPage /> },

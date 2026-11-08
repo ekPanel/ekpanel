@@ -72,16 +72,24 @@ func ensureRestic(ctx context.Context, sys *system) error { return ensurePackage
 
 // ensurePackage installs a Debian package unless it is there, refreshing the package lists
 // once if the first attempt fails.
-func ensurePackage(ctx context.Context, sys *system, pkg string) error {
-	out, _ := sys.run(ctx, "dpkg-query", "-W", "-f=${Status}", pkg)
-	if strings.Contains(string(out), "install ok installed") {
+func ensurePackage(ctx context.Context, sys *system, pkgs ...string) error {
+	var missing []string
+	for _, pkg := range pkgs {
+		out, _ := sys.run(ctx, "dpkg-query", "-W", "-f=${Status}", pkg)
+		if !strings.Contains(string(out), "install ok installed") {
+			missing = append(missing, pkg)
+		}
+	}
+	if len(missing) == 0 {
 		return nil
 	}
-	if _, err := sys.run(ctx, "apt-get", "-o", "DPkg::Lock::Timeout=300", "install", "-y", "--no-install-recommends", pkg); err != nil {
+	install := append([]string{"-o", "DPkg::Lock::Timeout=300", "install", "-y", "--no-install-recommends"}, missing...)
+	if _, err := sys.run(ctx, "apt-get", install...); err != nil {
+		// A fresh server may have no package lists yet.
 		if _, uerr := sys.run(ctx, "apt-get", "-o", "DPkg::Lock::Timeout=300", "update"); uerr != nil {
 			return uerr
 		}
-		_, err = sys.run(ctx, "apt-get", "-o", "DPkg::Lock::Timeout=300", "install", "-y", "--no-install-recommends", pkg)
+		_, err = sys.run(ctx, "apt-get", install...)
 		return err
 	}
 	return nil

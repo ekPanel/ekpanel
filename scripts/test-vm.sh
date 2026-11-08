@@ -12,17 +12,27 @@
 # From this machine: SSH on 127.0.0.1:2222, the VM's HTTPS (port 443) on https://127.0.0.1:8443,
 # and its agent port (7443) on 127.0.0.1:17443.
 # Settings: VM_DIR (default ~/vms/panel-test), VM_RAM_MB (2048), VM_CPUS (2), VM_DISK (12G).
+#
+# A second VM (for name servers and other things between servers) needs its own folder,
+# name and ports, and a private network to the first: start the first with VM_LINK=listen,
+# then the second with VM_LINK=connect. The link is a second network card in each VM
+# (address it with ip addr, such as 192.168.77.1/24 and 192.168.77.2/24):
+#   VM_LINK=listen scripts/test-vm.sh start
+#   VM_DIR=~/vms/panel-test2 VM_NAME=panel-test2 VM_PORT_OFFSET=10 VM_LINK=connect scripts/test-vm.sh create
 
 set -euo pipefail
 
 VM_DIR="${VM_DIR:-$HOME/vms/panel-test}"
+NAME="${VM_NAME:-panel-test}"
 RAM="${VM_RAM_MB:-2048}"
 CPUS="${VM_CPUS:-2}"
 DISK_SIZE="${VM_DISK:-12G}"
-SSH_PORT=2222
-HTTPS_PORT=8443
-AGENT_PORT=17443
-SEED_PORT=8099
+OFFSET="${VM_PORT_OFFSET:-0}"
+SSH_PORT=$((2222 + OFFSET))
+HTTPS_PORT=$((8443 + OFFSET))
+AGENT_PORT=$((17443 + OFFSET))
+SEED_PORT=$((8099 + OFFSET))
+LINK_PORT=12399
 
 IMAGE_URL="https://cloud-images.ubuntu.com/noble/current"
 IMAGE_NAME="noble-server-cloudimg-amd64.img"
@@ -62,11 +72,19 @@ boot() {
     python3 -m http.server "$SEED_PORT" --bind 127.0.0.1 --directory "$VM_DIR/seed" >/dev/null 2>&1 &
     seed_pid=$!
   fi
+  local link=()
+  case "${VM_LINK:-}" in
+    "") ;;
+    listen | connect)
+      link=(-netdev "socket,id=link,$VM_LINK=127.0.0.1:$LINK_PORT" -device "virtio-net-pci,netdev=link,mac=52:54:00:77:00:$(printf '%02x' $((OFFSET + 1)))") ;;
+    *) fail "VM_LINK is listen or connect" ;;
+  esac
   say "Booting the VM ($CPUS CPUs, $RAM MB RAM)"
   qemu-system-x86_64 \
-    -name panel-test -enable-kvm -cpu host -smp "$CPUS" -m "$RAM" \
+    -name "$NAME" -enable-kvm -cpu host -smp "$CPUS" -m "$RAM" \
     -drive "file=$DISK,if=virtio,discard=unmap" \
     -nic "user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$HTTPS_PORT-:443,hostfwd=tcp:127.0.0.1:$AGENT_PORT-:7443" \
+    "${link[@]}" \
     -smbios "type=1,serial=ds=nocloud;s=http://10.0.2.2:$SEED_PORT/" \
     -display none -serial "file:$VM_DIR/console.log" \
     -daemonize -pidfile "$PIDFILE"
@@ -90,9 +108,9 @@ create() {
   download
   say "Creating the VM disk ($DISK_SIZE)"
   qemu-img create -q -f qcow2 -F qcow2 -b "$BASE" "$DISK" "$DISK_SIZE"
-  [ -f "$KEY" ] || ssh-keygen -q -t ed25519 -N "" -C panel-test -f "$KEY"
+  [ -f "$KEY" ] || ssh-keygen -q -t ed25519 -N "" -C "$NAME" -f "$KEY"
   mkdir -p "$VM_DIR/seed"
-  printf 'instance-id: panel-test-%s\nlocal-hostname: panel-test\n' "$(date +%s)" > "$VM_DIR/seed/meta-data"
+  printf 'instance-id: %s-%s\nlocal-hostname: %s\n' "$NAME" "$(date +%s)" "$NAME" > "$VM_DIR/seed/meta-data"
   cat > "$VM_DIR/seed/user-data" <<EOF
 #cloud-config
 ssh_authorized_keys:

@@ -256,6 +256,8 @@ type StateApplyParams struct {
 	FTPPassiveIP string `json:"ftp_passive_ip,omitempty"`
 	// Security is nil from panels that do not know it; the agent then leaves it alone.
 	Security *SecuritySpec `json:"security,omitempty"`
+	// NameServer is nil on servers that are not name servers.
+	NameServer *NameServerSpec `json:"name_server,omitempty"`
 }
 
 // AppSpec is one Docker app: a Compose project named "ekpanel-<Name>" kept in
@@ -312,6 +314,7 @@ type FirewallSpec struct {
 	Rules   []FirewallRuleSpec `json:"rules"`
 	Mail    bool               `json:"mail,omitempty"` // also open MailPorts
 	FTP     bool               `json:"ftp,omitempty"`  // also open FTPPorts
+	DNS     bool               `json:"dns,omitempty"`  // also open DNSPorts (name servers)
 }
 
 // FTPPorts are opened in the firewall while a site has FTP: the control port and the
@@ -349,13 +352,14 @@ type DatabaseResult struct {
 }
 
 type StateApplyResult struct {
-	Sites     []SiteResult     `json:"sites"`
-	Databases []DatabaseResult `json:"databases"`
-	Apps      []AppResult      `json:"apps"`
-	Cron      []AppResult      `json:"cron"`
-	Firewall  *FirewallResult  `json:"firewall,omitempty"`
-	Mail      *MailResult      `json:"mail,omitempty"`
-	Security  *SecurityResult  `json:"security,omitempty"`
+	Sites      []SiteResult      `json:"sites"`
+	Databases  []DatabaseResult  `json:"databases"`
+	Apps       []AppResult       `json:"apps"`
+	Cron       []AppResult       `json:"cron"`
+	Firewall   *FirewallResult   `json:"firewall,omitempty"`
+	Mail       *MailResult       `json:"mail,omitempty"`
+	Security   *SecurityResult   `json:"security,omitempty"`
+	NameServer *NameServerResult `json:"name_server,omitempty"`
 }
 
 type AppResult struct {

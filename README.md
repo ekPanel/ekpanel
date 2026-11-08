@@ -58,6 +58,10 @@ email, DNS and game servers, with a modern UI in your own language.
   live, release without downtime, and roll back to any of the last five builds in one click.
   Each pull request can get a preview at its own address, removed when it closes. Private
   repositories use a deploy key
+- **Your own name servers**: turn servers into name servers (PowerDNS, a primary and
+  secondaries kept in sync by zone transfer) and host domains on them, with a zone editor,
+  templates, DNSSEC with the DS record for the registrar, glue guidance, and records for
+  websites, apps and email made by themselves
 - **Cloudflare DNS**: connect your Cloudflare account once and every website and app gets
   its DNS records, kept in sync when servers or domains change, with a zone editor, the SSL
   mode check, cache purge, and visitors' real addresses in your logs

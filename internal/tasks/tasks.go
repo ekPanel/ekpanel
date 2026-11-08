@@ -461,9 +461,13 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 	if err != nil {
 		return sum, err
 	}
+	if params.NameServer, err = r.nameServerSpec(ctx, serverID); err != nil {
+		return sum, fmt.Errorf("name server: %w", err)
+	}
 	if params.Firewall != nil {
 		params.Firewall.Mail = params.Mail != nil
 		params.Firewall.FTP = anyFTP
+		params.Firewall.DNS = params.NameServer != nil
 	}
 	// Behind NAT (an address set by hand that the server does not have), FTP clients must
 	// be sent to the public address for transfers.
@@ -588,6 +592,17 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			return sum, err
 		}
 		if res.Security.Error != "" {
+			sum.Failed++
+		}
+	}
+	if params.NameServer != nil && res.NameServer == nil {
+		res.NameServer = &agentproto.NameServerResult{Error: "the agent does not support name servers; update the agent"}
+	}
+	if res.NameServer != nil && params.NameServer != nil {
+		if err := r.recordNameServer(ctx, serverID, params.NameServer, res.NameServer); err != nil {
+			return sum, err
+		}
+		if res.NameServer.Error != "" {
 			sum.Failed++
 		}
 	}

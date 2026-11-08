@@ -193,3 +193,9 @@ func txtKind(content string) string {
 	tag, _, _ = strings.Cut(tag, " ")
 	return strings.ToLower(tag)
 }
+
+// TXTText is the text of TXT record content, unquoted and joined.
+func TXTText(content string) string { return unquoteTXT(content) }
+
+// TXTKind is what a TXT record is for: its version tag ("v=spf1", "v=dkim1"), lower case.
+func TXTKind(content string) string { return txtKind(content) }

@@ -38,7 +38,7 @@ func TestZoneFor(t *testing.T) {
 		{"blog.customer.net", &other, ""}, // not someone else's zone
 		{"blog.customer.net", nil, ""},
 	} {
-		z := zoneFor(c.host, c.owner, zones)
+		z := ZoneFor(c.host, c.owner, zones)
 		got := ""
 		if z != nil {
 			got = z.ID

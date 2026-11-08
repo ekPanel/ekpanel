@@ -249,6 +249,14 @@ func (s *Server) handleAddZone(w http.ResponseWriter, r *http.Request) {
 	if z.NameServers == nil {
 		z.NameServers = []string{}
 	}
+	// A domain is kept either at Cloudflare or on ekPanel's own name servers, not both.
+	if taken, err := s.store.ZoneNameTaken(r.Context(), z.Name); err != nil {
+		s.internalError(w, r, err)
+		return
+	} else if taken {
+		s.writeDNSError(w, r, store.ErrZoneTaken)
+		return
+	}
 	z, err = s.store.CreateZone(r.Context(), z)
 	if err != nil {
 		s.writeDNSError(w, r, err)

@@ -122,10 +122,10 @@ func (s *Store) ListZones(ctx context.Context, all bool, ownerID string) ([]DNSZ
 	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (DNSZone, error) { return scanZone(r) })
 }
 
-// HasZones reports whether any DNS zone is connected.
+// HasZones reports whether any DNS zone is connected or hosted.
 func (s *Store) HasZones(ctx context.Context) (bool, error) {
 	var has bool
-	err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM dns_zones)`).Scan(&has)
+	err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM dns_zones) OR EXISTS (SELECT 1 FROM hosted_zones)`).Scan(&has)
 	return has, err
 }
 

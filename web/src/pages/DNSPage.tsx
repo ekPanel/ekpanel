@@ -8,6 +8,7 @@ import { formatRelative } from "../lib/format";
 import { PageHeader } from "../components/AppShell";
 import { Badge, Button, Card, Dialog, ErrorAlert, Field, Spinner } from "../components/ui";
 import { EmptyState } from "./ServerParts";
+import { HostedDNS } from "../components/HostedDNS";
 
 const tokenURL = "https://dash.cloudflare.com/profile/api-tokens";
 
@@ -129,16 +130,21 @@ export function DNSPage() {
       <PageHeader
         title={t("dns.title")}
         description={t("dns.intro")}
-        actions={
-          hasAccounts && (
-            <Button variant="primary" onClick={() => setAdding(true)}>
+      />
+      <div className="grid gap-6">
+        <HostedDNS />
+        <div className="flex flex-wrap items-end justify-between gap-3 border-t border-line pt-6">
+          <div>
+            <h2 className="text-lg font-semibold">Cloudflare</h2>
+            <p className="text-sm text-muted">{t("dns.cloudflare_intro")}</p>
+          </div>
+          {hasAccounts && (
+            <Button onClick={() => setAdding(true)}>
               <Plus className="size-4" aria-hidden />
               {t("dns.add_domain")}
             </Button>
-          )
-        }
-      />
-      <div className="grid gap-6">
+          )}
+        </div>
         <ErrorAlert>{error || (accounts.error ? errorMessage(t, accounts.error) : "")}</ErrorAlert>
         {!hasAccounts && (
           <Card className="grid gap-4 p-6">

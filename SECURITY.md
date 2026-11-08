@@ -96,6 +96,11 @@ ekPanel is in early development and has no stable release yet. Fixes go into the
   reach anything the site cannot. Quarantine is a folder only root can read. Website
   owners may quarantine and delete their files; putting back and marking safe are for
   administrators.
+- Name servers: PowerDNS's API listens on loopback only, with a random key in a file only
+  root and PowerDNS can read. Zone transfers are allowed to the other name servers only, and
+  secondaries accept NOTIFY from the primary only. Records are checked by panel and agent
+  before they reach PowerDNS. Customers may host only the domains of their own websites and
+  apps, never a public suffix, and never a zone inside or around another account's.
 - Country blocking never applies to the allowlist, the server's own, Cloudflare's or
   private addresses, or to port 80, and the panel refuses rules that would block the
   administrator's own address. The country list (DB-IP's, CC BY 4.0) is data only: it is
