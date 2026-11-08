@@ -60,6 +60,24 @@ func TestCron(t *testing.T) {
 			}
 		}
 	}
+	// cronUntil waits for an apply whose first job matches; earlier applies may still be queued.
+	cronUntil := func(ok func(agentproto.CronSpec) bool) (agentproto.CronSpec, bool) {
+		t.Helper()
+		var last agentproto.CronSpec
+		deadline := time.After(5 * time.Second)
+		for {
+			select {
+			case c := <-applied:
+				if len(c) > 0 {
+					if last = c[0]; ok(last) {
+						return last, true
+					}
+				}
+			case <-deadline:
+				return last, false
+			}
+		}
+	}
 
 	var pkg struct {
 		ID string `json:"id"`
@@ -155,12 +173,12 @@ func TestCron(t *testing.T) {
 	}
 	off := with("enabled", false)
 	a.do("PUT", j, off, nil)
-	if spec := lastCron()[0]; spec.Enabled || spec.Generation != 2 {
+	if spec, ok := cronUntil(func(c agentproto.CronSpec) bool { return !c.Enabled }); !ok || spec.Generation != 2 {
 		t.Errorf("disable sent %+v", spec)
 	}
 	// Deleting the site takes its jobs with it.
 	a.do("DELETE", "/api/v1/sites/"+site.ID, nil, nil)
-	if spec := lastCron()[0]; !spec.Deleted {
+	if spec, ok := cronUntil(func(c agentproto.CronSpec) bool { return c.Deleted }); !ok {
 		t.Errorf("jobs of a deleted site: %+v", spec)
 	}
 }
