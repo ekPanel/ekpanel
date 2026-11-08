@@ -616,6 +616,38 @@ func TestMetricCompactionAndTaskRecovery(t *testing.T) {
 	if got, _ := st.GetTask(ctx, task.ID); got.Status != "failed" || got.Error == nil {
 		t.Fatalf("after last attempt: %+v", got)
 	}
+
+	// Interrupted tasks sharing a dedupe key: one is queued again, the others fail, and
+	// none joins a task already queued with that key.
+	var ids []string
+	for range 3 {
+		tk, _ := st.CreateTask(ctx, store.NewTask{Kind: "test.noop", MaxAttempts: 3, DedupeKey: "test-key"})
+		pool.Exec(ctx, `UPDATE tasks SET status = 'running', attempts = 1, run_after = now() + interval '1 hour',
+			locked_until = now() - interval '1 second' WHERE id = $1`, tk.ID)
+		ids = append(ids, tk.ID)
+	}
+	if _, err := st.RecoverTasks(ctx); err != nil {
+		t.Fatal(err)
+	}
+	statuses := map[string]int{}
+	for _, id := range ids {
+		got, _ := st.GetTask(ctx, id)
+		statuses[got.Status]++
+	}
+	if statuses["queued"] != 1 || statuses["failed"] != 2 {
+		t.Errorf("shared key: %v", statuses)
+	}
+	queued, _ := st.CreateTask(ctx, store.NewTask{Kind: "test.noop", MaxAttempts: 3, DedupeKey: "other-key"})
+	pool.Exec(ctx, `UPDATE tasks SET run_after = now() + interval '1 hour' WHERE id = $1`, queued.ID)
+	var stale string
+	pool.QueryRow(ctx, `INSERT INTO tasks (kind, params, max_attempts, dedupe_key, status, attempts, locked_until)
+		VALUES ('test.noop', '{}', 3, 'other-key', 'running', 1, now() - interval '1 second') RETURNING id`).Scan(&stale)
+	if _, err := st.RecoverTasks(ctx); err != nil {
+		t.Fatalf("a key already queued: %v", err)
+	}
+	if got, _ := st.GetTask(ctx, stale); got.Status != "failed" {
+		t.Errorf("the interrupted task next to a queued one: %s", got.Status)
+	}
 }
 
 func TestSitesLifecycle(t *testing.T) {

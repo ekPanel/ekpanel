@@ -153,12 +153,20 @@ func (s *Store) FailTask(ctx context.Context, id, message string, retryAfter tim
 // RecoverTasks requeues (or fails) tasks whose worker stopped without finishing them,
 // for example because the panel restarted mid-task.
 func (s *Store) RecoverTasks(ctx context.Context) (int64, error) {
+	// Only one task per dedupe key may be queued: an interrupted task whose key is already
+	// queued again (or the older of two interrupted with one key) fails instead of joining.
 	tag, err := s.pool.Exec(ctx, `
-		UPDATE tasks SET locked_until = NULL,
+		WITH stale AS (
+			SELECT id, attempts < max_attempts AND (dedupe_key IS NULL OR (
+				NOT EXISTS (SELECT 1 FROM tasks q WHERE q.status = 'queued' AND q.dedupe_key = t.dedupe_key)
+				AND row_number() OVER (PARTITION BY dedupe_key ORDER BY created_at DESC) = 1)) AS requeue
+			FROM tasks t WHERE status = 'running' AND locked_until < now()
+		)
+		UPDATE tasks t SET locked_until = NULL,
 			error = 'interrupted: the panel stopped while this task was running',
-			status = CASE WHEN attempts < max_attempts THEN 'queued' ELSE 'failed' END,
-			finished_at = CASE WHEN attempts < max_attempts THEN NULL ELSE now() END
-		WHERE status = 'running' AND locked_until < now()`)
+			status = CASE WHEN stale.requeue THEN 'queued' ELSE 'failed' END,
+			finished_at = CASE WHEN stale.requeue THEN NULL ELSE now() END
+		FROM stale WHERE t.id = stale.id`)
 	return tag.RowsAffected(), err
 }
 
