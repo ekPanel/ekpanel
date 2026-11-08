@@ -18,7 +18,8 @@ import (
 type securityView struct {
 	store.ServerSecurity
 	// Always are the addresses the agent never bans besides the allowlist.
-	Always []string `json:"always"`
+	Always       []string `json:"always"`
+	CountryCodes []string `json:"country_codes"`
 }
 
 func (s *Server) handleGetSecurity(w http.ResponseWriter, r *http.Request) {
@@ -31,7 +32,8 @@ func (s *Server) handleGetSecurity(w http.ResponseWriter, r *http.Request) {
 		s.internalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, securityView{ServerSecurity: sec, Always: append(slices.Clone(srv.Addresses), agentproto.CloudflareRanges...)})
+	writeJSON(w, http.StatusOK, securityView{ServerSecurity: sec, Always: append(slices.Clone(srv.Addresses), agentproto.CloudflareRanges...),
+		CountryCodes: agentproto.CountryCodes})
 }
 
 type securityRequest struct {

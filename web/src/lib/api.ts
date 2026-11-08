@@ -639,6 +639,8 @@ export class ApiError extends Error {
     public status: number,
     public code: string,
     message: string,
+    /** The whole error body, for errors that carry more than a message. */
+    public data: Record<string, unknown> = {},
   ) {
     super(message);
   }
@@ -665,7 +667,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   }
   if (!res.ok) {
     const e = (data ?? {}) as { code?: string; message?: string };
-    throw new ApiError(res.status, e.code ?? "internal", e.message ?? res.statusText);
+    throw new ApiError(res.status, e.code ?? "internal", e.message ?? res.statusText, (data ?? {}) as Record<string, unknown>);
   }
   return data as T;
 }

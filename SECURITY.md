@@ -90,6 +90,16 @@ ekPanel is in early development and has no stable release yet. Fixes go into the
   and the firewall bouncer's key is readable by root only. ekPanel never bans Cloudflare's
   addresses or the server's own, and bans by hand take single public addresses only. Its
   allowlist also keeps the community blocklist from blocking chosen addresses.
+- Malware scans: clamscan reads the websites' home folders as root but follows no links,
+  and every action on a file found (reading it into quarantine, removing it, putting it
+  back) runs as the site's own account, so a file swapped for a link in between cannot
+  reach anything the site cannot. Quarantine is a folder only root can read. Website
+  owners may quarantine and delete their files; putting back and marking safe are for
+  administrators.
+- Country blocking never applies to the allowlist, the server's own, Cloudflare's or
+  private addresses, or to port 80, and the panel refuses rules that would block the
+  administrator's own address. The country list (DB-IP's, CC BY 4.0) is data only: it is
+  checked to be a well-formed list of address ranges before use.
 - WordPress toolkit: WP-CLI always runs as the site's own account, and without loading
   plugins and themes except to switch a plugin on. Plugin and theme names are checked by
   panel and agent before they reach WP-CLI. Copies between a site and its staging copy run

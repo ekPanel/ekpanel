@@ -44,6 +44,10 @@
       "title": "WordPress update problem on {{name}}",
       "body": "{{message}}"
     },
+    "malware_found": {
+      "title": "Possible malware on {{name}}",
+      "body": "The malware scan found {{count}} suspicious files ({{quarantined}} moved to quarantine):\n{{files}}\n\nCheck them on the website's page: delete them, or mark them as safe if they are not harmful."
+    },
     "database_error": {
       "title": "Database {{name}} has a problem",
       "body": "{{message}}"

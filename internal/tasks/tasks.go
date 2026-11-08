@@ -82,6 +82,7 @@ func New(st *store.Store, h *hub.Hub, log *slog.Logger) *Runner {
 	r.handlers[KindWordPressCopy] = r.wordPressCopy
 	r.handlers[KindWordPressScan] = r.wordPressScan
 	r.handlers[KindPHPAppInstall] = r.installPHPApp
+	r.handlers[KindMalwareScan] = r.malwareScan
 	return r
 }
 
@@ -115,10 +116,14 @@ func (r *Runner) Run(ctx context.Context, workers int) {
 			r.work(ctx)
 		}()
 	}
-	wg.Add(7)
+	wg.Add(8)
 	go func() {
 		defer wg.Done()
 		r.driftLoop(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		r.malwareLoop(ctx)
 	}()
 	go func() {
 		defer wg.Done()
@@ -451,7 +456,7 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 	if err != nil {
 		return sum, err
 	}
-	params.Security = &agentproto.SecuritySpec{CrowdSec: sec.CrowdSec, Allowlist: sec.Allowlist}
+	params.Security = sec.Spec()
 	mailDomains, err := r.mailSpec(ctx, serverID, &params)
 	if err != nil {
 		return sum, err

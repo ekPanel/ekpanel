@@ -8,6 +8,8 @@ import { formatDateTime, formatRelative } from "../lib/format";
 import { PageHeader } from "../components/AppShell";
 import { Badge, Button, Card, ErrorAlert, Field, Spinner } from "../components/ui";
 import { EmptyState } from "./ServerParts";
+import { MalwareCard } from "../components/ServerMalware";
+import { CountriesCard } from "../components/CountryBlocking";
 
 interface CrowdSecStatus {
   installed: boolean;
@@ -17,11 +19,33 @@ interface CrowdSecStatus {
   bans: number;
 }
 
-interface SecurityView {
+export interface MalwareStatus {
+  installed: boolean;
+  updating: boolean;
+  version?: string;
+  ready: boolean;
+  signatures?: string;
+  signatures_date?: string;
+  low_memory?: boolean;
+  error?: string;
+}
+
+export interface SecurityView {
   crowdsec: boolean;
   allowlist: string[];
   always: string[];
-  status: { crowdsec: CrowdSecStatus; error?: string } | null;
+  countries: { mode: "off" | "block" | "allow"; countries: string[] };
+  country_codes: string[];
+  malware_scan: "off" | "manual" | "daily" | "weekly";
+  malware_quarantine: boolean;
+  malware_scanned_at: string | null;
+  malware_last: { at: string; files: number; found: number; new: number; seconds: number; truncated?: boolean; error?: string } | null;
+  status: {
+    crowdsec: CrowdSecStatus;
+    error?: string;
+    countries?: { active: boolean; ranges?: number; list?: string; error?: string };
+    malware?: MalwareStatus;
+  } | null;
   checked_at: string | null;
 }
 
@@ -103,7 +127,15 @@ function ServerSecurity({ server }: { server: Server }) {
   const sec = useQuery({
     queryKey: ["security", server.id],
     queryFn: () => api.get<SecurityView>(`/servers/${server.id}/security`),
-    refetchInterval: (q) => (q.state.data && q.state.data.crowdsec !== !!q.state.data.status?.crowdsec.active ? 3000 : 30000),
+    refetchInterval: (q) => {
+      const d = q.state.data;
+      const settling =
+        d &&
+        (d.crowdsec !== !!d.status?.crowdsec.active ||
+          (d.malware_scan !== "off" && !d.status?.malware?.ready && !d.status?.malware?.error) ||
+          (d.countries.mode !== "off") !== !!d.status?.countries?.active);
+      return settling ? 3000 : 30000;
+    },
   });
   if (sec.isPending) return <Spinner />;
   if (sec.error || !sec.data) return <ErrorAlert>{errorMessage(t, sec.error)}</ErrorAlert>;
@@ -112,11 +144,13 @@ function ServerSecurity({ server }: { server: Server }) {
     <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       <div className="grid content-start gap-6">
         <OverviewCard server={server} />
+        <MalwareCard server={server} sec={sec.data} />
         {running && <BansCard server={server} />}
         {running && <AlertsCard server={server} />}
       </div>
       <div className="grid content-start gap-6">
         <CrowdSecCard server={server} sec={sec.data} />
+        <CountriesCard server={server} sec={sec.data} />
         <AllowlistCard server={server} sec={sec.data} />
       </div>
     </div>

@@ -81,7 +81,10 @@ email, DNS and game servers, with a modern UI in your own language.
 - **Security**: CrowdSec on any server in one click: password guessing on SSH and
   WordPress, scans and exploit attempts are banned in the firewall (with the visitor's real
   address behind Cloudflare), with bans, attacks and an allowlist in the panel, and a
-  checklist of SSH, updates and two-factor sign-in
+  checklist of SSH, updates and two-factor sign-in. Malware scans with ClamAV (daily, weekly
+  or when started) with quarantine, shown to each website's owner too, and country blocking
+  (block some countries, or allow only some) with
+  [IP Geolocation by DB-IP](https://db-ip.com) (CC BY 4.0)
 - **Firewall**: turn on ufw with SSH, web and agent ports always open, then open ports or
   block addresses from the server page
 - An append-only audit log of every change (the database itself refuses edits and deletes)

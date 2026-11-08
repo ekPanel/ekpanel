@@ -364,7 +364,16 @@
         "set": "Security settings changed",
         "ban": "Address banned",
         "unban": "Ban lifted",
-        "auto_updates": "Automatic security updates changed"
+        "auto_updates": "Automatic security updates changed",
+        "countries": "Country blocking changed",
+        "malware": "Malware scan settings changed",
+        "malware_scan": "Malware scan started"
+      },
+      "malware": {
+        "quarantine": "File moved to quarantine",
+        "delete": "Suspicious file deleted",
+        "restore": "File put back from quarantine",
+        "ignore": "File marked safe"
       }
     }
   },
@@ -562,7 +571,16 @@
     "ftp_disabled": "Turn on FTP first.",
     "unknown_app": "Choose an application.",
     "app_needs_php": "This application needs a PHP site.",
-    "app_needs_newer_php": "This application needs a newer PHP version."
+    "app_needs_newer_php": "This application needs a newer PHP version.",
+    "agent_malware_off": "ClamAV is not installed on this server.",
+    "malware_off": "Turn on malware scans first.",
+    "malware_not_ready": "ClamAV is still downloading its virus database. Try again in a few minutes.",
+    "agent_malware_not_ready": "ClamAV is still downloading its virus database. Try again in a few minutes.",
+    "agent_exists": "A file already exists at that path. Delete or rename it first.",
+    "invalid_action": "This cannot be done with the file now.",
+    "invalid_countries": "Choose known countries, at least one.",
+    "blocks_you": "This would block your own address. Add it to the allowlist first.",
+    "not_allowed": "Only administrators can do this."
   },
   "not_found": {
     "title": "Page not found",
@@ -610,7 +628,8 @@
       "site_wordpress_staging": "Make staging copy",
       "site_wordpress_copy": "Copy staging and live",
       "site_wordpress_scan": "Look for WordPress",
-      "site_install_app": "Install {{app}}"
+      "site_install_app": "Install {{app}}",
+      "malware_scan": "Malware scan"
     }
   },
   "sites": {
@@ -1161,7 +1180,7 @@
     }
   },
   "serversec": {
-    "intro": "Attacks on your servers are detected and banned by CrowdSec. The checklist shows what else to tighten.",
+    "intro": "CrowdSec detects and bans attacks, ClamAV looks for malware in the websites, and whole countries can be blocked. The checklist shows what else to tighten.",
     "no_server": "No server yet",
     "overview": {
       "title": "Checklist",
@@ -1188,6 +1207,35 @@
       "twofa_missing_other": "{{count}} administrators sign in with a password only:",
       "twofa_setup": "Set up two-factor authentication"
     },
+    "malware": {
+      "title": "Malware scans",
+      "intro": "ClamAV scans the files of every website for viruses, web shells and other malware. Its virus database updates by itself.",
+      "downloading": "Downloading the virus database",
+      "installing": "Installing ClamAV",
+      "low_memory": "This server has less than 2 GB of memory. ClamAV needs about 1.5 GB while it scans, so scans may fail; add memory or swap.",
+      "schedule": "Scans",
+      "s_off": "Off",
+      "s_manual": "Only when started",
+      "s_daily": "Every day",
+      "s_weekly": "Every week",
+      "auto_quarantine": "Move files found into quarantine",
+      "scan_now": "Scan now",
+      "scanning": "Scanning…",
+      "database": "Virus database {{version}} of {{date}}",
+      "last_one": "Last scan {{when}}: {{files}} files, {{count}} suspicious ({{seconds}} s)",
+      "last_other": "Last scan {{when}}: {{files}} files, {{count}} suspicious ({{seconds}} s)",
+      "last_failed": "The last scan ({{when}}) failed: {{error}}",
+      "site_title_one": "{{count}} suspicious file found",
+      "site_title_other": "{{count}} suspicious files found",
+      "site_intro": "The malware scan found these files in this website. Delete them, or move them into quarantine, where they cannot run. Then find how they got in: outdated plugins and themes, or a leaked password.",
+      "st_found": "Found",
+      "st_quarantined": "In quarantine",
+      "st_ignored": "Marked safe",
+      "quarantine": "Quarantine",
+      "restore": "Put back",
+      "ignore": "Mark safe",
+      "delete_confirm": "Delete {{path}} for good? This cannot be undone."
+    },
     "crowdsec": {
       "intro": "Reads SSH and web server logs, bans addresses that guess passwords, scan for weaknesses or try known exploits (also on WordPress), and blocks addresses its community reports. Bans are made in the firewall.",
       "running": "Running {{version}}",
@@ -1199,6 +1247,22 @@
       "checked": "Checked {{when}}",
       "bouncer_down": "The firewall part of CrowdSec is not running, so bans have no effect. Restart crowdsec-firewall-bouncer on the server's page.",
       "cloudflare_note": "Visitors through Cloudflare's proxy reach the server from Cloudflare's addresses, which are never banned; their attacks are logged and banned for direct access only. Block them at Cloudflare too."
+    },
+    "countries": {
+      "title": "Country blocking",
+      "active_one": "On, {{count}} address range",
+      "active_other": "On, {{count}} address ranges",
+      "intro": "Drops connections by the country of their address, for everything on this server: websites, SSH, email and FTP.",
+      "m_off": "Off",
+      "m_block": "Block these countries",
+      "m_block_hint": "Every other country can connect.",
+      "m_allow": "Allow only these countries",
+      "m_allow_hint": "Every other country is blocked. Make sure the countries you and your visitors connect from are on the list.",
+      "search": "Add a country…",
+      "remove": "Remove {{name}}",
+      "blocks_you": "This would block you: your address {{ip}} is in {{country}}. Add it to the allowlist first.",
+      "notes": "Port 80 stays open so certificates can renew; it only redirects to HTTPS. The allowlist and this server's own, Cloudflare's and private addresses are never blocked, so visitors through Cloudflare's proxy are not blocked here: block them at Cloudflare.",
+      "list": "Country list of {{month}}."
     },
     "bans": {
       "title": "Banned addresses",
@@ -1228,7 +1292,7 @@
     },
     "allowlist": {
       "title": "Allowlist",
-      "intro": "Addresses and networks never banned, such as your office. One per line.",
+      "intro": "Addresses and networks never banned or blocked by country, such as your office. One per line.",
       "saved": "Saved.",
       "always": "Always allowed as well: this server's and Cloudflare's addresses ({{count}})"
     },
@@ -1967,7 +2031,8 @@
       "quota_warning": "Disk space almost used up",
       "quota_full": "Disk space used up",
       "task_failed": "Task failed",
-      "login_new_ip": "Sign-in from a new address"
+      "login_new_ip": "Sign-in from a new address",
+      "malware_found": "Malware found"
     },
     "inbox_note": "Notifications are kept for 90 days.",
     "mail": {

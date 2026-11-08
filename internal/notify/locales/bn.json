@@ -44,6 +44,10 @@
       "title": "{{name}}-এ WordPress আপডেটে সমস্যা",
       "body": "{{message}}"
     },
+    "malware_found": {
+      "title": "{{name}}-এ সম্ভাব্য malware",
+      "body": "Malware scan-এ {{count}}টা সন্দেহজনক ফাইল পাওয়া গেছে ({{quarantined}}টা quarantine-এ সরানো হয়েছে):\n{{files}}\n\nWebsite-এর পাতায় ফাইলগুলো দেখুন: মুছে ফেলুন, অথবা ক্ষতিকর না হলে নিরাপদ হিসেবে চিহ্নিত করুন।"
+    },
     "database_error": {
       "title": "ডেটাবেস {{name}}-এ সমস্যা",
       "body": "{{message}}"

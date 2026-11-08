@@ -189,6 +189,30 @@ func Dispatch(ctx context.Context, op string, params json.RawMessage) (any, *age
 			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
 		}
 		return securityAutoUpdates(ctx, realSystem, p)
+	case agentproto.OpCountryOf:
+		var p agentproto.CountryOfParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return securityCountryOf(ctx, realSystem, p)
+	case agentproto.OpMalwareScan:
+		var p agentproto.MalwareScanParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return malwareScan(ctx, realSystem, p)
+	case agentproto.OpMalwareQuarantine, agentproto.OpMalwareRestore, agentproto.OpMalwareDelete:
+		var p agentproto.MalwareFileParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		switch op {
+		case agentproto.OpMalwareQuarantine:
+			return malwareQuarantine(ctx, realSystem, p)
+		case agentproto.OpMalwareRestore:
+			return malwareRestore(ctx, realSystem, p)
+		}
+		return malwareDelete(ctx, realSystem, p)
 	case agentproto.OpPHPAppInstall:
 		var p agentproto.PHPAppInstallParams
 		if err := json.Unmarshal(params, &p); err != nil {

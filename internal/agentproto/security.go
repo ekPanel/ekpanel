@@ -22,11 +22,17 @@ type SecuritySpec struct {
 	// Allowlist is addresses and networks never banned, besides those the agent always
 	// adds: the server's own addresses and Cloudflare's.
 	Allowlist []string `json:"allowlist"`
+	// Countries are blocked by the firewall, also with CrowdSec off.
+	Countries CountryBlock `json:"countries"`
+	// Malware has ClamAV installed and its virus database kept current.
+	Malware bool `json:"malware"`
 }
 
 type SecurityResult struct {
-	CrowdSec CrowdSecStatus `json:"crowdsec"`
-	Error    string         `json:"error,omitempty"`
+	CrowdSec  CrowdSecStatus  `json:"crowdsec"`
+	Error     string          `json:"error,omitempty"` // CrowdSec's
+	Countries CountriesStatus `json:"countries"`
+	Malware   MalwareStatus   `json:"malware"`
 }
 
 type CrowdSecStatus struct {
@@ -155,6 +161,11 @@ func NormalizeAllowEntry(s string) string {
 }
 
 func (s SecuritySpec) Validate() error {
+	if s.Countries.Mode != "" {
+		if err := s.Countries.Validate(); err != nil {
+			return err
+		}
+	}
 	if len(s.Allowlist) > MaxAllowlist {
 		return errors.New("too many allowlist entries")
 	}

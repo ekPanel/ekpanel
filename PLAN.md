@@ -713,7 +713,7 @@ Agreed (2026-11-07):
       downloads were limited to 64 MB; Drush's command files are shell wrappers
 - [ ] PrestaShop: version 9 publishes no download with a checksum yet
 
-**3e. Security — done** (malware scans and country blocking are 3e-2)
+**3e. Security — done** (malware scans and country blocking are in 3e-2)
 - [x] CrowdSec per server, turned on from the panel: installed from CrowdSec's own package
       repository with the nftables firewall bouncer, its local API moved off port 8080 (the
       panel's), reading SSH and every website's and app's log; detections for SSH, web
@@ -731,9 +731,34 @@ Agreed (2026-11-07):
       through Cloudflare and SSH password guessing banned; an allowlisted address not
       banned; bans by hand reached nftables and were lifted; turned off cleanly
 
-**3e-2. Malware and countries**
-- [ ] Malware scans with ClamAV on a schedule, with quarantine
-- [ ] Country blocking (db-ip lite, CC BY 4.0)
+**3e-2. Malware and countries — done**
+- [x] Malware scans with ClamAV (from the distribution, its database kept current by
+      freshclam): off, only when started, daily or weekly, of every website's home folder at
+      the lowest CPU and disk priority, without following links; one scan per server at a
+      time; less than 2 GB of memory is warned about
+- [x] Files found: listed per server for administrators and on the website's page for its
+      owner, with alerts to both. Quarantine (moved into a root-only folder, automatically
+      if chosen), delete, put back (marking it safe) and mark safe; owners may quarantine
+      and delete. Every file action runs as the site's account, never as root. Files fixed
+      or deleted drop off after the next scan; files marked safe stay quiet until they match
+      something else
+- [x] Country blocking: block some countries, or allow only some, by DB-IP's free country
+      list (CC BY 4.0, credited in the panel), downloaded once a month. An nftables table
+      of its own ahead of ufw, CrowdSec and Docker drops new connections; port 80 stays open
+      for certificates, and the allowlist, the server's own, Cloudflare's and private
+      addresses are never blocked. The rules load again at boot. The panel refuses rules
+      that would block the administrator setting them
+- [x] Tested in the VM: real packets from Chinese, Singaporean and Bangladeshi addresses
+      (a network namespace) blocked and let through as set, for HTTPS and SSH, with port 80
+      open; the rules restored after loss; outgoing traffic unaffected in "allow only" mode;
+      blocking yourself refused. ClamAV installed with its database; EICAR test files found
+      (also inside a ZIP and with ": " in the name), quarantined, put back with their
+      permissions, deleted; a link to /etc/shadow not followed; automatic quarantine; a file
+      put back stayed quiet on the next scan. A scan takes about 1 GB of memory, and a full
+      scan of 3.4 GB in 222,000 files runs well over an hour at the lowest priority
+- [x] Found while testing: nftables keeps only the last "elements" line of a set (ranges
+      now go in "add element" lines); a second "Scan now" started a second scan (it now
+      joins the running one)
 
 **3f. FTP — done**
 - [x] Pure-FTPd, installed when the first site turns FTP on and stopped when the last turns
@@ -754,4 +779,4 @@ Agreed (2026-11-07):
       (AXFR/NOTIFY); guidance for glue records
 
 **Next**
-- [ ] 3e-2. Malware and countries, or 3g. Built-in DNS
+- [ ] 3g. Built-in DNS

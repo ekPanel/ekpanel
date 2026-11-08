@@ -77,11 +77,13 @@ func crowdsecStatus(ctx context.Context, sys *system) agentproto.CrowdSecStatus 
 	return st
 }
 
-// applySecurity runs CrowdSec or stops it (keeping its data), and keeps its allowlist.
+// applySecurity runs CrowdSec or stops it (keeping its data), and keeps its allowlist;
+// then the country rules and ClamAV, each on its own.
 func applySecurity(ctx context.Context, sys *system, spec agentproto.SecuritySpec) *agentproto.SecurityResult {
 	res := &agentproto.SecurityResult{}
 	err := func() error {
-		if err := spec.Validate(); err != nil {
+		allow := agentproto.SecuritySpec{Allowlist: spec.Allowlist}
+		if err := allow.Validate(); err != nil {
 			return err
 		}
 		if !spec.CrowdSec {
@@ -99,6 +101,8 @@ func applySecurity(ctx context.Context, sys *system, spec agentproto.SecuritySpe
 		res.Error = err.Error()
 	}
 	res.CrowdSec = crowdsecStatus(ctx, sys)
+	res.Countries = applyCountries(ctx, sys, spec.Countries, spec.Allowlist)
+	res.Malware = applyMalware(ctx, sys, spec.Malware)
 	return res
 }
 

@@ -60,8 +60,8 @@ func init() {
 // Events a user can choose for a channel. Administrators get every one; customers get
 // those about their own websites, apps, databases, disk space and account.
 var (
-	AdminEvents    = []string{"server_offline", "server_online", "server_disk", "backup_failed", "backup_partial", "site_error", "certificate_expiring", "app_error", "deploy_failed", "database_error", "mail_error", "wordpress_update", "quota_warning", "quota_full", "task_failed", "login_new_ip"}
-	CustomerEvents = []string{"site_error", "certificate_expiring", "app_error", "deploy_failed", "database_error", "mail_error", "wordpress_update", "quota_warning", "quota_full", "task_failed", "login_new_ip"}
+	AdminEvents    = []string{"server_offline", "server_online", "server_disk", "backup_failed", "backup_partial", "site_error", "certificate_expiring", "app_error", "deploy_failed", "database_error", "mail_error", "wordpress_update", "malware_found", "quota_warning", "quota_full", "task_failed", "login_new_ip"}
+	CustomerEvents = []string{"site_error", "certificate_expiring", "app_error", "deploy_failed", "database_error", "mail_error", "wordpress_update", "malware_found", "quota_warning", "quota_full", "task_failed", "login_new_ip"}
 )
 
 func fill(text string, params map[string]string) string {
