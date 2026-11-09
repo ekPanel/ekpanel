@@ -219,6 +219,8 @@ func session(ctx context.Context, log *slog.Logger, cfg Config, collector *Colle
 	if err := send(ctx, conn, agentproto.Envelope{Type: agentproto.TypeHello, Hello: ptr(Facts(version))}); err != nil {
 		return err
 	}
+	// Reaching the panel is what an update waits for before it is kept.
+	realUpdater.confirmUpdate(version)
 
 	// Terminals and builds live as long as this connection.
 	terms := newTerminals(realSystem, func(env agentproto.Envelope) error { return send(ctx, conn, env) })
@@ -292,6 +294,10 @@ func session(ctx context.Context, log *slog.Logger, cfg Config, collector *Colle
 				defer cancel()
 				resp := agentproto.Envelope{Type: agentproto.TypeResponse, ID: req.ID}
 				result, opErr := Dispatch(opCtx, req.Op, req.Params)
+				var then func()
+				if a, ok := result.(afterReply); ok {
+					result, then = a.result, a.then
+				}
 				if opErr != nil {
 					resp.Error = opErr
 					log.Warn("operation failed", "op", req.Op, "err", opErr)
@@ -299,6 +305,10 @@ func session(ctx context.Context, log *slog.Logger, cfg Config, collector *Colle
 					resp.Result, _ = json.Marshal(result)
 				}
 				send(ctx, conn, resp)
+				if then != nil {
+					// Restarts after an update; they must outlive this connection.
+					go then()
+				}
 			}(env)
 		}
 	}()

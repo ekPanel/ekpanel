@@ -1,0 +1,58 @@
+# Publishes a release when an owner pushes a version tag (vX.Y.Z) on pub. Only owners can
+# create such tags (a tag ruleset), and the signing key lives in the "release" environment,
+# which only accepts v* tags.
+name: Release
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write # create the release
+      id-token: write # sign the build attestation
+      attestations: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: The tag must be on pub
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/pub
+      - name: The changelog must describe this version
+        run: scripts/release-notes.sh "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build
+        run: make release VERSION="$GITHUB_REF_NAME"
+      - name: Sign
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+        run: |
+          test -n "$RELEASE_SIGNING_KEY" || { echo "the RELEASE_SIGNING_KEY secret is missing"; exit 1; }
+          key="$RUNNER_TEMP/release-signing.key"
+          (umask 077; printf '%s\n' "$RELEASE_SIGNING_KEY" > "$key")
+          make sign KEY="$key"
+          rm -f "$key"
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: dist/*
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=(--latest)
+          case "$GITHUB_REF_NAME" in *-*) flags=(--prerelease --latest=false) ;; esac
+          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag \
+            --title "ekPanel $GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md" "${flags[@]}"

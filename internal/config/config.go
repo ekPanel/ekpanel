@@ -22,6 +22,10 @@ type Config struct {
 	DataDir string
 	// SecureCookies marks session cookies Secure. Turn off only for plain-HTTP local development.
 	SecureCookies bool
+	// ReleasesURL is where releases are published (GitHub's layout); a mirror may replace it.
+	ReleasesURL string
+	// UpdateCheck lets the panel look for new releases every few hours.
+	UpdateCheck bool
 }
 
 // Load parses args (without the program name) on top of environment defaults.
@@ -33,6 +37,8 @@ func Load(args []string) (*Config, error) {
 		DevDB:         envBool("EKPANEL_DEV_DB", false),
 		DataDir:       env("EKPANEL_DATA_DIR", "/var/lib/ekpanel"),
 		SecureCookies: envBool("EKPANEL_SECURE_COOKIES", true),
+		ReleasesURL:   env("EKPANEL_RELEASES_URL", "https://github.com/ekPanel/ekpanel/releases"),
+		UpdateCheck:   envBool("EKPANEL_UPDATE_CHECK", true),
 	}
 
 	fs := flag.NewFlagSet("ekpanel", flag.ContinueOnError)
@@ -42,6 +48,8 @@ func Load(args []string) (*Config, error) {
 	fs.BoolVar(&c.DevDB, "dev-db", c.DevDB, "run an embedded PostgreSQL in the data dir (development only)")
 	fs.StringVar(&c.DataDir, "data-dir", c.DataDir, "directory for panel state")
 	fs.BoolVar(&c.SecureCookies, "secure-cookies", c.SecureCookies, "set the Secure flag on session cookies")
+	fs.StringVar(&c.ReleasesURL, "releases-url", c.ReleasesURL, "where ekPanel releases are published")
+	fs.BoolVar(&c.UpdateCheck, "update-check", c.UpdateCheck, "look for new ekPanel releases every few hours")
 	if err := fs.Parse(args); err != nil {
 		return nil, err
 	}

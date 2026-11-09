@@ -24,9 +24,11 @@ import (
 	"ekpanel/internal/hub"
 	"ekpanel/internal/notify"
 	"ekpanel/internal/pki"
+	"ekpanel/internal/release"
 	"ekpanel/internal/secretbox"
 	"ekpanel/internal/store"
 	"ekpanel/internal/tasks"
+	"ekpanel/internal/updates"
 	"ekpanel/internal/webui"
 )
 
@@ -163,9 +165,16 @@ func run(log *slog.Logger, args []string) error {
 	notifier := notify.New(st, box, log)
 	runner.SetNotifier(notifier)
 	runner.SetSecrets(box)
+	runner.SetRelease(version, cfg.ReleasesURL)
+	// Started by an update of itself? Then go on with the agents (or record that it failed).
+	runner.ResumeUpdate(ctx)
+	checker := updates.New(st, &release.Client{BaseURL: cfg.ReleasesURL}, version, log)
+	checker.Notify = func(ctx context.Context, latest, notesURL string) {
+		notifier.Admins(ctx, nil, "update_available", "info", map[string]string{"version": latest, "current": version}, "/settings/updates")
+	}
 	opts := api.Options{
 		SecureCookies: cfg.SecureCookies, UI: webui.FS(), Version: version,
-		CA: ca, AgentPort: agentPort, Tasks: runner,
+		CA: ca, AgentPort: agentPort, Tasks: runner, Updates: checker, ReleasesURL: cfg.ReleasesURL,
 	}
 	if err := prepareSetup(ctx, log, st, cfg.DataDir, &opts); err != nil {
 		return err
@@ -188,6 +197,11 @@ func run(log *slog.Logger, args []string) error {
 	}
 
 	var background sync.WaitGroup
+	// A panel built from source ("dev") has no release to compare with.
+	if cfg.UpdateCheck && release.Valid(version) {
+		background.Add(1)
+		go func() { defer background.Done(); checker.Run(ctx) }()
+	}
 	background.Add(3)
 	go func() { defer background.Done(); runner.Run(ctx, 4) }()
 	go func() { defer background.Done(); notifier.Run(ctx) }()

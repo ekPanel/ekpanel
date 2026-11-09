@@ -71,6 +71,18 @@
     "test": {
       "title": "Test notification from ekPanel",
       "body": "This channel works. You will get notifications here."
+    },
+    "update_available": {
+      "title": "ekPanel {{version}} is available",
+      "body": "This panel runs {{current}}. Read what is new and update from Settings → Updates. The panel and every server's agent are updated one after the other."
+    },
+    "update_finished": {
+      "title": "ekPanel updated to {{version}}",
+      "body": "The panel runs {{version}}. Agents: {{servers}} servers checked, {{problems}} with a problem. Settings → Updates shows each server."
+    },
+    "update_failed": {
+      "title": "Update to ekPanel {{version}} failed",
+      "body": "{{message}}\n\nThe panel keeps running its current version. Settings → Updates has the details."
     }
   },
   "open": "Open in ekPanel: {{link}}"

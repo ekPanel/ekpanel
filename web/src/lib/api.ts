@@ -88,6 +88,8 @@ export interface Server {
   arch: string;
   cpu_count: number;
   agent_version: string;
+  /** The server that runs the panel itself. */
+  panel_host: boolean;
   last_seen_at: string | null;
   created_at: string;
   online: boolean;
@@ -151,6 +153,8 @@ export interface EnrollResult {
   /** Fingerprint of the panel's agent CA; the agent refuses any other panel. */
   ca_pin: string;
   agent_port: number;
+  /** The installer of the panel's release: one command sets up the server. Absent for builds from source. */
+  install_url?: string;
 }
 
 export interface MetricPoint {
@@ -634,6 +638,52 @@ export interface AuditEntry {
 }
 
 /** An error response from the panel. `code` is stable; translate it with errorMessage. */
+// ---- Updates ----
+
+export type UpdatePhase = "panel" | "agents" | "done" | "failed";
+
+export interface ServerUpdate {
+  server_id: string;
+  name: string;
+  from: string;
+  status: "updated" | "current" | "offline" | "failed";
+  error?: string;
+}
+
+export interface UpdateState {
+  target: string;
+  from?: string;
+  phase: UpdatePhase;
+  error?: string;
+  backup?: string;
+  started_at: string;
+  finished_at?: string;
+  servers?: ServerUpdate[];
+}
+
+export interface AgentVersion {
+  id: string;
+  name: string;
+  agent_version: string;
+  online: boolean;
+  panel_host: boolean;
+  outdated: boolean;
+}
+
+export interface UpdatesInfo {
+  current: string;
+  /** False for a panel built from source ("dev"). */
+  release: boolean;
+  latest: { version?: string; published_at?: string; notes_url?: string; checked_at?: string; error?: string };
+  update_available: boolean;
+  check_enabled: boolean;
+  /** The agent on the panel's own server is connected. */
+  can_update: boolean;
+  state: UpdateState | null;
+  servers: AgentVersion[];
+  outdated: number;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,

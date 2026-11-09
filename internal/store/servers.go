@@ -19,21 +19,23 @@ type Server struct {
 	Arch            string     `json:"arch"`
 	CPUCount        int        `json:"cpu_count"`
 	AgentVersion    string     `json:"agent_version"`
-	LastSeenAt      *time.Time `json:"last_seen_at"`
-	CreatedAt       time.Time  `json:"created_at"`
+	// PanelHost marks the server that runs the panel itself.
+	PanelHost  bool       `json:"panel_host"`
+	LastSeenAt *time.Time `json:"last_seen_at"`
+	CreatedAt  time.Time  `json:"created_at"`
 	// Addresses are what the agent reports; PublicIPv4/6 are set by hand, or nil.
 	Addresses  []string `json:"addresses"`
 	PublicIPv4 *string  `json:"public_ipv4"`
 	PublicIPv6 *string  `json:"public_ipv6"`
 }
 
-const serverColumns = `id, name, enrolled_at, enroll_expires_at, hostname, os, kernel, arch, cpu_count, agent_version, last_seen_at, created_at,
+const serverColumns = `id, name, enrolled_at, enroll_expires_at, hostname, os, kernel, arch, cpu_count, agent_version, panel_host, last_seen_at, created_at,
 	addresses, host(public_ipv4), host(public_ipv6)`
 
 func scanServer(row pgx.Row) (Server, error) {
 	var s Server
 	err := row.Scan(&s.ID, &s.Name, &s.EnrolledAt, &s.EnrollExpiresAt, &s.Hostname, &s.OS, &s.Kernel, &s.Arch,
-		&s.CPUCount, &s.AgentVersion, &s.LastSeenAt, &s.CreatedAt, &s.Addresses, &s.PublicIPv4, &s.PublicIPv6)
+		&s.CPUCount, &s.AgentVersion, &s.PanelHost, &s.LastSeenAt, &s.CreatedAt, &s.Addresses, &s.PublicIPv4, &s.PublicIPv6)
 	return s, notFound(err)
 }
 
@@ -145,13 +147,14 @@ type ServerFacts struct {
 	CPUCount     int
 	AgentVersion string
 	Addresses    []string
+	PanelHost    bool
 }
 
 func (s *Store) UpdateServerFacts(ctx context.Context, id string, f ServerFacts) error {
 	_, err := s.pool.Exec(ctx, `
 		UPDATE servers SET hostname = $2, os = $3, kernel = $4, arch = $5, cpu_count = $6, agent_version = $7,
-			addresses = COALESCE($8, addresses), last_seen_at = now()
-		WHERE id = $1`, id, f.Hostname, f.OS, f.Kernel, f.Arch, f.CPUCount, f.AgentVersion, f.Addresses)
+			addresses = COALESCE($8, addresses), panel_host = $9, last_seen_at = now()
+		WHERE id = $1`, id, f.Hostname, f.OS, f.Kernel, f.Arch, f.CPUCount, f.AgentVersion, f.Addresses, f.PanelHost)
 	return err
 }
 

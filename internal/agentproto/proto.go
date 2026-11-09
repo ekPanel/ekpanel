@@ -102,6 +102,8 @@ type Hello struct {
 	AgentVersion string `json:"agent_version"`
 	// Addresses are the server's global unicast IP addresses.
 	Addresses []string `json:"addresses,omitempty"`
+	// PanelHost is true on the server that runs the panel itself (it can update the panel).
+	PanelHost bool `json:"panel_host,omitempty"`
 }
 
 // Metrics is one sample of live server usage. Byte values are bytes, rates are bytes/second.

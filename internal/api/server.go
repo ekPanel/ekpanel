@@ -16,6 +16,7 @@ import (
 	"ekpanel/internal/secretbox"
 	"ekpanel/internal/store"
 	"ekpanel/internal/tasks"
+	"ekpanel/internal/updates"
 )
 
 type Options struct {
@@ -39,6 +40,9 @@ type Options struct {
 	// Notify sends notifications; Secrets seals the secrets they need.
 	Notify  *notify.Notifier
 	Secrets *secretbox.Box
+	// Updates looks for new releases; ReleasesURL is where they are published.
+	Updates     *updates.Checker
+	ReleasesURL string
 }
 
 type Server struct {
@@ -217,6 +221,10 @@ func (s *Server) Handler() http.Handler {
 
 		r.Group(func(r chi.Router) {
 			r.Use(requireRole("admin"))
+			r.Get("/updates", s.handleGetUpdates)
+			r.Post("/updates/check", s.handleCheckUpdates)
+			r.With(notImpersonating).Post("/updates/panel", s.handleUpdatePanel)
+			r.With(notImpersonating).Post("/updates/agents", s.handleUpdateAgents)
 			r.Get("/settings/notifications", s.handleGetNotifySettings)
 			r.Put("/settings/notifications", s.handleSetNotifySettings)
 			r.Get("/packages", s.handleListPackages)

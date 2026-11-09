@@ -22,6 +22,7 @@ const defaultConfig = "/etc/ekpanel/agent.json"
 
 func main() {
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	slog.SetDefault(log)
 	if len(os.Args) < 2 {
 		usage()
 		os.Exit(2)

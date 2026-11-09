@@ -26,7 +26,7 @@
 hosting (like cPanel and aaPanel), Git and Docker app deployment (like Coolify), email and
 DNS, with a modern UI in your own language.
 
-> **Status: early development (phases 0 to 3 done, 4 and 5 to come).** Everything below works end to end
+> **Status: early development (phases 0 to 3 done, phase 4 under way, 5 to come).** Everything below works end to end
 > on a test server, but there is no release yet: do not use it for production hosting.
 > See the [roadmap](https://ekpanel.github.io/ekPanel-docs/project/roadmap/) and [PLAN.md](PLAN.md).
 
@@ -110,8 +110,10 @@ DNS, with a modern UI in your own language.
 - A web UI in **English** and **বাংলা (Bangla)**, ready for right-to-left languages, with
   light/dark themes, a `Ctrl+K` command palette and phone-friendly layouts
 
-Coming next, phase 4: signed releases with a one-line installer and self-update, an API with
-tokens and a CLI, moving sites between servers, importers from cPanel and others, resellers
+Ready for the first release: signed releases, a one-line installer (also for more servers)
+and self-update of the panel and every agent, with automatic rollback.
+
+Coming next, the rest of phase 4: an API with tokens and a CLI, moving sites between servers, importers from cPanel and others, resellers
 and white-label, a web application firewall and billing integrations. Game servers follow in
 phase 5. [PLAN.md](PLAN.md) lists every phase.
 
@@ -151,17 +153,21 @@ http://localhost:5173. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 On a fresh **Ubuntu 24.04+ or Debian 12+** server (amd64 or arm64), as root:
 
 ```bash
-make release                            # on your machine: dist/ekpanel-<version>-linux-<arch>.tar.gz
-tar -xzf ekpanel-*-linux-amd64.tar.gz && cd ekpanel-*-linux-amd64   # on the server
-sudo ./install.sh --local-dir . --domain panel.example.com
+curl -fsSL https://github.com/ekPanel/ekpanel/releases/latest/download/install.sh | sudo bash -s -- --domain panel.example.com
 ```
 
-The installer sets up PostgreSQL and Caddy, runs the panel as an unprivileged, sandboxed
-systemd service, connects the server's own agent, and prints the one-time setup token.
-Agents on other servers connect to the panel on TCP port 7443.
-Leave out `--domain` to use the server's IP address with a self-signed certificate. Running it
-again upgrades the binaries and keeps your data. One-line installs from release downloads come
-with the first release.
+The installer downloads the release, checks its signature, sets up PostgreSQL and Caddy, runs
+the panel as an unprivileged, sandboxed systemd service, connects the server's own agent, and
+prints the one-time setup token. Leave out `--domain` to use the server's IP address with a
+self-signed certificate. More servers join with one command from the panel's **Add server**
+dialog (`install.sh --agent …`); their agents connect to the panel on TCP port 7443.
+
+Updates come from the panel itself: **Settings → Updates** updates the panel, then every
+server's agent, and puts the previous version back if a new one does not start.
+
+There is no release yet (see [PLAN.md](PLAN.md)). Until then, build one yourself:
+`make release VERSION=v0.0.1`, copy an archive to the server, unpack it and run
+`sudo ./install.sh --local-dir .`.
 
 ## Documentation
 

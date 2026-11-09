@@ -829,14 +829,42 @@ Agreed (2026-11-09):
   comes last: it builds on the API tokens (4b) and resellers (4e).
 
 **4a. Releases and updates**
-- [ ] Release builds in CI (linux amd64 and arm64) with checksums and signatures (minisign or
-      cosign), reproducible from a tag; the web UI built into the panel
-- [ ] One-line installer that downloads a release, checks its signature and installs panel,
-      agent and Caddy; also installs an agent alone for a second server
-- [ ] Self-update: the panel shows a newer release, updates itself (keeping the old binary
+- [x] Release builds in CI (linux amd64 and arm64) with checksums and an Ed25519 signature,
+      reproducible from a tag; the web UI built into the panel. Built and signed locally;
+      the workflow runs on GitHub with the first tag
+- [x] One-line installer that downloads a release, checks its signature and installs panel,
+      agent and Caddy; also installs an agent alone for a second server (`--agent`)
+- [x] Self-update: the panel shows a newer release, updates itself (keeping the old binary
       to go back to), then updates every agent through a typed operation, one server at a time
-- [ ] Release notes and a changelog; versions shown in the panel per server
+- [x] Release notes and a changelog; versions shown in the panel per server
+- [x] Tried in the VM with test releases signed by a test key: install from a release; panel
+      and agent updates; a panel that does not start (put back after 90 s); an agent that
+      does not start (put back by its timer after 3 min); wrongly signed and changed
+      downloads refused; a second server set up with `--agent`, then updated
 - [ ] Weblate (or another translation site) set up before the first public release
+
+How 4a works (decided 2026-11-09):
+- **Signing.** CI signs `SHA256SUMS` with an Ed25519 key (secret `RELEASE_SIGNING_KEY`, only
+  in the `release` environment); the public key is in `internal/release/release.pub`, built into
+  both binaries and the installer. `openssl` checks it in the installer, Go's `crypto/ed25519`
+  in the agent, so nothing extra is installed. GitHub build attestations come on top.
+- **Releases** are made by pushing a `vX.Y.Z` tag on `pub` (a tag ruleset lets only owners
+  do that). Assets: one archive per architecture, `SHA256SUMS`, `SHA256SUMS.sig`,
+  `install.sh` (with its version written in) and `release.json` (the version, for update
+  checks). Builds are reproducible: `-trimpath`, no build ID, fixed times in the archives.
+- **Installer**: `curl -fsSL …/releases/latest/download/install.sh | sudo bash`. It downloads
+  and checks a release (or uses `--local-dir`). `--agent --panel … --token … --ca-pin …`
+  sets up a second server: Caddy, `acl`, the Caddyfile import, the agent and its unit.
+- **Update check**: the panel reads `release.json` every 6 hours (`EKPANEL_UPDATE_CHECK=false`
+  turns it off) and tells administrators once per new version.
+- **Self-update** (administrators, Settings → Updates): the panel asks the agent on its own
+  server to update it: download, check the signature and hash, run the new binary once,
+  dump the panel database to `/var/backups/ekpanel/`, swap the binary (the old one stays as
+  `ekpanel.prev`) and restart the panel. If the panel does not answer its health check within
+  90 seconds, the agent puts the old binary back. The new panel then updates the agents one
+  server at a time and waits for each to come back with the new version. An agent sets a
+  systemd timer before it restarts itself: if the new agent has not reached the panel within
+  3 minutes, the timer puts the old binary back. Versions only go up.
 
 **4b. API, CLI, Terraform**
 - [ ] API tokens per user with scopes (read, websites, databases, DNS …) and expiry, shown
@@ -888,8 +916,8 @@ Agreed (2026-11-09):
       a domain and a server with port 25)
 
 **Found while writing the documentation** (2026-11-09)
-- [ ] A second server needs Caddy, `acl`, the Caddyfile import, a systemd unit and a
-      readable /etc/ekpanel; the agent sets up none of these (4a: agent-only installer)
+- [x] A second server needs Caddy, `acl`, the Caddyfile import, a systemd unit and a
+      readable /etc/ekpanel; the agent sets up none of these (4a: `install.sh --agent`)
 - [ ] Two-factor sign-in has no recovery codes, and administrators cannot reset someone's
       two-factor (4e)
 - [ ] The email page asks to add DNS records by hand for domains on ekPanel's own name
@@ -901,4 +929,6 @@ Agreed (2026-11-09):
       সেটিং/সেটিংস) and mixes Bangla and English script in the name server labels
 
 **Next**
-- [ ] 4a. Releases and updates
+- [x] 4a. Releases and updates (the first real release waits for the owner: the signing key
+      goes into the `release` environment, then a `v0.1.0` tag on `pub`)
+- [ ] 4b. API, CLI, Terraform

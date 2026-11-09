@@ -8,6 +8,16 @@ All notable changes to ekPanel are listed here. The format follows
 
 Everything so far, grouped by roadmap phase (see [PLAN.md](PLAN.md)). There is no release yet.
 
+### Phase 4: releases and updates
+- Signed releases: a version tag on `pub` builds reproducible archives for amd64 and arm64,
+  signs `SHA256SUMS` with the ekPanel release key (Ed25519) and adds build attestations (4a)
+- One-line installer from a release, which checks the signature before installing; `--agent`
+  sets up another server (agent, Caddy and its configuration) with one command from the
+  panel's "Add server" dialog (4a)
+- Self-update from Settings → Updates: the panel looks for new releases every 6 hours, backs
+  up its database, updates itself and then every agent one server at a time; a new version
+  that does not start is replaced by the previous one automatically (4a)
+
 ### Phase 3: cPanel level
 - Built-in DNS: PowerDNS name servers (a primary and secondaries kept in sync by zone
   transfer), hosted zones with a zone editor and templates, records for websites, apps and

@@ -31,7 +31,8 @@
     "notifications": "Notifications",
     "dns": "DNS",
     "mail": "Email",
-    "security_page": "Server security"
+    "security_page": "Server security",
+    "updates": "Updates"
   },
   "theme": {
     "label": "Theme",
@@ -131,7 +132,10 @@
       "token_note": "The token in the command works once and expires {{when}}. It will not be shown again.",
       "connected": "Connected! The server is sending live statistics.",
       "waiting": "Waiting for the agent to connect…",
-      "port_note": "The agent connects to this panel on TCP port {{port}}. If the panel's server has a firewall, allow that port."
+      "port_note": "The agent connects to this panel on TCP port {{port}}. If the panel's server has a firewall, allow that port.",
+      "one_command_intro": "Run this command as root on the new server (Ubuntu 24.04+ or Debian 12+). It installs the agent and the web server, and connects the server to this panel. The agent connects out to the panel, so you do not need to open any port on the new server.",
+      "one_command": "Install and connect",
+      "source_note": "This panel is built from source, so there is no release to install from. Copy the ekpanel-agent binary to /usr/local/bin on the new server first."
     },
     "back": "Back to servers",
     "reenroll": "New connection command",
@@ -597,7 +601,12 @@
     "record_exists": "This record already exists.",
     "invalid_name_servers": "Check the name servers.",
     "invalid_template": "Check the template's records.",
-    "template_name_taken": "A template with this name already exists."
+    "template_name_taken": "A template with this name already exists.",
+    "updates_off": "Update checks are turned off on this panel.",
+    "update_running": "An update is already running.",
+    "invalid_version": "Update only to the newest release. Check for updates first.",
+    "panel_agent_offline": "The agent on the panel's own server is not connected, so it cannot install the update.",
+    "not_a_release": "This panel is built from source, not installed from a release, so it cannot be updated from here."
   },
   "not_found": {
     "title": "Page not found",
@@ -2132,7 +2141,10 @@
       "quota_full": "Disk space used up",
       "task_failed": "Task failed",
       "login_new_ip": "Sign-in from a new address",
-      "malware_found": "Malware found"
+      "malware_found": "Malware found",
+      "update_available": "New ekPanel version",
+      "update_finished": "ekPanel updated",
+      "update_failed": "ekPanel update failed"
     },
     "inbox_note": "Notifications are kept for 90 days.",
     "mail": {
@@ -2174,5 +2186,57 @@
       "lost": "Connection lost"
     },
     "note": "Opening and closing are recorded in the audit log. The shell closes after 30 minutes without typing."
+  },
+  "updates": {
+    "title": "Updates",
+    "description": "Keep the panel and the agent on every server up to date. Releases are signed; the panel checks the signature before installing anything.",
+    "this_panel": "This panel runs",
+    "not_release": "This panel is built from source, not from a release, so it does not update itself. Install a release to get updates.",
+    "check": "Check for updates",
+    "never_checked": "Not checked yet. The panel looks for new releases every 6 hours.",
+    "check_off": "Automatic checks are turned off (EKPANEL_UPDATE_CHECK=false). You can still check by hand.",
+    "latest": "Newest release: {{version}}",
+    "up_to_date": "Up to date",
+    "checked": "Checked {{when}}",
+    "check_failed": "The last check failed: {{message}}",
+    "available": "ekPanel {{version}} is available",
+    "steps": {
+      "download": "The agent on this server downloads the release and checks its signature.",
+      "backup": "It saves a copy of the panel's database in /var/backups/ekpanel.",
+      "restart": "It installs the new panel and restarts it. The panel is away for a few seconds; if the new version does not start, the previous one is put back.",
+      "agents": "The new panel then updates the agent on each server, one at a time. Websites keep running throughout."
+    },
+    "update_to": "Update to {{version}}",
+    "confirm": "Update ekPanel to {{version}}? The panel restarts during the update.",
+    "notes": "What is new",
+    "panel_agent_offline": "The agent on the panel's own server is not connected, so it cannot install the update.",
+    "restarting": "The panel is restarting. This page continues by itself.",
+    "reload_hint": "The panel now runs {{version}}. Reload the page to use the new version of this interface.",
+    "reload": "Reload",
+    "backup": "Database copy taken before the update: {{path}}",
+    "phase": {
+      "panel": "Updating the panel to {{version}}…",
+      "agents": "Updating the agents to {{version}}…",
+      "done": "Updated to {{version}}",
+      "failed": "Update to {{version}} failed"
+    },
+    "server_status": {
+      "updated": "Updated",
+      "current": "Already current",
+      "offline": "Offline",
+      "failed": "Failed"
+    },
+    "agents": {
+      "title": "Agents",
+      "body": "Each server's agent should run the same version as the panel. A server that was offline during an update can be updated here later.",
+      "update_one": "Update {{count}} agent",
+      "update_other": "Update {{count}} agents",
+      "server": "Server",
+      "version": "Agent version",
+      "status": "Status",
+      "panel_host": "runs the panel",
+      "outdated": "Older than the panel",
+      "current": "Current"
+    }
   }
 }
