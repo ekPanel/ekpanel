@@ -6,14 +6,29 @@
 </p>
 <p align="center"><b>One panel. Your whole hosting.</b><br>এক প্যানেলে পুরো হোস্টিং</p>
 
+<p align="center">
+  <a href="https://ekpanel.github.io/ekPanel-docs/"><b>Documentation</b></a> ·
+  <a href="https://ekpanel.github.io/ekPanel-docs/start/install/">Install</a> ·
+  <a href="https://ekpanel.github.io/ekPanel-docs/development/contributing/">Contribute</a> ·
+  <a href="https://ekpanel.github.io/ekPanel-docs/bn/">বাংলা ডকুমেন্টেশন</a>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--only-13804a" alt="License: AGPL-3.0-only"></a>
+  <img src="https://img.shields.io/badge/status-early%20development-orange" alt="Status: early development">
+  <img src="https://img.shields.io/badge/languages-English%20%C2%B7%20%E0%A6%AC%E0%A6%BE%E0%A6%82%E0%A6%B2%E0%A6%BE-13804a" alt="Languages: English and Bangla">
+  <img src="https://img.shields.io/badge/Go-1.26-00ADD8" alt="Go 1.26">
+</p>
+
 # ekPanel
 
 **An open-source hosting control panel for everyone, everywhere.** One panel for classic web
-hosting (like cPanel and aaPanel), Git and Docker app deployment (like Coolify), and later
-email, DNS and game servers, with a modern UI in your own language.
+hosting (like cPanel and aaPanel), Git and Docker app deployment (like Coolify), email and
+DNS, with a modern UI in your own language.
 
-> **Status: early development (phase 2 of 4 done).** Do not use it for production hosting yet.
-> See [PLAN.md](PLAN.md) for the full roadmap.
+> **Status: early development (phases 0 to 3 done, 4 and 5 to come).** Everything below works end to end
+> on a test server, but there is no release yet: do not use it for production hosting.
+> See the [roadmap](https://ekpanel.github.io/ekPanel-docs/project/roadmap/) and [PLAN.md](PLAN.md).
 
 > **ek** (এক) is Bangla for "one": one panel for everything.
 
@@ -95,7 +110,10 @@ email, DNS and game servers, with a modern UI in your own language.
 - A web UI in **English** and **বাংলা (Bangla)**, ready for right-to-left languages, with
   light/dark themes, a `Ctrl+K` command palette and phone-friendly layouts
 
-Coming next, phase 3: built-in DNS, email with webmail, a WordPress toolkit and a security suite. [PLAN.md](PLAN.md) lists every phase.
+Coming next, phase 4: signed releases with a one-line installer and self-update, an API with
+tokens and a CLI, moving sites between servers, importers from cPanel and others, resellers
+and white-label, a web application firewall and billing integrations. Game servers follow in
+phase 5. [PLAN.md](PLAN.md) lists every phase.
 
 ## How it fits together
 
@@ -144,6 +162,20 @@ Agents on other servers connect to the panel on TCP port 7443.
 Leave out `--domain` to use the server's IP address with a self-signed certificate. Running it
 again upgrades the binaries and keeps your data. One-line installs from release downloads come
 with the first release.
+
+## Documentation
+
+Everything is explained step by step at **[ekpanel.github.io/ekPanel-docs](https://ekpanel.github.io/ekPanel-docs/)**,
+in English and বাংলা: installing, every feature, how it works inside, and how to contribute.
+The docs have their own repository, [ekPanel/ekPanel-docs](https://github.com/ekPanel/ekPanel-docs),
+and welcome fixes too.
+
+## Contributing
+
+Code, translations, docs, bug reports and ideas are all welcome. Start with
+[CONTRIBUTING.md](CONTRIBUTING.md) and the [contributor guide](https://ekpanel.github.io/ekPanel-docs/development/contributing/).
+All work happens on the `dev` branch; `prod` holds released code and changes only through
+pull requests. Please follow the [code of conduct](https://github.com/ekPanel/.github/blob/main/CODE_OF_CONDUCT.md).
 
 ## Languages
 

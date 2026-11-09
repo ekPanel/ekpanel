@@ -5,8 +5,13 @@ priority.
 
 ## Reporting a vulnerability
 
-**Do not open a public issue.** Use GitHub's private vulnerability reporting
-("Security" tab → "Report a vulnerability") on the project repository. Include:
+**Do not open a public issue.** Report privately in one of these ways:
+
+- GitHub's private vulnerability reporting ("Security" tab → "Report a vulnerability") on
+  the [project repository](https://github.com/ekPanel/ekpanel), once it is public;
+- email to **ekpanelbd@gmail.com** with "Security" in the subject.
+
+Include:
 
 - what an attacker can do, and what they need first (an account? network access?)
 - steps to reproduce, or a proof of concept
