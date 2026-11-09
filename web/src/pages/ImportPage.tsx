@@ -196,7 +196,7 @@ export function ImportPage() {
             ))}
           </div>
           <Card className="grid gap-4 p-5">
-            <h2 className="text-lg font-semibold">{t("imports.step_upload")}</h2>
+            <h2 className="text-lg font-semibold">{t(mode === "cpanel" ? "imports.step_upload" : "imports.step_upload_archive")}</h2>
             <p className="max-w-2xl text-sm text-muted">{t(mode === "cpanel" ? "imports.upload_body" : "imports.archive_body", { dir: importDir })}</p>
             <div className="flex min-w-0 items-center gap-2 rounded-lg border border-line bg-sunk px-3 py-2 font-mono text-sm">
               <span className="min-w-0 flex-1 truncate">{scp}</span>
@@ -223,7 +223,7 @@ export function ImportPage() {
                 </select>
               </label>
               <Field
-                label={t("imports.file")}
+                label={t(mode === "cpanel" ? "imports.file" : "imports.archive_file")}
                 placeholder={example}
                 list="import-files"
                 value={file}
@@ -234,7 +234,7 @@ export function ImportPage() {
                 required
               />
               <Button type="submit" variant="primary" loading={busy} disabled={!server || !file.trim()}>
-                <FileArchive className="size-4" aria-hidden /> {t("imports.read")}
+                <FileArchive className="size-4" aria-hidden /> {t(mode === "cpanel" ? "imports.read" : "imports.read_archive")}
               </Button>
             </form>
             <datalist id="import-files">
@@ -557,8 +557,12 @@ function ImportProgress({ taskId, dbPassword, onAgain }: { taskId: string; dbPas
             <dd className="font-mono">{report.databases?.length ? report.databases.join(", ") : "—"}</dd>
             <dt className="text-muted">{t("imports.files")}</dt>
             <dd>{t("imports.files_value", { count: report.files, size: formatBytes(report.bytes, i18n.language) })}</dd>
-            <dt className="text-muted">{t("imports.cron_jobs")}</dt>
-            <dd>{report.cron}</dd>
+            {report.cron > 0 && (
+              <>
+                <dt className="text-muted">{t("imports.cron_jobs")}</dt>
+                <dd>{report.cron}</dd>
+              </>
+            )}
             {!!report.mail_domains?.length && (
               <>
                 <dt className="text-muted">{t("imports.email")}</dt>
@@ -640,12 +644,13 @@ function ArchiveChoices({ plan, server, archive, dumps, onStarted }: {
   // The dump: "a:<name>" inside the archive, "f:<name>" next to it, "" none.
   const [dump, setDump] = useState(inArchive.length ? "a:" + inArchive[0].name : dumps.length ? "f:" + dumps[0].name : "");
   const [withDB, setWithDB] = useState(!!wp || inArchive.length + dumps.length > 0);
-  const [dbName, setDBName] = useState(wp?.db_name ?? "");
-  const [dbUser, setDBUser] = useState(wp?.db_user ?? "");
+  const clean = (v: string) => v.toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 32);
+  // wp-config.php may use names that cannot be used here; the cleaned ones go into it.
+  const [dbName, setDBName] = useState(clean(wp?.db_name ?? ""));
+  const [dbUser, setDBUser] = useState(clean(wp?.db_user ?? ""));
   const [owner, setOwner] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const clean = (v: string) => v.toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 32);
 
   const start = async () => {
     setBusy(true);

@@ -324,7 +324,9 @@ func importSiteApply(ctx context.Context, s *system, p agentproto.ImportSiteAppl
 			defer zr.Close()
 			r = zr
 		}
-		if err := s.loadDumpFrom(ctx, r, *p.Database); err != nil {
+		dump := withoutDatabaseSwitch(r)
+		defer dump.Close()
+		if err := s.loadDumpFrom(ctx, dump, *p.Database); err != nil {
 			return err
 		}
 		res.Databases = append(res.Databases, p.Database.Name)
@@ -337,6 +339,10 @@ func importSiteApply(ctx context.Context, s *system, p agentproto.ImportSiteAppl
 		rel, ok := e.name, true
 		if p.Root != "" {
 			rel, ok = strings.CutPrefix(e.name, p.Root+"/")
+		}
+		if ok && e.kind == tar.TypeReg && isDump(e.name) {
+			w.skipped["dumps"]++ // a database dump in the website could be downloaded
+			return nil
 		}
 		if !ok {
 			if e.kind != tar.TypeDir && e.name != p.Root {

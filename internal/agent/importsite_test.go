@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"io"
 	"os"
 	"slices"
 	"strings"
@@ -54,7 +55,8 @@ func TestImportSiteWordPressZip(t *testing.T) {
 		{name: "backup/public_html/wp-config.php", body: testWPConfig},
 		{name: "backup/public_html/index.php", body: "<?php require 'wp-blog-header.php';"},
 		{name: "backup/public_html/wp-includes/version.php", body: "<?php $wp_version = '6.8';"},
-		{name: "backup/public_html/db.sql", body: "CREATE TABLE wpx_posts (id int);"},
+		{name: "backup/public_html/db.sql", body: "CREATE DATABASE /*!32312 IF NOT EXISTS*/ `olddb`;\nUSE `olddb`;\nCREATE TABLE wpx_posts (id int);\nINSERT INTO wpx_posts VALUES (1); -- USE nothing\n"},
+		{name: "backup/public_html/wp-content/old.sql.gz", body: "an older dump, not chosen"},
 		{name: "backup/notes.txt", body: "outside the website"},
 	}), 0o600)
 	os.WriteFile(s.path(agentproto.ImportDir+"/readme.md"), []byte("not for import"), 0o600)
@@ -69,9 +71,9 @@ func TestImportSiteWordPressZip(t *testing.T) {
 	}
 	plan := out.(agentproto.SitePlan)
 	wp := plan.WordPress
-	if plan.Root != "backup/public_html" || plan.Kind != "wordpress" || plan.Files != 4 || wp == nil ||
+	if plan.Root != "backup/public_html" || plan.Kind != "wordpress" || plan.Files != 5 || wp == nil ||
 		wp.DBName != "olddb" || wp.DBUser != "olduser" || wp.DBHost != "mysql.oldhost.example" || wp.TablePrefix != "wpx_" || plan.Domain != "blog.example" ||
-		wp.PasswordHash != mysqlNativeHash(`p'w"d`) || len(plan.Dumps) != 1 || plan.Dumps[0].Name != "backup/public_html/db.sql" {
+		wp.PasswordHash != mysqlNativeHash(`p'w"d`) || len(plan.Dumps) != 2 || plan.Dumps[0].Name != "backup/public_html/db.sql" {
 		t.Fatalf("plan %+v wp %+v", plan, wp)
 	}
 
@@ -90,15 +92,21 @@ func TestImportSiteWordPressZip(t *testing.T) {
 			t.Errorf("wp-config.php lacks %q:\n%s", want, cfg)
 		}
 	}
-	if _, err := os.Stat(s.path("/home/blog_1/public_html/db.sql")); err == nil {
-		t.Fatal("the dump was published in the website")
+	for _, f := range []string{"db.sql", "wp-content/old.sql.gz"} {
+		if _, err := os.Stat(s.path("/home/blog_1/public_html/" + f)); err == nil {
+			t.Fatalf("the dump %s was published in the website", f)
+		}
+	}
+	if len(loaded) == 1 && (strings.Contains(loaded[0], "USE `olddb`") || strings.Contains(loaded[0], "CREATE DATABASE") || !strings.Contains(loaded[0], "-- USE nothing")) {
+		t.Fatalf("the dump still switches databases, or lost a line:\n%s", loaded[0])
 	}
 	if _, err := os.Stat(s.path("/home/blog_1/public_html/index.html")); err == nil {
 		t.Fatal("the placeholder page is still there")
 	}
 	if read("/home/blog_1/public_html/wp-includes/version.php") == "" || r.Files != 3 ||
 		len(loaded) != 1 || !strings.Contains(loaded[0], "wpx_posts") || !slices.Equal(r.Databases, []string{"blog_wp"}) ||
-		!slices.ContainsFunc(r.Skipped, func(x agentproto.ImportSkip) bool { return x.Name == "outside_website" && x.Count == 1 }) {
+		!slices.ContainsFunc(r.Skipped, func(x agentproto.ImportSkip) bool { return x.Name == "outside_website" && x.Count == 1 }) ||
+		!slices.ContainsFunc(r.Skipped, func(x agentproto.ImportSkip) bool { return x.Name == "dumps" && x.Count == 1 }) {
 		t.Fatalf("result %+v loaded %q", r, loaded)
 	}
 }
@@ -151,5 +159,16 @@ func TestImportSiteAaPanel(t *testing.T) {
 	}
 	if _, opErr := importSiteInspect(context.Background(), s, agentproto.ImportSiteInspectParams{Archive: "db_shop_20250101_120000.sql.gz"}); opErr == nil || opErr.Code != agentproto.ErrInvalidParams {
 		t.Fatalf("a dump as the archive: %v", opErr)
+	}
+}
+
+func TestWithoutDatabaseSwitch(t *testing.T) {
+	long := strings.Repeat("x", 200<<10) // longer than the read buffer
+	in := "USE `a`;\nINSERT INTO t VALUES ('" + long + "USE `b`;');\ncreate database c;\nSELECT 1;"
+	r := withoutDatabaseSwitch(strings.NewReader(in))
+	defer r.Close()
+	b, err := io.ReadAll(r)
+	if err != nil || string(b) != "INSERT INTO t VALUES ('"+long+"USE `b`;');\nSELECT 1;" {
+		t.Fatalf("%v: %d bytes, starts %q", err, len(b), string(b[:min(len(b), 40)]))
 	}
 }

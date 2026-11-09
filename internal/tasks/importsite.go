@@ -77,7 +77,7 @@ func skippedNotes(skipped []agentproto.ImportSkip) []ImportNote {
 	var out []ImportNote
 	for _, sk := range skipped {
 		switch sk.Name {
-		case "links_outside", "special_files", "outside_website", "open_basedir":
+		case "links_outside", "special_files", "outside_website", "open_basedir", "dumps":
 			out = append(out, ImportNote{Code: sk.Name, Count: sk.Count})
 		default:
 			out = append(out, ImportNote{Code: "folder", Name: sk.Name, Count: sk.Count})

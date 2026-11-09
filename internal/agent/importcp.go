@@ -509,7 +509,10 @@ func importApply(ctx context.Context, s *system, p agentproto.ImportApplyParams)
 			if !ok {
 				continue
 			}
-			if err := s.loadDumpFrom(ctx, tr, d); err != nil {
+			dump := withoutDatabaseSwitch(tr)
+			err := s.loadDumpFrom(ctx, dump, d)
+			dump.Close()
+			if err != nil {
 				return nil, opError(agentproto.ErrFailed, "%v", err)
 			}
 			res.Databases = append(res.Databases, d.Name)

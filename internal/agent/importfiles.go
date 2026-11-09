@@ -2,6 +2,7 @@ package agent
 
 import (
 	"archive/tar"
+	"bufio"
 	"bytes"
 	"context"
 	"io"
@@ -147,4 +148,43 @@ func (w *homeWriter) finish(ctx context.Context) error {
 	}
 	sort.Slice(w.res.Skipped, func(i, j int) bool { return w.res.Skipped[i].Name < w.res.Skipped[j].Name })
 	return nil
+}
+
+// withoutDatabaseSwitch passes a MySQL dump on without the lines that pick or make another
+// database (mysqldump --databases writes CREATE DATABASE and USE): an imported dump goes
+// into the database made for it, whatever it was called before. Close it when done.
+func withoutDatabaseSwitch(r io.Reader) io.ReadCloser {
+	pr, pw := io.Pipe()
+	go func() {
+		br := bufio.NewReaderSize(r, 64<<10)
+		start := true // the next chunk begins a line
+		for {
+			b, err := br.ReadSlice('\n')
+			if len(b) > 0 {
+				if !start || !switchesDatabase(b) {
+					if _, werr := pw.Write(b); werr != nil {
+						return // the reader was closed
+					}
+				}
+				start = err == nil
+			}
+			switch {
+			case err == bufio.ErrBufferFull:
+				continue
+			case err == io.EOF:
+				pw.Close()
+				return
+			case err != nil:
+				pw.CloseWithError(err)
+				return
+			}
+		}
+	}()
+	return pr
+}
+
+func switchesDatabase(line []byte) bool {
+	l := strings.ToUpper(strings.TrimSpace(string(line)))
+	return strings.HasPrefix(l, "USE ") || strings.HasPrefix(l, "USE`") || strings.HasPrefix(l, "CREATE DATABASE") ||
+		strings.HasPrefix(l, "DROP DATABASE")
 }

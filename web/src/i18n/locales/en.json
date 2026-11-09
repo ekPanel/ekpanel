@@ -2435,7 +2435,7 @@
     "summary": "{{sites}} websites, {{databases}} databases, {{mail}} mail domains, {{zones}} zones",
     "start": "Import",
     "running": "Importing…",
-    "running_body": "The websites, databases and email are being set up, then the files, data and mail are copied in. You can leave this page; the import goes on.",
+    "running_body": "Everything chosen is being set up, then the files, data and mail are copied in. You can leave this page; the import goes on.",
     "done": "Import finished",
     "failed": "The import failed",
     "failed_body": "Websites, databases, mail domains and DNS zones the panel made for it are still listed. Delete them before you try again.",
@@ -2480,7 +2480,9 @@
       "outside_website_one": "{{count}} file outside the website's folder in the archive",
       "outside_website_other": "{{count}} files outside the website's folder in the archive",
       "dump_unused": "Database dump {{name}}: no database was made for it",
-      "open_basedir": "open_basedir in .user.ini (it named the old server's folder; PHP here limits the website itself)"
+      "open_basedir": "open_basedir in .user.ini (it named the old server's folder; PHP here limits the website itself)",
+      "dumps_one": "{{count}} database dump in the website's folder (it could have been downloaded)",
+      "dumps_other": "{{count}} database dumps in the website's folder (they could have been downloaded)"
     },
     "email": "Email",
     "mail_off": "This server has no email. Turn on email for it (Email → Servers) to import mailboxes.",
@@ -2527,6 +2529,9 @@
     "automatic": "Automatic",
     "db_taken_rename": "This server already has a database or user with this name: choose another; wp-config.php will get it.",
     "wp_address": "WordPress keeps its address from its database: import it under the same domain, or change the address afterwards (Settings → General).",
-    "db_password_once": "The database's password, shown only now:"
+    "db_password_once": "The database's password, shown only now:",
+    "step_upload_archive": "1. Put the archive on a server",
+    "archive_file": "Archive file name",
+    "read_archive": "Read archive"
   }
 }
