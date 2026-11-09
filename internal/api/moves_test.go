@@ -327,3 +327,55 @@ func TestMoveSiteRollsBack(t *testing.T) {
 		t.Fatalf("move again: %d", st)
 	}
 }
+
+func TestMoveRecoveredAfterRestart(t *testing.T) {
+	p := newTestPanel(t)
+	c := newClient(t, p.web.URL)
+	setUp(t, c)
+	fromID, fromCfg, _, _ := enrolled(t, p, c, "old")
+	toID, toCfg, _, _ := enrolled(t, p, c, "new")
+	newMoveAgent(t, p, fromCfg)
+	dst := newMoveAgent(t, p, toCfg)
+	var site struct {
+		ID       string `json:"id"`
+		ServerID string `json:"server_id"`
+		State    string `json:"state"`
+	}
+	c.do("POST", "/api/v1/sites", map[string]any{"domain": "shop.example.com", "server_id": fromID, "kind": "static"}, &site)
+	waitUntil(t, "site active", func() bool {
+		c.do("GET", "/api/v1/sites/"+site.ID, nil, &site)
+		return site.State == "active"
+	})
+	// A move that the panel's restart cut off in the middle of the switch.
+	ctx := context.Background()
+	var moveID string
+	if err := p.pool.QueryRow(ctx, `INSERT INTO moves (site_id, from_server, to_server, linux_user, phase)
+		SELECT id, server_id, $2, linux_user, 'copying' FROM sites WHERE id = $1 RETURNING id`, site.ID, toID).Scan(&moveID); err != nil {
+		t.Fatal(err)
+	}
+	m, err := p.store.GetMove(ctx, moveID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.store.SwitchMove(ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	p.runner.RecoverMoves(ctx)
+
+	var moves []moveBody
+	c.do("GET", "/api/v1/sites/"+site.ID+"/moves", nil, &moves)
+	if moves[0].Phase != "failed" || moves[0].Error == nil || !strings.Contains(*moves[0].Error, "restarted") {
+		t.Fatalf("move after a restart: %+v", moves[0])
+	}
+	c.do("GET", "/api/v1/sites/"+site.ID, nil, &site)
+	if site.ServerID != fromID {
+		t.Fatalf("site is on %s, want it back on the source", site.ServerID)
+	}
+	if s := siteSpec(dst.lastApply(), site.ID); s == nil || !s.Deleted {
+		t.Fatalf("target should delete its half-made copy: %+v", s)
+	}
+	// The website can be moved (or deleted) again.
+	if st := c.do("POST", "/api/v1/sites/"+site.ID+"/move", map[string]any{"server_id": toID}, nil); st != http.StatusAccepted {
+		t.Fatalf("move again: %d", st)
+	}
+}

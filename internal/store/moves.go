@@ -191,3 +191,13 @@ func (s *Store) UnswitchMove(ctx context.Context, m Move) error {
 	}
 	return tx.Commit(ctx)
 }
+
+// InterruptedMoves are moves that were copying or switching (only right after the panel
+// starts, when no move task can be running).
+func (s *Store) InterruptedMoves(ctx context.Context) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id FROM moves WHERE phase IN ('copying', 'switching')`)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowTo[string])
+}

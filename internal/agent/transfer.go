@@ -453,7 +453,7 @@ func (t *transfers) startImport(ctx context.Context, p agentproto.TransferImport
 		delete(t.imports, p.Stream)
 		t.mu.Unlock()
 		if err != nil {
-			os.RemoveAll(dir)
+			removeIncoming(dir)
 			t.end(p.Stream, "error: "+err.Error(), nil)
 			return
 		}
@@ -477,6 +477,7 @@ func (s *system) receive(r io.Reader, dir string) (agentproto.TransferResult, er
 	}
 	fr := &frameReader{r: bufio.NewReaderSize(zr, 64<<10)}
 	var counted int64
+	var placed []string
 	countingCopy := func(dst io.Writer) error {
 		n, err := io.Copy(dst, fr)
 		counted += n
@@ -517,7 +518,13 @@ func (s *system) receive(r io.Reader, dir string) (agentproto.TransferResult, er
 			if err := os.MkdirAll(cdir, 0o700); err != nil {
 				return res, err
 			}
-			if err := toFile(filepath.Join(cdir, h.File), 0o600); err != nil {
+			path := filepath.Join(cdir, h.File)
+			if _, err := os.Stat(path); err != nil {
+				// New here: note it, so a copy that is not used takes it away again.
+				placed = append(placed, path)
+				os.WriteFile(filepath.Join(dir, "certs"), []byte(strings.Join(placed, "\n")), 0o600)
+			}
+			if err := toFile(path, 0o600); err != nil {
 				return res, err
 			}
 			// Caddy runs as its own user and must read its storage, folders made here included.
@@ -636,6 +643,19 @@ func transferDiscard(s *system, p agentproto.TransferDiscardParams) (any, *agent
 	if err := p.Validate(); err != nil {
 		return nil, opError(agentproto.ErrInvalidParams, "%v", err)
 	}
-	os.RemoveAll(s.path(filepath.Join(agentproto.IncomingDir, p.Move)))
+	removeIncoming(s.path(filepath.Join(agentproto.IncomingDir, p.Move)))
 	return struct{}{}, nil
+}
+
+// removeIncoming removes an unused copy, with the certificates it added to Caddy's storage.
+func removeIncoming(dir string) {
+	if b, err := os.ReadFile(filepath.Join(dir, "certs")); err == nil {
+		for _, path := range strings.Split(string(b), "\n") {
+			if strings.Contains(path, "/caddy/certificates/") {
+				os.Remove(path)
+				os.Remove(filepath.Dir(path)) // the domain's folder, if now empty
+			}
+		}
+	}
+	os.RemoveAll(dir)
 }

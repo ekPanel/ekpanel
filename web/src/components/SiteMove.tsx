@@ -76,7 +76,7 @@ export function SiteMoveCard({ site }: { site: Site }) {
           </div>
           {latest.bytes > 0 && <p className="text-muted">{t("move.copied", { size: formatBytes(latest.bytes, i18n.language) })}</p>}
           {latest.error && <ErrorAlert>{latest.error}</ErrorAlert>}
-          {latest.phase === "moved" && (
+          {(latest.phase === "moved" || (latest.phase === "cleaning" && latest.error)) && (
             <>
               <p className="flex items-start gap-2">
                 <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-ok" aria-hidden />

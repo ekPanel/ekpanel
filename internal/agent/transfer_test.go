@@ -102,6 +102,22 @@ func TestTransferRoundTrip(t *testing.T) {
 		t.Fatal("another site's certificate was copied")
 	}
 
+	// An unused copy takes the certificates it brought away again (here: a second, discarded
+	// receive of the same data on a fresh target).
+	other := transferSystem(t, &loaded)
+	odir := other.path(filepath.Join(agentproto.IncomingDir, "11111111-2222-3333-4444-555555555599"))
+	os.MkdirAll(odir, 0o700)
+	if _, err := other.receive(bytes.NewReader(buf.Bytes()), odir); err != nil {
+		t.Fatal(err)
+	}
+	transferDiscard(other, agentproto.TransferDiscardParams{Move: "11111111-2222-3333-4444-555555555599"})
+	if _, err := os.Stat(other.path(filepath.Join(certs, "shop.example.com.crt"))); err == nil {
+		t.Fatal("a discarded copy left its certificate in Caddy's storage")
+	}
+	if _, err := os.Stat(odir); err == nil {
+		t.Fatal("a discarded copy left its folder")
+	}
+
 	// The target made the account with a placeholder page; the copy replaces it.
 	writeFile(t, dst.path("/home/shop_1/public_html/index.html"), "placeholder")
 	dbs := []agentproto.TransferDatabase{{Engine: "mariadb", Name: "shop", User: "shop"}, {Engine: "postgresql", Name: "notes", User: "notes_u"}}

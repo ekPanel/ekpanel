@@ -168,6 +168,8 @@ func run(log *slog.Logger, args []string) error {
 	runner.SetRelease(version, cfg.ReleasesURL)
 	// Started by an update of itself? Then go on with the agents (or record that it failed).
 	runner.ResumeUpdate(ctx)
+	// Moves cut off by a restart cannot finish: fail them (giving switched sites back).
+	runner.RecoverMoves(ctx)
 	checker := updates.New(st, &release.Client{BaseURL: cfg.ReleasesURL}, version, log)
 	checker.Notify = func(ctx context.Context, latest, notesURL string) {
 		notifier.Admins(ctx, nil, "update_available", "info", map[string]string{"version": latest, "current": version}, "/settings/updates")

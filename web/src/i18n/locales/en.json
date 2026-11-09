@@ -623,7 +623,8 @@
     "database_not_active": "A chosen database must be working before it can move.",
     "move_open": "This website is being moved, or its old copy is still on the other server. Finish the move first.",
     "move_not_found": "That move no longer exists.",
-    "move_not_moved": "There is no old copy to remove."
+    "move_not_moved": "There is no old copy to remove.",
+    "server_not_in_package": "The customer's package does not include this server. Add it to the package first."
   },
   "not_found": {
     "title": "Page not found",
@@ -2309,7 +2310,7 @@
   },
   "move": {
     "title": "Move to another server",
-    "intro": "Copy this website (files, chosen databases and certificate) from {{server}} to another server, with no downtime.",
+    "intro": "Copy this website (files, chosen databases and certificate) from {{server}} to another server. The old copy keeps serving until you remove it.",
     "start": "Move…",
     "dialog_title": "Move {{domain}}",
     "target": "Move to",

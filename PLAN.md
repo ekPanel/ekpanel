@@ -910,6 +910,9 @@ How 4b works (decided 2026-11-09):
       file moved in about 90 s (most of it installing PHP and MariaDB on the new server), same
       certificate, files, owners and ACLs; the old copy served until it was removed
 - [ ] Move an app, or a database on its own
+- [ ] Moves: check the target's free disk space first (it needs about twice the home folder
+      plus the databases), and suggest the databases a site really uses (WordPress's
+      wp-config.php, the PHP app installer's records) instead of all of the owner's
 - [ ] Restore a backup onto another server; move a whole customer
 - [x] Server-to-server copy over the agents' own connection, not public SSH
 
@@ -920,7 +923,8 @@ whole customers):
   the source sends only as many chunks as the panel allows, the target says when it has
   written each one, so a slow side never fills memory or holds up other work. The data is
   gzip in simple frames: the site's home folder (a tar with owners and ACLs), a dump of each
-  chosen database, the site's certificates from Caddy's storage, and a SHA-256 at the end.
+  chosen database, the site's certificates from Caddy's storage, and the byte count at the end
+  (gzip adds its own checksum).
   The target keeps it in `/srv/ekpanel/incoming/<move>/` until it is used.
 - **The switch.** The certificates go straight into the target's Caddy storage, so HTTPS works
   at once. The site and its databases then belong to the target (one database transaction);

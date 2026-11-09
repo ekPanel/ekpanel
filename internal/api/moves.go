@@ -44,6 +44,25 @@ func (s *Server) handleMoveSite(w http.ResponseWriter, r *http.Request) {
 		s.internalError(w, r, err)
 		return
 	}
+	// A customer's website may only go to a server their package allows.
+	if site.OwnerID != nil {
+		c, err := s.store.GetCustomer(r.Context(), *site.OwnerID)
+		if err != nil {
+			s.internalError(w, r, err)
+			return
+		}
+		if c.PackageID != nil {
+			pkg, err := s.store.GetPackage(r.Context(), *c.PackageID)
+			if err != nil {
+				s.internalError(w, r, err)
+				return
+			}
+			if len(pkg.ServerIDs) > 0 && !slices.Contains(pkg.ServerIDs, target.ID) {
+				writeError(w, http.StatusConflict, "server_not_in_package", "the customer's package does not include this server; add it to the package first")
+				return
+			}
+		}
+	}
 	for _, id := range []string{site.ServerID, target.ID} {
 		if online, _ := s.hub.Latest(id); !online {
 			writeError(w, http.StatusConflict, "agent_offline", "both servers must be connected to move a website")

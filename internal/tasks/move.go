@@ -263,6 +263,11 @@ func (r *Runner) rollBackMove(ctx context.Context, m store.Move) {
 	if _, err := r.Reconcile(ctx, m.FromServer); err != nil {
 		r.log.Warn("reconcile the source after a failed move", "move", m.ID, "err", err)
 	}
+	// A DNS sync during the switch may already have pointed records at the target.
+	if has, err := r.store.HasZones(ctx); err == nil && has {
+		r.QueueDNSSync(ctx, "", nil)
+	}
+	r.QueueNameServers(ctx, nil)
 }
 
 func (r *Runner) failMove(ctx context.Context, m store.Move, cause error) error {
@@ -368,5 +373,27 @@ func (r *Runner) recordMoveCleanup(ctx context.Context, moving map[string]store.
 		r.store.SetTargetCleanup(ctx, m.ID, false)
 	default:
 		r.log.Warn("remove the half-made copy of a move", "move", m.ID, "err", failure)
+	}
+}
+
+// RecoverMoves runs when the panel starts: a move that was copying or switching when the
+// panel stopped can never finish, so it is failed (a switched site is given back).
+func (r *Runner) RecoverMoves(ctx context.Context) {
+	ids, err := r.store.InterruptedMoves(ctx)
+	if err != nil {
+		r.log.Error("find interrupted moves", "err", err)
+		return
+	}
+	for _, id := range ids {
+		m, err := r.store.GetMove(ctx, id)
+		if err != nil {
+			continue
+		}
+		if m.Phase == "switching" {
+			r.rollBackMove(ctx, m)
+		} else {
+			r.discardCopy(m)
+		}
+		r.failMove(ctx, m, errors.New("the panel restarted during the move; the website stays where it was"))
 	}
 }
