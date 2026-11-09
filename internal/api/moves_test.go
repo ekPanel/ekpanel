@@ -743,7 +743,7 @@ func TestRebuildSiteFromBackup(t *testing.T) {
 	dst.mu.Lock()
 	defer dst.mu.Unlock()
 	if len(dst.restores) != 2 ||
-		dst.restores[0].Site == nil || dst.restores[0].SnapshotID != "bbbb2222" || dst.restores[0].Mode != "replace" || dst.restores[0].Site.User != site.LinuxUser ||
+		dst.restores[0].Site == nil || dst.restores[0].SnapshotID != "bbbb2222" || dst.restores[0].Mode != "home" || dst.restores[0].Site.User != site.LinuxUser ||
 		dst.restores[1].Database == nil || dst.restores[1].SnapshotID != "cccc3333" || dst.restores[1].RepoID != repoID {
 		t.Fatalf("restores: %+v", dst.restores)
 	}

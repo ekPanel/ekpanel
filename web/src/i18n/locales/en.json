@@ -629,7 +629,7 @@
     "app_has_previews": "Apps with pull request previews cannot move. Turn previews off and delete the remaining previews first.",
     "nothing_to_move": "The customer has nothing on that server.",
     "old_copy_in_use": "Websites or apps of the same owner are still on the old server and may use these databases.",
-    "no_snapshot": "This backup storage has no backup of something you chose.",
+    "no_snapshot": "This backup storage has no backup of {{item}}.",
     "backup_unreadable": "The new server could not read the backups."
   },
   "not_found": {
@@ -2379,7 +2379,7 @@
       "intro": "The website and the databases you choose are set up on the new server and filled from their newest snapshots in a backup storage connected there. Nothing is copied from the old server.",
       "repo": "Backup storage on the new server",
       "choose_repo": "Choose the backup storage",
-      "no_repo": "Connect the same S3 storage on the new server first (Backups → Add, with its recovery key).",
+      "no_repo": "Connect the same S3 storage on the new server first (Backups → Add backup location, with its recovery key).",
       "warning": "Everything since the newest backup is lost. If the old server comes back, its copy stays until you remove it from this page.",
       "confirm": "Rebuild"
     }

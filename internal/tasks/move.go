@@ -740,6 +740,7 @@ func (r *Runner) rebuildSite(ctx context.Context, t store.Task) (any, error) {
 		r.rollBackMove(ctx, m)
 		return nil, r.failMove(ctx, m, err)
 	}
+	r.pauseOldBackups(ctx, m)
 	// The old server, if it is still there, keeps its copy until it is removed.
 	if _, err := r.Reconcile(ctx, m.FromServer); err != nil {
 		r.log.Info("reconcile the old server after a rebuild", "move", m.ID, "err", err)
@@ -769,7 +770,7 @@ func (r *Runner) finishRebuild(ctx context.Context, m store.Move, site store.Sit
 		_, err := r.hub.Call(callCtx, m.ToServer, agentproto.OpBackupRestore, p)
 		return err
 	}
-	if err := restore(agentproto.BackupRestoreParams{RepoID: *m.FromBackup, SnapshotID: snapshots[site.ID], Mode: "replace",
+	if err := restore(agentproto.BackupRestoreParams{RepoID: *m.FromBackup, SnapshotID: snapshots[site.ID], Mode: "home",
 		Site: &agentproto.BackupSite{ID: site.ID, Name: site.Domain, User: site.LinuxUser}}); err != nil {
 		return fmt.Errorf("restore the files: %w", err)
 	}
@@ -787,4 +788,26 @@ func (r *Runner) finishRebuild(ctx context.Context, m store.Move, site store.Sit
 		}
 	}
 	return nil
+}
+
+// pauseOldBackups turns off the schedule of the old server's backup locations that use the
+// same storage: if that server comes back, two servers would otherwise back up into (and
+// prune) one repository.
+func (r *Runner) pauseOldBackups(ctx context.Context, m store.Move) {
+	repo, err := r.store.GetBackupRepo(ctx, *m.FromBackup)
+	if err != nil {
+		return
+	}
+	repos, err := r.store.ListBackupRepos(ctx)
+	if err != nil {
+		return
+	}
+	for _, old := range repos {
+		if old.ServerID == m.FromServer && old.Location == repo.Location && old.Schedule != "off" {
+			if _, err := r.store.UpdateBackupSchedule(ctx, old.ID, store.BackupSchedule{Schedule: "off", HourUTC: old.HourUTC,
+				KeepDaily: old.KeepDaily, KeepWeekly: old.KeepWeekly, KeepMonthly: old.KeepMonthly}); err == nil {
+				r.log.Info("paused the old server's backups to the same storage", "repo", old.ID, "move", m.ID)
+			}
+		}
+	}
 }

@@ -773,7 +773,7 @@ export const api = {
 /** Turns any thrown error into a sentence in the user's language. */
 export function errorMessage(t: TFunction, err: unknown): string {
   if (err instanceof ApiError) {
-    return t(`errors.${err.code}`, { defaultValue: err.message });
+    return t(`errors.${err.code}`, { ...err.data, defaultValue: err.message });
   }
   return t("errors.internal");
 }
