@@ -28,6 +28,11 @@ import (
 // dnszones/<zone>.db, va/<domain> (mail forwarders), and the home folder, as homedir.tar or a
 // homedir/ folder (with etc/<domain>/passwd listing mail accounts).
 
+// quietSkip are cPanel's own folders, left out without a word: what is worth having from
+// them (mail settings, mailboxes) is imported on its own.
+var quietSkip = []string{"mail", "etc", ".cpanel", ".trash", "tmp", "logs", "access-logs", ".cagefs", ".spamassassin",
+	".cphorde", ".sqmailattach", ".cl.selector", ".softaculous", "ssl"}
+
 // homeSkip are top folders of a cPanel home that are cPanel's own or are imported elsewhere.
 var homeSkip = []string{"mail", "etc", ".cpanel", ".trash", "tmp", "logs", "access-logs", "ssl", ".htpasswds",
 	".cagefs", "public_ftp", ".spamassassin", ".cphorde", ".softaculous", ".sqmailattach", ".subaccounts", ".cl.selector"}
@@ -110,10 +115,10 @@ func importInspect(_ context.Context, s *system, p agentproto.ImportInspectParam
 		return nil, archiveError(err)
 	}
 	defer f.Close()
-	small := map[string]string{} // userdata/*, mysql.sql, cron/*, cp/*
+	small := map[string]string{} // userdata/*, mysql.sql, cron/*, cp/*, va/*, dnszones/*
 	var plan agentproto.CPanelPlan
 	dumps := map[string]int64{}
-	mailDomains := map[string]bool{}
+	mail := newMailScan()
 	for {
 		h, err := tr.Next()
 		if err == io.EOF {
@@ -127,11 +132,7 @@ func importInspect(_ context.Context, s *system, p agentproto.ImportInspectParam
 			if ih.Typeflag == tar.TypeReg {
 				plan.HomeBytes += ih.Size
 			}
-			// etc/<domain>/passwd lists the domain's mail accounts.
-			if parts := strings.Split(r, "/"); len(parts) == 3 && parts[0] == "etc" && parts[2] == "passwd" && ih.Size > 0 {
-				mailDomains[parts[1]] = true
-				plan.MailAccounts += int(countLines(body, ih.Size))
-			}
+			mail.home(r, ih, body)
 			return nil
 		})
 		if err != nil {
@@ -141,36 +142,22 @@ func importInspect(_ context.Context, s *system, p agentproto.ImportInspectParam
 			continue
 		}
 		switch {
-		case strings.HasPrefix(rel, "userdata/") || rel == "mysql.sql" || strings.HasPrefix(rel, "cron/") || strings.HasPrefix(rel, "cp/"):
+		case strings.HasPrefix(rel, "userdata/") || rel == "mysql.sql" || strings.HasPrefix(rel, "cron/") || strings.HasPrefix(rel, "cp/") ||
+			strings.HasPrefix(rel, "va/") || strings.HasPrefix(rel, "dnszones/") && strings.HasSuffix(rel, ".db"):
 			if h.Size < 4<<20 {
 				b, _ := io.ReadAll(io.LimitReader(tr, 4<<20))
 				small[rel] = string(b)
 			}
 		case strings.HasPrefix(rel, "mysql/") && strings.HasSuffix(rel, ".sql"):
 			dumps[strings.TrimSuffix(strings.TrimPrefix(rel, "mysql/"), ".sql")] += h.Size
-		case strings.HasPrefix(rel, "dnszones/") && strings.HasSuffix(rel, ".db"):
-			plan.DNSZones = append(plan.DNSZones, strings.TrimSuffix(strings.TrimPrefix(rel, "dnszones/"), ".db"))
-		case strings.HasPrefix(rel, "va/") && h.Size > 0:
-			mailDomains[strings.TrimPrefix(rel, "va/")] = true
 		}
 	}
 	if err := planFromFiles(&plan, small, dumps); err != nil {
 		return nil, opError(agentproto.ErrNotCPanel, "%v", err)
 	}
-	plan.MailDomains = len(mailDomains)
-	sort.Strings(plan.DNSZones)
+	plan.Mail = mail.plan(small)
+	plan.Zones = zonesFrom(small)
 	return plan, nil
-}
-
-func countLines(r io.Reader, size int64) int64 {
-	b, _ := io.ReadAll(io.LimitReader(r, min(size, 4<<20)))
-	n := int64(0)
-	for _, l := range strings.Split(string(b), "\n") {
-		if strings.TrimSpace(l) != "" {
-			n++
-		}
-	}
-	return n
 }
 
 // yamlish reads cPanel's simple YAML: "key: value" pairs, and lists or maps under a key.
@@ -232,6 +219,9 @@ func planFromFiles(plan *agentproto.CPanelPlan, small map[string]string, dumps m
 			for _, l := range strings.Split(v, "\n") {
 				if u, ok := strings.CutPrefix(l, "USER="); ok {
 					plan.User = strings.TrimSpace(u)
+				}
+				if ip, ok := strings.CutPrefix(l, "IP="); ok {
+					plan.OldIP = strings.TrimSpace(ip)
 				}
 			}
 		}
@@ -471,7 +461,24 @@ func importApply(ctx context.Context, s *system, p agentproto.ImportApplyParams)
 		return r, nil
 	}
 
+	var mail *mailImporter
+	wantMail := map[string]bool{}
+	if len(p.Mail) > 0 {
+		if mail, err = newMailImporter(ctx, s, &res); err != nil {
+			return nil, opError(agentproto.ErrFailed, "%v", err)
+		}
+		for _, mb := range p.Mail {
+			wantMail[mb.Domain+"/"+mb.Name] = true
+		}
+	}
+
 	place := func(rel string, h *tar.Header, r io.Reader) error {
+		if domain, name, rest, ok := mailPath(rel); ok {
+			if mail != nil && wantMail[domain+"/"+name] {
+				return mail.add(ctx, name+"@"+domain, rest, h, r)
+			}
+			return nil // mail of mailboxes not chosen: the panel tells about those
+		}
 		user, dest := "", ""
 		for _, site := range sites {
 			if rel == site.DocRoot || strings.HasPrefix(rel, site.DocRoot+"/") {
@@ -483,7 +490,9 @@ func importApply(ctx context.Context, s *system, p agentproto.ImportApplyParams)
 		if user == "" {
 			top := strings.SplitN(rel, "/", 2)[0]
 			if p.MainUser == "" || slices.Contains(homeSkip, top) || top == "public_html" || strings.HasPrefix(top, ".") && top != ".well-known" {
-				skipped[top]++
+				if !slices.Contains(quietSkip, top) {
+					skipped[top]++
+				}
 				return nil
 			}
 			user, dest = p.MainUser, path.Join("/home", p.MainUser, rel)
@@ -604,6 +613,11 @@ func importApply(ctx context.Context, s *system, p agentproto.ImportApplyParams)
 				return nil, opError(agentproto.ErrFailed, "%v", err)
 			}
 			res.Databases = append(res.Databases, d.Name)
+		}
+	}
+	if mail != nil {
+		if err := mail.finish(ctx); err != nil {
+			return nil, opError(agentproto.ErrFailed, "%v", err)
 		}
 	}
 	for user := range touched {

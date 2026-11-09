@@ -131,6 +131,9 @@ var (
 	sha512RE    = regexp.MustCompile(`^\$6\$(rounds=[0-9]{4,9}\$)?[./A-Za-z0-9]{1,16}\$[./A-Za-z0-9]{86}$`)
 )
 
+// ValidSHA512Crypt reports whether h is a SHA-512 crypt hash, as mailboxes keep passwords.
+func ValidSHA512Crypt(h string) bool { return sha512RE.MatchString(h) }
+
 // ValidMailHost reports whether h is a valid host or domain name for mail.
 func ValidMailHost(h string) bool { return len(h) <= 253 && mailHostRE.MatchString(h) }
 

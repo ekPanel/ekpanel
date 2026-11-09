@@ -25,7 +25,6 @@ interface CPanelDatabase {
   name: string;
   user: string;
   bytes: number;
-  password_hash?: string;
 }
 
 interface Inspection {
@@ -35,19 +34,39 @@ interface Inspection {
   databases: CPanelDatabase[] | null;
   cron: string[] | null;
   home_bytes: number;
-  mail_domains: number;
-  mail_accounts: number;
-  dns_zones: string[] | null;
   cron_settings?: string[];
+  mail: CPanelMailDomain[] | null;
+  zones: { name: string; records: unknown[] | null }[] | null;
   taken_domains: string[];
   taken_databases: string[];
   php_versions: string[];
+  new_password_databases: string[];
+  new_password_mailboxes: string[];
+  mail_enabled: boolean;
+  taken_mail: string[];
+  name_servers: boolean;
+  taken_zones: string[];
+}
+
+interface CPanelMailDomain {
+  domain: string;
+  mailboxes: { name: string; quota_mb?: number; bytes: number; messages: number; mdbox?: boolean }[] | null;
+  forwarders: { name: string; to: string[] }[] | null;
+  catch_all?: string;
+  other?: string[];
 }
 
 interface ImportReport {
   sites: string[];
   databases: string[] | null;
   cron: number;
+  mail_domains?: string[];
+  mailboxes?: number;
+  forwarders?: number;
+  mail_messages?: number;
+  mail_failed?: number;
+  new_mail_password?: string[];
+  zones?: string[];
   files: number;
   bytes: number;
   new_password?: string[];
@@ -179,6 +198,10 @@ function ImportChoices({ plan, server, file, onStarted }: { plan: Inspection; se
     Object.fromEntries(domains.map((d) => [d.domain, plan.php_versions.includes(d.php_version) ? d.php_version : plan.php_versions.includes("8.4") ? "8.4" : plan.php_versions[0]])),
   );
   const [withCron, setWithCron] = useState(cron.length > 0);
+  const mailDomains = plan.mail ?? [];
+  const zones = plan.zones ?? [];
+  const [mail, setMail] = useState<string[]>(() => (plan.mail_enabled ? mailDomains.filter((d) => !plan.taken_mail.includes(d.domain)).map((d) => d.domain) : []));
+  const [chosenZones, setZones] = useState<string[]>(() => (plan.name_servers ? zones.filter((z) => !plan.taken_zones.includes(z.name)).map((z) => z.name) : []));
   const [owner, setOwner] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -198,7 +221,11 @@ function ImportChoices({ plan, server, file, onStarted }: { plan: Inspection; se
         databases,
         php: Object.fromEntries(sites.map((s) => [s, php[s]])),
         cron: withCron && mainChosen,
+        mail,
+        zones: chosenZones,
       });
+      qc.invalidateQueries({ queryKey: ["mail-domains"] });
+      qc.invalidateQueries({ queryKey: ["hosted-zones"] });
       qc.invalidateQueries({ queryKey: ["sites"] });
       qc.invalidateQueries({ queryKey: ["databases"] });
       qc.invalidateQueries({ queryKey: ["tasks"] });
@@ -211,8 +238,6 @@ function ImportChoices({ plan, server, file, onStarted }: { plan: Inspection; se
   };
 
   const notes: string[] = [];
-  if (plan.mail_accounts > 0) notes.push(t("imports.not_mail", { count: plan.mail_accounts, domains: plan.mail_domains }));
-  if (plan.dns_zones?.length) notes.push(t("imports.not_dns", { zones: plan.dns_zones.join(", ") }));
   if (domains.some((d) => d.has_cert)) notes.push(t("imports.not_certs"));
   for (const c of plan.cron_settings ?? []) notes.push(t("imports.note.cron_setting", { name: c }));
 
@@ -284,7 +309,7 @@ function ImportChoices({ plan, server, file, onStarted }: { plan: Inspection; se
                       </span>
                       <span className="truncate text-xs text-muted">
                         {d.user ? t("imports.db_user", { user: d.user }) : t("imports.db_no_user")}
-                        {d.user && !d.password_hash && ` · ${t("imports.db_new_password")}`}
+                        {d.user && plan.new_password_databases.includes(d.name) && ` · ${t("imports.db_new_password")}`}
                       </span>
                     </span>
                   </label>
@@ -314,6 +339,62 @@ function ImportChoices({ plan, server, file, onStarted }: { plan: Inspection; se
         </section>
       )}
 
+      {mailDomains.length > 0 && (
+        <section className="grid gap-2">
+          <h3 className="font-semibold">{t("imports.email")}</h3>
+          {!plan.mail_enabled && <p className="text-sm text-warn">{t("imports.mail_off")}</p>}
+          <ul className="divide-y divide-line rounded-lg border border-line">
+            {mailDomains.map((d) => {
+              const taken = plan.taken_mail.includes(d.domain);
+              const boxes = d.mailboxes ?? [];
+              const bytes = boxes.reduce((n, b) => n + b.bytes, 0);
+              const messages = boxes.reduce((n, b) => n + b.messages, 0);
+              const newPw = boxes.filter((b) => plan.new_password_mailboxes.includes(b.name + "@" + d.domain)).length;
+              return (
+                <li key={d.domain} className={cx("px-3 py-2.5", (taken || !plan.mail_enabled) && "opacity-70")}>
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <input type="checkbox" checked={mail.includes(d.domain)} disabled={taken || !plan.mail_enabled} onChange={() => toggle(mail, setMail, d.domain)} className="mt-1 accent-[var(--accent)]" />
+                    <span className="grid min-w-0 flex-1 gap-0.5">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="truncate font-medium">{d.domain}</span>
+                        {taken && <Badge tone="warn">{t("imports.taken")}</Badge>}
+                      </span>
+                      <span className="text-xs text-muted">
+                        {t("imports.mail_line", { mailboxes: boxes.length, forwarders: (d.forwarders ?? []).length, messages, size: formatBytes(bytes, lng) })}
+                        {newPw > 0 && ` · ${t("imports.mail_new_passwords", { count: newPw })}`}
+                      </span>
+                      {!!boxes.length && <span className="truncate font-mono text-xs text-muted">{boxes.map((b) => b.name).join(", ")}</span>}
+                    </span>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      {zones.length > 0 && (
+        <section className="grid gap-2">
+          <h3 className="font-semibold">{t("imports.zones")}</h3>
+          <p className="text-sm text-muted">{plan.name_servers ? t("imports.zones_hint") : t("imports.zones_off")}</p>
+          <ul className="divide-y divide-line rounded-lg border border-line">
+            {zones.map((z) => {
+              const taken = plan.taken_zones.includes(z.name);
+              return (
+                <li key={z.name} className={cx("px-3 py-2.5", (taken || !plan.name_servers) && "opacity-70")}>
+                  <label className="flex cursor-pointer items-center gap-3">
+                    <input type="checkbox" checked={chosenZones.includes(z.name)} disabled={taken || !plan.name_servers} onChange={() => toggle(chosenZones, setZones, z.name)} className="accent-[var(--accent)]" />
+                    <span className="min-w-0 truncate font-medium">{z.name}</span>
+                    <span className="text-xs text-muted">{t("imports.zone_records", { count: (z.records ?? []).length })}</span>
+                    {taken && <Badge tone="warn">{t("imports.taken")}</Badge>}
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       <OwnerField value={owner} onChange={setOwner} />
 
       {notes.length > 0 && (
@@ -332,8 +413,8 @@ function ImportChoices({ plan, server, file, onStarted }: { plan: Inspection; se
 
       <ErrorAlert>{error}</ErrorAlert>
       <div className="flex flex-wrap items-center justify-end gap-3">
-        <p className="text-sm text-muted">{t("imports.summary", { sites: sites.length, databases: databases.length })}</p>
-        <Button variant="primary" loading={busy} disabled={sites.length + databases.length === 0} onClick={start}>
+        <p className="text-sm text-muted">{t("imports.summary", { sites: sites.length, databases: databases.length, mail: mail.length, zones: chosenZones.length })}</p>
+        <Button variant="primary" loading={busy} disabled={sites.length + databases.length + mail.length + chosenZones.length === 0} onClick={start}>
           {t("imports.start")}
         </Button>
       </div>
@@ -378,6 +459,22 @@ function ImportProgress({ taskId, onAgain }: { taskId: string; onAgain: () => vo
             <dd>{t("imports.files_value", { count: report.files, size: formatBytes(report.bytes, i18n.language) })}</dd>
             <dt className="text-muted">{t("imports.cron_jobs")}</dt>
             <dd>{report.cron}</dd>
+            {!!report.mail_domains?.length && (
+              <>
+                <dt className="text-muted">{t("imports.email")}</dt>
+                <dd>
+                  {report.mail_domains.join(", ")} ·{" "}
+                  {t("imports.mail_done", { mailboxes: report.mailboxes ?? 0, forwarders: report.forwarders ?? 0, messages: report.mail_messages ?? 0 })}
+                  {!!report.mail_failed && <span className="text-warn"> · {t("imports.mail_failed", { count: report.mail_failed })}</span>}
+                </dd>
+              </>
+            )}
+            {!!report.zones?.length && (
+              <>
+                <dt className="text-muted">{t("imports.zones")}</dt>
+                <dd>{report.zones.join(", ")}</dd>
+              </>
+            )}
           </dl>
           {!!report.paths_changed_count && (
             <details className="text-sm">
@@ -390,6 +487,9 @@ function ImportProgress({ taskId, onAgain }: { taskId: string; onAgain: () => vo
                 ))}
               </ul>
             </details>
+          )}
+          {!!report.new_mail_password?.length && (
+            <p className="rounded-lg bg-warn-soft px-4 py-3 text-sm text-warn">{t("imports.new_mail_passwords", { names: report.new_mail_password.join(", ") })}</p>
           )}
           {!!report.new_password?.length && (
             <p className="rounded-lg bg-warn-soft px-4 py-3 text-sm text-warn">{t("imports.new_passwords", { names: report.new_password.join(", ") })}</p>

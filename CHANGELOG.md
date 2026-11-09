@@ -30,10 +30,18 @@ All notable changes to ekPanel are listed here. The format follows
 - Import a cPanel account from its full backup (Admin → Import): websites with their files,
   MySQL databases with the same users and passwords, and cron jobs; paths to the old home
   folder in configuration files and cron jobs follow, and a report lists what was not
-  imported yet (email, DNS zones, certificates) (4d)
+  imported (4d)
+- The cPanel import also brings email: mailboxes with the same passwords and quotas,
+  forwarders, the catch-all and all the mail with its folders and read and flagged marks;
+  and DNS zones, onto ekPanel's name servers, keeping the records ekPanel does not make
+  itself (4d)
 
 ### Changed
 - PHP websites serve a folder's `index.html` when it has no `index.php`, as Apache does (4d)
+
+### Fixed
+- Turning on email could fail once on a new server ("table users already exists") while
+  setting up webmail
 
 ## [v0.1.0] - 2026-11-09
 

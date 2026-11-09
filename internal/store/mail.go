@@ -490,3 +490,12 @@ func (s *Store) HostnameOwners(ctx context.Context, hostnames []string) ([]*stri
 	}
 	return pgx.CollectRows(rows, pgx.RowTo[*string])
 }
+
+// MailDomainsTaken returns the names that are mail domains already.
+func (s *Store) MailDomainsTaken(ctx context.Context, names []string) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `SELECT domain FROM mail_domains WHERE domain = ANY($1) ORDER BY domain`, names)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowTo[string])
+}

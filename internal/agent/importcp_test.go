@@ -124,8 +124,8 @@ func TestImportCPanel(t *testing.T) {
 		if len(plan.Cron) != 1 || !strings.Contains(plan.Cron[0], "wp-cron.php") || !slices.Equal(plan.CronSettings, []string{`MAILTO="me@shop.com"`}) {
 			t.Fatalf("cron %q settings %q", plan.Cron, plan.CronSettings)
 		}
-		if plan.MailDomains != 1 || plan.MailAccounts != 2 || len(plan.DNSZones) != 1 {
-			t.Fatalf("mail %d/%d dns %v", plan.MailDomains, plan.MailAccounts, plan.DNSZones)
+		if len(plan.Mail) != 1 || len(plan.Mail[0].Mailboxes) != 2 || len(plan.Zones) != 1 {
+			t.Fatalf("mail %+v zones %+v", plan.Mail, plan.Zones)
 		}
 
 		// The panel made the websites first: their homes are there.
@@ -173,7 +173,7 @@ func TestImportCPanel(t *testing.T) {
 		if len(r.Databases) != 1 || len(loaded) != 1 || !strings.Contains(loaded[0], "wp_posts") {
 			t.Fatalf("databases %v loaded %q", r.Databases, loaded)
 		}
-		if !slices.ContainsFunc(r.Skipped, func(x agentproto.ImportSkip) bool { return x.Name == "mail" && x.Count > 0 }) ||
+		if slices.ContainsFunc(r.Skipped, func(x agentproto.ImportSkip) bool { return x.Name == "mail" || x.Name == "etc" || x.Name == ".cpanel" }) ||
 			!slices.ContainsFunc(r.Skipped, func(x agentproto.ImportSkip) bool { return x.Name == "links_outside" && x.Count == 1 }) {
 			t.Fatalf("skipped %v", r.Skipped)
 		}

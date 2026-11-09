@@ -31,15 +31,27 @@ type ImportCPanelParams struct {
 	Sites     []ImportSite `json:"sites"`
 	Databases []string     `json:"databases"` // database IDs
 	Cron      []string     `json:"cron"`
+	// Mail are mailboxes (made already) whose messages are copied in.
+	Mail []agentproto.ImportMailbox `json:"mail,omitempty"`
 	// Report holds what the panel already knows: what is not imported and why.
 	Report ImportReport `json:"report"`
 }
 
 // ImportReport is what the import did, shown when it ends.
 type ImportReport struct {
-	Sites       []string `json:"sites"`
-	Databases   []string `json:"databases"`
-	Cron        int      `json:"cron"`
+	Sites     []string `json:"sites"`
+	Databases []string `json:"databases"`
+	Cron      int      `json:"cron"`
+	// Email: domains made, mailboxes and forwarders in them, messages copied in.
+	MailDomains  []string `json:"mail_domains,omitempty"`
+	Mailboxes    int      `json:"mailboxes,omitempty"`
+	Forwarders   int      `json:"forwarders,omitempty"`
+	MailMessages int      `json:"mail_messages,omitempty"`
+	MailFailed   int      `json:"mail_failed,omitempty"`
+	// NewMailPassword are mailboxes (addresses) whose password could not be kept.
+	NewMailPassword []string `json:"new_mail_password,omitempty"`
+	// Zones are the DNS zones made on ekPanel's name servers.
+	Zones       []string `json:"zones,omitempty"`
 	Files       int64    `json:"files"`
 	Bytes       int64    `json:"bytes"`
 	NewPassword []string `json:"new_password,omitempty"` // databases whose password could not be kept
@@ -58,6 +70,9 @@ type ImportReport struct {
 //	db_user (Name: user, Detail: database, which has a user of its own name now)
 //	cron_line (Name: the line)          cron_setting (Name: MAILTO=… and such)
 //	cron_no_main (Count: jobs, as the main website was not imported)
+//	mail (Name: domain not chosen, Count: mailboxes)   mail_mailbox, mail_forwarder, mail_mdbox (Name: address)
+//	mail_unusable (Name: forwarding line, Detail: domain)
+//	zone_mx_here, zone_old_ip, zone_record, zone_unread, zone_failed (see FilterCPanelZone)
 type ImportNote struct {
 	Code    string `json:"code"`
 	Name    string `json:"name,omitempty"`
@@ -79,7 +94,7 @@ func (r *Runner) importCPanel(ctx context.Context, t store.Task) (any, error) {
 	if _, err := r.Reconcile(ctx, p.Server); err != nil {
 		return rep, fmt.Errorf("set up the websites and databases: %w", err)
 	}
-	apply := agentproto.ImportApplyParams{File: p.File}
+	apply := agentproto.ImportApplyParams{File: p.File, Mail: p.Mail}
 	if agentproto.ValidCPanelUser(p.CPUser) {
 		apply.OldUser = p.CPUser
 	}
@@ -118,6 +133,7 @@ func (r *Runner) importCPanel(ctx context.Context, t store.Task) (any, error) {
 	json.Unmarshal(raw, &res)
 	rep.Files, rep.Bytes, rep.Databases = res.Files, res.Bytes, res.Databases
 	rep.PathsChanged, rep.PathsChangedCount = res.PathsChanged, res.PathsChangedCount
+	rep.MailMessages, rep.MailFailed = res.MailMessages, res.MailFailed
 	for _, sk := range res.Skipped {
 		switch sk.Name {
 		case "links_outside", "special_files":

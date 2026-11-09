@@ -31,6 +31,16 @@ type importInspection struct {
 	// TakenDatabases are names (or users) the server already has.
 	TakenDatabases []string `json:"taken_databases"`
 	PHPVersions    []string `json:"php_versions"`
+	// NewPasswordDatabases and NewPasswordMailboxes (addresses) cannot keep their
+	// passwords; the hashes themselves are not sent.
+	NewPasswordDatabases []string `json:"new_password_databases"`
+	NewPasswordMailboxes []string `json:"new_password_mailboxes"`
+	// MailEnabled: the server has email, so mail domains can be imported.
+	MailEnabled bool     `json:"mail_enabled"`
+	TakenMail   []string `json:"taken_mail"`
+	// NameServers: ekPanel's name servers are set up, so zones can be imported.
+	NameServers bool     `json:"name_servers"`
+	TakenZones  []string `json:"taken_zones"`
 }
 
 type cachedImportPlan struct {
@@ -93,7 +103,51 @@ func (s *Server) handleInspectImport(w http.ResponseWriter, r *http.Request) {
 		s.writeAgentError(w, r, err)
 		return
 	}
-	out := importInspection{CPanelPlan: plan, TakenDomains: []string{}, TakenDatabases: []string{}, PHPVersions: agentproto.PHPVersions}
+	out := importInspection{CPanelPlan: plan, TakenDomains: []string{}, TakenDatabases: []string{}, PHPVersions: agentproto.PHPVersions,
+		NewPasswordDatabases: []string{}, NewPasswordMailboxes: []string{}, TakenMail: []string{}, TakenZones: []string{}}
+	// The plan is shared with the cache: copy what is changed for the answer.
+	out.Databases = slices.Clone(plan.Databases)
+	for i := range out.Databases {
+		if out.Databases[i].PasswordHash == "" {
+			out.NewPasswordDatabases = append(out.NewPasswordDatabases, out.Databases[i].Name)
+		}
+		out.Databases[i].PasswordHash = ""
+	}
+	out.Mail = slices.Clone(plan.Mail)
+	var mailNames []string
+	for i, d := range out.Mail {
+		mailNames = append(mailNames, d.Domain)
+		out.Mail[i].Mailboxes = slices.Clone(d.Mailboxes)
+		for j, mb := range out.Mail[i].Mailboxes {
+			if !agentproto.ValidSHA512Crypt(mb.PasswordHash) {
+				out.NewPasswordMailboxes = append(out.NewPasswordMailboxes, mb.Name+"@"+d.Domain)
+			}
+			out.Mail[i].Mailboxes[j].PasswordHash = ""
+		}
+	}
+	if _, err := s.store.GetMailServer(r.Context(), srv.ID); err == nil {
+		out.MailEnabled = true
+	}
+	if taken, err := s.store.MailDomainsTaken(r.Context(), mailNames); err != nil {
+		s.internalError(w, r, err)
+		return
+	} else if taken != nil {
+		out.TakenMail = taken
+	}
+	ns, err := s.store.ListNameServers(r.Context())
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	out.NameServers = slices.ContainsFunc(ns, func(n store.NameServer) bool { return n.Primary })
+	for _, z := range plan.Zones {
+		if taken, err := s.store.ZoneNameTaken(r.Context(), z.Name); err != nil {
+			s.internalError(w, r, err)
+			return
+		} else if taken {
+			out.TakenZones = append(out.TakenZones, z.Name)
+		}
+	}
 	var names []string
 	for _, d := range plan.Domains {
 		names = append(names, d.Domain)
@@ -126,6 +180,8 @@ type importRequest struct {
 	PHP       map[string]string `json:"php"`       // domain → PHP version (optional)
 	Databases []string          `json:"databases"` // database names to import
 	Cron      bool              `json:"cron"`      // the cron jobs, onto the main website
+	Mail      []string          `json:"mail"`      // mail domains to import
+	Zones     []string          `json:"zones"`     // DNS zones to make on ekPanel's name servers
 }
 
 func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
@@ -138,8 +194,8 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if len(req.Sites) == 0 && len(req.Databases) == 0 {
-		writeError(w, http.StatusBadRequest, "nothing_to_import", "choose at least one website or database")
+	if len(req.Sites)+len(req.Databases)+len(req.Mail)+len(req.Zones) == 0 {
+		writeError(w, http.StatusBadRequest, "nothing_to_import", "choose at least one website, database, mail domain or zone")
 		return
 	}
 	// The archive decides what there is, not the request (read again unless inspected lately).
@@ -209,6 +265,19 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 		return
 	} else if len(taken) > 0 {
 		writeErrorData(w, http.StatusConflict, "import_domains_taken", "already used here: "+strings.Join(taken, ", "), map[string]any{"names": strings.Join(taken, ", ")})
+		return
+	}
+	owned, err := s.ownedHosts(ctx, place, domains)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	mailDomains, ok := s.checkImportMail(w, r, srv, place, plan, req.Mail, owned)
+	if !ok {
+		return
+	}
+	zones, ok := s.checkImportZones(w, r, place, plan, req.Zones, owned)
+	if !ok {
 		return
 	}
 	existing, err := s.store.ListDatabases(ctx, srv.ID)
@@ -298,11 +367,27 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 		}
 		params.Databases = append(params.Databases, db.ID)
 	}
-	if plan.MailAccounts > 0 {
-		report.NotImported = append(report.NotImported, tasks.ImportNote{Code: "mail", Count: plan.MailAccounts, Domains: plan.MailDomains})
+	if params.Mail, err = s.makeImportMail(ctx, srv, place, u.ID, mailDomains, &report); err != nil {
+		s.writeMailStoreError(w, r, err)
+		return
 	}
-	for _, z := range plan.DNSZones {
-		report.NotImported = append(report.NotImported, tasks.ImportNote{Code: "dns_zone", Name: z})
+	if err := s.makeImportZones(ctx, place, u.ID, plan, zones, importHosts(domains), &report); err != nil {
+		s.writeHostedError(w, r, err)
+		return
+	}
+	if len(report.Zones) > 0 {
+		s.queueNameServers(r)
+	}
+	// Email and zones in the backup that were not chosen.
+	for _, d := range plan.Mail {
+		if !slices.Contains(req.Mail, d.Domain) && len(d.Mailboxes) > 0 {
+			report.NotImported = append(report.NotImported, tasks.ImportNote{Code: "mail", Name: d.Domain, Count: len(d.Mailboxes)})
+		}
+	}
+	for _, z := range plan.Zones {
+		if !slices.Contains(req.Zones, z.Name) {
+			report.NotImported = append(report.NotImported, tasks.ImportNote{Code: "dns_zone", Name: z.Name})
+		}
 	}
 	for _, c := range plan.CronSettings {
 		report.NotImported = append(report.NotImported, tasks.ImportNote{Code: "cron_setting", Name: c})

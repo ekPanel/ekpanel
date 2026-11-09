@@ -59,12 +59,48 @@ type CPanelPlan struct {
 	Databases  []CPanelDatabase `json:"databases"`
 	Cron       []string         `json:"cron"`
 	HomeBytes  int64            `json:"home_bytes"`
-	// Not imported yet, for the report.
-	MailDomains  int      `json:"mail_domains"`
-	MailAccounts int      `json:"mail_accounts"`
-	DNSZones     []string `json:"dns_zones"`
 	// CronSettings are lines such as MAILTO=… that cron jobs here do not take.
 	CronSettings []string `json:"cron_settings,omitempty"`
+	// Mail is every email domain with its mailboxes and forwarders.
+	Mail []CPanelMailDomain `json:"mail"`
+	// Zones are the account's DNS zones, records with absolute names.
+	Zones []CPanelZone `json:"zones"`
+	// OldIP is the address the account had on its cPanel server.
+	OldIP string `json:"old_ip,omitempty"`
+}
+
+// CPanelMailDomain is a domain's email in the backup.
+type CPanelMailDomain struct {
+	Domain     string            `json:"domain"`
+	Mailboxes  []CPanelMailbox   `json:"mailboxes"`
+	Forwarders []CPanelForwarder `json:"forwarders"`
+	// CatchAll is the mailbox (local part) that gets mail for unknown addresses.
+	CatchAll string `json:"catch_all,omitempty"`
+	// Other are forwarding lines that cannot be imported: to programs, :fail:, :blackhole:.
+	Other []string `json:"other,omitempty"`
+}
+
+type CPanelMailbox struct {
+	Name string `json:"name"`
+	// PasswordHash is the SHA-512 crypt hash, when the password is kept that way.
+	PasswordHash string `json:"password_hash,omitempty"`
+	QuotaMB      int    `json:"quota_mb,omitempty"`
+	Bytes        int64  `json:"bytes"`
+	Messages     int    `json:"messages"`
+	// Mdbox: the mail is in Dovecot's mdbox format, which cannot be read here.
+	Mdbox bool `json:"mdbox,omitempty"`
+}
+
+type CPanelForwarder struct {
+	Name string   `json:"name"`
+	To   []string `json:"to"`
+}
+
+type CPanelZone struct {
+	Name    string         `json:"name"`
+	Records []HostedRecord `json:"records"`
+	// Unread counts lines of the zone file that were not understood.
+	Unread int `json:"unread,omitempty"`
 }
 
 // ImportSite: a website's files come from DocRoot (relative to the archive's home folder)
@@ -81,6 +117,8 @@ type ImportApplyParams struct {
 	Databases []TransferDatabase `json:"databases"`
 	// MainUser gets the files outside every document root that are worth keeping.
 	MainUser string `json:"main_user,omitempty"`
+	// Mail are mailboxes whose messages go into the mail server here (made already).
+	Mail []ImportMailbox `json:"mail,omitempty"`
 	// OldUser is the cPanel account: "/home/OldUser/…" in small text files (configuration,
 	// scripts) becomes the path the file landed at here.
 	OldUser string `json:"old_user,omitempty"`
@@ -102,6 +140,15 @@ type ImportApplyResult struct {
 	// PathsChangedCount), relative to /home.
 	PathsChanged      []string `json:"paths_changed,omitempty"`
 	PathsChangedCount int      `json:"paths_changed_count,omitempty"`
+	// MailMessages were put into mailboxes; MailFailed could not be (too large, or refused).
+	MailMessages int `json:"mail_messages,omitempty"`
+	MailFailed   int `json:"mail_failed,omitempty"`
+}
+
+// ImportMailbox is mail/<Domain>/<Name>/ of the backup's home folder, a Maildir.
+type ImportMailbox struct {
+	Domain string `json:"domain"`
+	Name   string `json:"name"`
 }
 
 var cpanelUserRE = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,31}$`)
@@ -120,6 +167,11 @@ func (p ImportApplyParams) Validate() error {
 	}
 	if p.MainUser != "" && !linuxUserRE.MatchString(p.MainUser) || p.OldUser != "" && !ValidCPanelUser(p.OldUser) {
 		return errors.New("invalid user")
+	}
+	for _, m := range p.Mail {
+		if !ValidMailHost(m.Domain) || !ValidLocalPart(m.Name) {
+			return errors.New("invalid mailbox")
+		}
 	}
 	return validTransferDBs(p.Databases, true)
 }

@@ -974,7 +974,13 @@ whole customers):
       MySQL database, a parked domain, a symlink and a cron job, read and imported from the
       page in 5 s (51 s when PHP 8.2 had to be installed); the site served its database's
       Bangla text with the old password unchanged
-- [ ] cPanel mail accounts and mail, DNS zones and SSL certificates
+- [x] cPanel email and DNS zones: mailboxes with their passwords and quotas, forwarders,
+      the catch-all and every message with its folders and marks; zones on ekPanel's name
+      servers without what ekPanel makes itself. Tried in the VM: 34 messages in 4 folders
+      copied in, IMAP sign-in with the old cPanel password worked, the zone kept its
+      verification TXT, CAA and outside CNAME and got ekPanel's MX, SPF and DKIM
+- [x] SSL certificates: not imported, on purpose; new ones are issued once a domain points
+      here, and an imported one would not renew
 - [ ] aaPanel sites and databases; plain WordPress from another host (files and database)
 - [ ] Coolify applications and services (Compose and environment)
 - [x] A report of what was imported and what was not (cPanel; the others will add to it)
@@ -999,6 +1005,22 @@ DNS zones and certificates next):
   `/home/<cPanel user>/…` get the new place (a document root becomes its website's
   `public_html`); paths stored in databases stay as they were.
 - **The report** lists what was imported and what was not, as codes the UI puts into words.
+- **Email** (when the server has email): each mailbox of etc/<domain>/passwd with its
+  SHA-512 crypt hash from shadow (an older MD5 hash cannot be kept: a new password, in the
+  report) and its quota; va/<domain> gives forwarders (one with a mailbox's address makes
+  the mailbox forward a copy), the catch-all, and lines to programs or :fail:, which are only
+  reported. The agent copies every Maildir message into Stalwart through JMAP as the
+  administrator (blob upload, then Email/import in batches of 50), with its folder (Maildir++
+  names, IMAP UTF-7 decoded; Sent, Drafts, Trash, Junk and Archive map to the roles), marks
+  and arrival time. Deleted messages stay out; mdbox mailboxes are made empty and reported.
+- **DNS zones** (when ekPanel's name servers are set up) are made as hosted zones keeping
+  everything but SOA and the domain's NS, cPanel's own names (cpanel, webmail, autodiscover …),
+  the websites' A/AAAA/CNAME and, with the email here, its MX, SPF, DKIM, DMARC and TLS-RPT:
+  kept records would stand in the way of the ones ekPanel makes. Records still pointing at
+  the old server, and an MX at the domain when its email stays behind, are reported.
+- Found while trying it: enabling email failed once on a fresh server, because Roundcube's
+  SQLite driver makes its tables when it opens the file and initdb then finds them; that
+  now counts as done.
 - **Links in the archive** are kept only when they stay inside the website, and every file
   is written through the home folder's `os.Root`, so a chain of links (each harmless alone)
   cannot lead the agent's root-owned writes into another account.
