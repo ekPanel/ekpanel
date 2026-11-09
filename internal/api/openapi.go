@@ -48,6 +48,8 @@ var summaryOverrides = map[string]string{
 	"PUT /api/v1/sites/{id}/wordpress/auto":             "Set WordPress automatic updates",
 	"POST /api/v1/sites/{id}/wordpress/copy":            "Copy between a site and its staging copy",
 	"POST /api/v1/dns/zones/{id}/ssl":                   "Set the zone's Cloudflare SSL mode",
+	"POST /api/v1/imports/inspect":                      "Read a cPanel backup on a server: its websites, databases and cron jobs",
+	"POST /api/v1/imports":                              "Import websites, databases and cron jobs from a cPanel backup",
 }
 
 // tagNames gives a few path segments a nicer tag.

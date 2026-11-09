@@ -33,7 +33,8 @@
     "mail": "Email",
     "security_page": "Server security",
     "updates": "Updates",
-    "tokens": "API tokens"
+    "tokens": "API tokens",
+    "import": "Import"
   },
   "theme": {
     "label": "Theme",
@@ -630,7 +631,12 @@
     "nothing_to_move": "The customer has nothing on that server.",
     "old_copy_in_use": "Websites or apps of the same owner are still on the old server and may use these databases.",
     "no_snapshot": "This backup storage has no backup of {{item}}.",
-    "backup_unreadable": "The new server could not read the backups."
+    "backup_unreadable": "The new server could not read the backups.",
+    "invalid_import_file": "Enter the name of a .tar.gz backup in /srv/ekpanel/imports on the server, without a folder.",
+    "nothing_to_import": "Choose at least one website or database.",
+    "not_in_backup": "The backup has no {{name}}.",
+    "import_domains_taken": "Already used by another website or app here: {{names}}.",
+    "import_database_taken": "The server already has a database or user named {{name}}."
   },
   "not_found": {
     "title": "Page not found",
@@ -685,7 +691,8 @@
       "customer_move": "Move a customer to another server",
       "system_update_panel": "Update the panel",
       "system_update_agents": "Update the agents",
-      "site_rebuild": "Rebuild a website from a backup"
+      "site_rebuild": "Rebuild a website from a backup",
+      "import_cpanel": "Import cPanel account {{cp_user}}"
     }
   },
   "sites": {
@@ -2382,6 +2389,77 @@
       "no_repo": "Connect the same S3 storage on the new server first (Backups → Add backup location, with its recovery key).",
       "warning": "Everything since the newest backup is lost. If the old server comes back, its copy stays until you remove it from this page.",
       "confirm": "Rebuild"
+    }
+  },
+  "imports": {
+    "title": "Import from cPanel",
+    "description": "Bring a cPanel account over from its full backup (cpmove file): websites with their files, MySQL databases with their passwords, and cron jobs.",
+    "step_upload": "1. Put the backup on a server",
+    "upload_body": "In cPanel, make a full account backup (or ask the host for the cpmove file). Copy it to {{dir}} on the server that will host the websites, then enter its file name here.",
+    "offline": "offline",
+    "file": "Backup file name",
+    "read": "Read backup",
+    "reading": "Reading the backup. A large one can take a few minutes.",
+    "step_choose": "2. Choose what to import from {{user}}",
+    "home_size": "Home folder: {{size}}",
+    "websites": "Websites",
+    "databases": "Databases",
+    "no_websites": "The backup has no websites.",
+    "no_databases": "The backup has no MySQL databases.",
+    "kind": {
+      "main": "Main domain",
+      "addon": "Addon domain",
+      "sub": "Subdomain"
+    },
+    "taken": "Already here",
+    "aliases": "Also: {{names}}",
+    "was_php": "was {{version}}",
+    "db_user": "User {{user}}",
+    "db_no_user": "No user; one is made",
+    "db_new_password": "gets a new password",
+    "cron_one": "{{count}} cron job",
+    "cron_other": "{{count}} cron jobs",
+    "cron_hint": "They run as the main website's account, with the website's PHP version. Paths in /home/{{user}}/ change to the new home folder.",
+    "cron_needs_main": "Cron jobs go to the main website: choose it to import them.",
+    "not_yet": "Not imported yet",
+    "not_mail_one": "Email: {{count}} account on {{domains}} domain. Recreate it under Email.",
+    "not_mail_other": "Email: {{count}} accounts on {{domains}} domains. Recreate them under Email.",
+    "not_dns": "DNS zones ({{zones}}): point the domains at this server, or add the zones under DNS.",
+    "not_certs": "Certificates: new ones are issued once the domains point here.",
+    "summary": "{{sites}} websites, {{databases}} databases",
+    "start": "Import",
+    "running": "Importing…",
+    "running_body": "The websites and databases are being set up, then the files and data are copied in. You can leave this page; the import goes on.",
+    "done": "Import finished",
+    "failed": "The import failed",
+    "failed_body": "Websites and databases the panel made for it are still listed. Delete them before you try again.",
+    "files": "Files",
+    "files_value_one": "{{count}} file, {{size}}",
+    "files_value_other": "{{count}} files, {{size}}",
+    "cron_jobs": "Cron jobs",
+    "new_passwords": "These databases have new passwords: {{names}}. Set the new password in the website's configuration (on the database's page).",
+    "not_imported": "Not imported",
+    "after": "Check each website (for example with an entry in your computer's hosts file), then point the domains' DNS at this server. Certificates are issued once the domains point here.",
+    "open_sites": "Open websites",
+    "another": "Import another",
+    "paths_changed_one": "The old home folder's path was changed in {{count}} file",
+    "paths_changed_other": "The old home folder's path was changed in {{count}} files",
+    "note": {
+      "certificate": "Certificate of {{name}}: a new one is issued once the domain points here",
+      "mail_one": "Email: {{count}} account on {{domains}} domain",
+      "mail_other": "Email: {{count}} accounts on {{domains}} domains",
+      "dns_zone": "DNS zone {{name}}",
+      "folder_one": "The {{name}} folder ({{count}} entry)",
+      "folder_other": "The {{name}} folder ({{count}} entries)",
+      "links_outside_one": "{{count}} link that points outside the website",
+      "links_outside_other": "{{count}} links that point outside the website",
+      "special_files_one": "{{count}} special file (device, pipe…)",
+      "special_files_other": "{{count}} special files (devices, pipes…)",
+      "db_user": "Database user {{name}} for {{detail}}: here a database has a user of its own, now {{detail}}",
+      "cron_line": "Cron job that could not be read: {{name}}",
+      "cron_setting": "Cron setting {{name}}",
+      "cron_no_main_one": "{{count}} cron job: it belongs to the main website, which was not imported",
+      "cron_no_main_other": "{{count}} cron jobs: they belong to the main website, which was not imported"
     }
   }
 }

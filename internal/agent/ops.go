@@ -49,6 +49,18 @@ func opError(code, format string, a ...any) *agentproto.OpError {
 // Dispatch runs one operation requested by the panel.
 func Dispatch(ctx context.Context, op string, params json.RawMessage) (any, *agentproto.OpError) {
 	switch op {
+	case agentproto.OpImportInspect:
+		var p agentproto.ImportInspectParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return importInspect(ctx, realSystem, p)
+	case agentproto.OpImportApply:
+		var p agentproto.ImportApplyParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return importApply(ctx, realSystem, p)
 	case agentproto.OpTransferFinish:
 		var p agentproto.TransferFinishParams
 		if err := json.Unmarshal(params, &p); err != nil {

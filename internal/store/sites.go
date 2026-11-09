@@ -338,3 +338,12 @@ func (s *Store) LinuxUserTaken(ctx context.Context, name string) (bool, error) {
 	err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM sites WHERE linux_user = $1)`, name).Scan(&taken)
 	return taken, err
 }
+
+// HostnamesTaken returns which of the names a site or app already uses.
+func (s *Store) HostnamesTaken(ctx context.Context, names []string) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `SELECT hostname FROM site_hostnames WHERE hostname = ANY($1) ORDER BY hostname`, names)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowTo[string])
+}

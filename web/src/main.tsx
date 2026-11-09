@@ -29,6 +29,7 @@ import { ServerSecurityPage } from "./pages/SecurityPage";
 import { CustomersPage, PackagesPage } from "./pages/CustomersPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { UpdatesPage } from "./pages/UpdatesPage";
+import { ImportPage } from "./pages/ImportPage";
 import { TokensPage } from "./pages/TokensPage";
 import { AppTerminalPage, ServerTerminalPage } from "./pages/TerminalPage";
 
@@ -115,6 +116,7 @@ const router = createBrowserRouter([
           { path: "/servers/:id/terminal", element: <ServerTerminalPage /> },
           { path: "/audit", element: <AuditPage /> },
           { path: "/settings/updates", element: <UpdatesPage /> },
+          { path: "/import", element: <ImportPage /> },
         ],
       },
       { path: "*", element: <NotFound /> },

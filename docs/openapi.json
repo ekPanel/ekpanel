@@ -3735,6 +3735,76 @@
         ]
       }
     },
+    "/api/v1/imports": {
+      "post": {
+        "operationId": "postImports",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Import websites, databases and cron jobs from a cPanel backup",
+        "tags": [
+          "imports"
+        ],
+        "x-ekpanel-scope": "sites"
+      }
+    },
+    "/api/v1/imports/inspect": {
+      "post": {
+        "operationId": "postImportsInspect",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Read a cPanel backup on a server: its websites, databases and cron jobs",
+        "tags": [
+          "imports"
+        ],
+        "x-ekpanel-scope": "sites"
+      }
+    },
     "/api/v1/mail/domains": {
       "get": {
         "operationId": "getMailDomains",

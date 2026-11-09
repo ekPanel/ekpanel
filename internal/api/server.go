@@ -54,6 +54,9 @@ type Server struct {
 
 	setupMu    sync.Mutex
 	setupToken string
+
+	// importPlans keeps recent backup inspections, so an import does not read the archive again.
+	importPlans sync.Map
 }
 
 func New(st *store.Store, h *hub.Hub, log *slog.Logger, opts Options) *Server {
@@ -238,6 +241,8 @@ func (s *Server) router() chi.Router {
 			r.Post("/apps/{id}/move", s.handleMoveApp)
 			r.Get("/apps/{id}/moves", s.handleAppMoves)
 			r.Post("/moves/{id}/cleanup", s.handleMoveCleanup)
+			r.Post("/imports/inspect", s.handleInspectImport)
+			r.Post("/imports", s.handleImport)
 			r.Get("/updates", s.handleGetUpdates)
 			r.Post("/updates/check", s.handleCheckUpdates)
 			r.With(notImpersonating).Post("/updates/panel", s.handleUpdatePanel)

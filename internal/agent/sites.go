@@ -652,7 +652,15 @@ var caddyTemplate = template.Must(template.New("caddy").Funcs(template.FuncMap{"
 	}
 {{- end}}
 {{- if .PHP}}
-	php_fastcgi unix/{{.Socket}}
+	# Like Apache's DirectoryIndex: a folder with only an index.html is served too.
+	@dirIndex {
+		file {path}/index.html
+		not path */
+	}
+	redir @dirIndex {path}/ 308
+	php_fastcgi unix/{{.Socket}} {
+		try_files {path} {path}/index.php {path}/index.html index.php
+	}
 {{- end}}
 	file_server
 	log {

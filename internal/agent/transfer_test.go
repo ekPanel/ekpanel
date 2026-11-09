@@ -43,7 +43,7 @@ func transferSystem(t *testing.T, loaded *[]string) *system {
 		return nil, cmd.Run()
 	}
 	s.run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
-		if name == "chown" {
+		if name == "chown" || name == "setfacl" {
 			return nil, nil
 		}
 		if name == "tar" {

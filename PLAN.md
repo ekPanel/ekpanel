@@ -969,11 +969,42 @@ whole customers):
   and shown on the site's page.
 
 **4d. Importers**
-- [ ] cPanel backups (cpmove): accounts, files, MySQL databases and users, mail accounts and
-      mail, DNS zones, cron jobs, SSL certificates
+- [x] cPanel backups (cpmove): websites with their files, MySQL databases with their users
+      and password hashes, cron jobs, and a report. Tried in the VM: a PHP 8.2 site with a
+      MySQL database, a parked domain, a symlink and a cron job, read and imported from the
+      page in 5 s (51 s when PHP 8.2 had to be installed); the site served its database's
+      Bangla text with the old password unchanged
+- [ ] cPanel mail accounts and mail, DNS zones and SSL certificates
 - [ ] aaPanel sites and databases; plain WordPress from another host (files and database)
 - [ ] Coolify applications and services (Compose and environment)
-- [ ] A report of what was imported and what was not
+- [x] A report of what was imported and what was not (cPanel; the others will add to it)
+
+How the cPanel import works (decided 2026-11-09; websites, files, MySQL and cron first; mail,
+DNS zones and certificates next):
+- **The archive** (`cpmove-<user>.tar.gz`, from WHM's "Transfer or Restore a cPanel Account" or
+  `/scripts/pkgacct`) is copied to the target server's `/srv/ekpanel/imports/`; the agent only
+  reads files there. It is read in one pass, the home folder too (`homedir.tar` inside, or a
+  `homedir/` folder).
+- **Inspect** shows what is in it: the main domain, addon domains and subdomains with their
+  document roots and PHP versions, parked domains (they become extra domains of the main
+  website), each MySQL database with the user that can use it and that user's password hash,
+  cron jobs, and what is not imported yet (mail accounts, DNS zones, certificates).
+- **Import** makes the chosen websites (PHP, each with its own account) and databases in the
+  panel, for an administrator or a customer (inside their package's limits), then the agent
+  puts each document root's files into its website and loads each dump. Databases keep their
+  names, users and password hashes, so `wp-config.php` and other settings keep working. Cron
+  jobs go to the main website with `/home/<cPanel user>/` changed to its new home and
+  cPanel's PHP binaries changed to the website's version (`php8.2`).
+- **Paths in files:** small text files (configuration and code, up to 1 MB) that name
+  `/home/<cPanel user>/…` get the new place (a document root becomes its website's
+  `public_html`); paths stored in databases stay as they were.
+- **The report** lists what was imported and what was not, as codes the UI puts into words.
+- **Links in the archive** are kept only when they stay inside the website, and every file
+  is written through the home folder's `os.Root`, so a chain of links (each harmless alone)
+  cannot lead the agent's root-owned writes into another account.
+- Found while trying it: Caddy's `php_fastcgi` served `index.php` for a folder that has only
+  an `index.html` (an addon domain's folder inside `public_html`); PHP websites now serve it,
+  and redirect such a folder to its trailing slash, as Apache does.
 
 **4e. Resellers and white-label**
 - [ ] Resellers: their own packages and customers within the limits an administrator gives

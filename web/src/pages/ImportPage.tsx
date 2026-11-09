@@ -1,0 +1,422 @@
+import { useEffect, useState, type FormEvent } from "react";
+import { Link } from "react-router";
+import { useTranslation } from "react-i18next";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CheckCircle2, FileArchive, Info, Loader2, XCircle } from "lucide-react";
+import { api, errorMessage, type Server, type Task } from "../lib/api";
+import { formatBytes } from "../lib/format";
+import { PageHeader } from "../components/AppShell";
+import { Badge, Button, Card, CopyButton, ErrorAlert, Field, cx } from "../components/ui";
+import { OwnerField } from "./CustomersPage";
+
+const importDir = "/srv/ekpanel/imports";
+const select = "h-9 rounded-lg border border-line bg-surface px-2 text-sm text-ink";
+
+interface CPanelDomain {
+  domain: string;
+  kind: "main" | "addon" | "sub";
+  docroot: string;
+  aliases: string[] | null;
+  php_version: string;
+  has_cert: boolean;
+}
+
+interface CPanelDatabase {
+  name: string;
+  user: string;
+  bytes: number;
+  password_hash?: string;
+}
+
+interface Inspection {
+  user: string;
+  main_domain: string;
+  domains: CPanelDomain[] | null;
+  databases: CPanelDatabase[] | null;
+  cron: string[] | null;
+  home_bytes: number;
+  mail_domains: number;
+  mail_accounts: number;
+  dns_zones: string[] | null;
+  cron_settings?: string[];
+  taken_domains: string[];
+  taken_databases: string[];
+  php_versions: string[];
+}
+
+interface ImportReport {
+  sites: string[];
+  databases: string[] | null;
+  cron: number;
+  files: number;
+  bytes: number;
+  new_password?: string[];
+  paths_changed?: string[];
+  paths_changed_count?: number;
+  not_imported: ImportNote[] | null;
+}
+
+/** One thing not imported; code picks the sentence (imports.note.*), the rest fills it in. */
+interface ImportNote {
+  code: string;
+  name?: string;
+  detail?: string;
+  count?: number;
+  domains?: number;
+}
+
+/** Import → cPanel: read a cpmove backup on a server, choose what to bring over, and import it. */
+export function ImportPage() {
+  const { t } = useTranslation();
+  const servers = useQuery({ queryKey: ["servers"], queryFn: () => api.get<Server[]>("/servers") });
+  const ready = (servers.data ?? []).filter((s) => s.enrolled_at).sort((a, b) => Number(b.online) - Number(a.online));
+  const [server, setServer] = useState("");
+  const [file, setFile] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [plan, setPlan] = useState<Inspection | null>(null);
+  const [taskId, setTaskId] = useState("");
+
+  useEffect(() => {
+    if (!server && ready.length > 0) setServer(ready[0].id);
+  }, [ready, server]);
+
+  const inspect = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    setPlan(null);
+    try {
+      setPlan(await api.post<Inspection>("/imports/inspect", { server_id: server, file: file.trim() }));
+    } catch (err) {
+      setError(errorMessage(t, err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const chosen = ready.find((s) => s.id === server);
+  const host = chosen?.public_ipv4 || chosen?.hostname || "SERVER";
+  const scp = `scp cpmove-USER.tar.gz root@${host}:${importDir}/`;
+  return (
+    // Room at the bottom: the running-tasks box must not cover the import button.
+    <div className="grid gap-6 pb-28">
+      <PageHeader title={t("imports.title")} description={t("imports.description")} />
+      {taskId ? (
+        <ImportProgress
+          taskId={taskId}
+          onAgain={() => {
+            setTaskId("");
+            setPlan(null);
+          }}
+        />
+      ) : (
+        <>
+          <Card className="grid gap-4 p-5">
+            <h2 className="text-lg font-semibold">{t("imports.step_upload")}</h2>
+            <p className="max-w-2xl text-sm text-muted">{t("imports.upload_body", { dir: importDir })}</p>
+            <div className="flex min-w-0 items-center gap-2 rounded-lg border border-line bg-sunk px-3 py-2 font-mono text-sm">
+              <span className="min-w-0 flex-1 truncate">{scp}</span>
+              <CopyButton text={scp} />
+            </div>
+            <form onSubmit={inspect} className="grid gap-4 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_auto] sm:items-end">
+              <label className="grid min-w-0 gap-1.5">
+                <span className="text-sm font-medium">{t("sites.server")}</span>
+                <select value={server} onChange={(e) => setServer(e.target.value)} className="h-10 rounded-lg border border-line bg-surface px-3 text-ink">
+                  {ready.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                      {s.online ? "" : ` (${t("imports.offline")})`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Field
+                label={t("imports.file")}
+                placeholder="cpmove-USER.tar.gz"
+                value={file}
+                onChange={(e) => setFile(e.target.value)}
+                className="[&_input]:font-mono"
+                autoComplete="off"
+                spellCheck={false}
+                required
+              />
+              <Button type="submit" variant="primary" loading={busy} disabled={!server || !file.trim()}>
+                <FileArchive className="size-4" aria-hidden /> {t("imports.read")}
+              </Button>
+            </form>
+            {busy && <p className="text-sm text-muted">{t("imports.reading")}</p>}
+            <ErrorAlert>{error}</ErrorAlert>
+          </Card>
+          {plan && (
+            <ImportChoices
+              key={server + file}
+              plan={plan}
+              server={server}
+              file={file.trim()}
+              onStarted={(id) => {
+                setTaskId(id);
+                window.scrollTo({ top: 0 });
+              }}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function ImportChoices({ plan, server, file, onStarted }: { plan: Inspection; server: string; file: string; onStarted: (taskId: string) => void }) {
+  const { t, i18n } = useTranslation();
+  const qc = useQueryClient();
+  const domains = plan.domains ?? [];
+  const dbs = plan.databases ?? [];
+  const cron = plan.cron ?? [];
+  const takenDomain = (d: CPanelDomain) => [d.domain, ...(d.aliases ?? [])].some((n) => plan.taken_domains.includes(n));
+  const [sites, setSites] = useState<string[]>(() => domains.filter((d) => !takenDomain(d)).map((d) => d.domain));
+  const [databases, setDatabases] = useState<string[]>(() => dbs.filter((d) => !plan.taken_databases.includes(d.name)).map((d) => d.name));
+  const [php, setPHP] = useState<Record<string, string>>(() =>
+    Object.fromEntries(domains.map((d) => [d.domain, plan.php_versions.includes(d.php_version) ? d.php_version : plan.php_versions.includes("8.4") ? "8.4" : plan.php_versions[0]])),
+  );
+  const [withCron, setWithCron] = useState(cron.length > 0);
+  const [owner, setOwner] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const lng = i18n.language;
+  const toggle = (list: string[], set: (v: string[]) => void, name: string) => set(list.includes(name) ? list.filter((n) => n !== name) : [...list, name]);
+  const mainChosen = domains.some((d) => d.kind === "main" && sites.includes(d.domain));
+
+  const start = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const task = await api.post<Task>("/imports", {
+        server_id: server,
+        file,
+        owner_id: owner,
+        sites,
+        databases,
+        php: Object.fromEntries(sites.map((s) => [s, php[s]])),
+        cron: withCron && mainChosen,
+      });
+      qc.invalidateQueries({ queryKey: ["sites"] });
+      qc.invalidateQueries({ queryKey: ["databases"] });
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      onStarted(task.id);
+    } catch (err) {
+      setError(errorMessage(t, err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const notes: string[] = [];
+  if (plan.mail_accounts > 0) notes.push(t("imports.not_mail", { count: plan.mail_accounts, domains: plan.mail_domains }));
+  if (plan.dns_zones?.length) notes.push(t("imports.not_dns", { zones: plan.dns_zones.join(", ") }));
+  if (domains.some((d) => d.has_cert)) notes.push(t("imports.not_certs"));
+  for (const c of plan.cron_settings ?? []) notes.push(t("imports.note.cron_setting", { name: c }));
+
+  return (
+    <Card className="grid gap-6 p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-lg font-semibold">{t("imports.step_choose", { user: plan.user })}</h2>
+        <p className="text-sm text-muted">{t("imports.home_size", { size: formatBytes(plan.home_bytes, lng) })}</p>
+      </div>
+
+      <section className="grid gap-2">
+        <h3 className="font-semibold">{t("imports.websites")}</h3>
+        {domains.length === 0 ? (
+          <p className="text-sm text-muted">{t("imports.no_websites")}</p>
+        ) : (
+          <ul className="divide-y divide-line rounded-lg border border-line">
+            {domains.map((d) => {
+              const taken = takenDomain(d);
+              const on = sites.includes(d.domain);
+              return (
+                <li key={d.domain} className={cx("flex flex-wrap items-center gap-3 px-3 py-2.5", taken && "opacity-70")}>
+                  <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3">
+                    <input type="checkbox" checked={on} disabled={taken} onChange={() => toggle(sites, setSites, d.domain)} className="mt-1 accent-[var(--accent)]" />
+                    <span className="grid min-w-0 gap-0.5">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="truncate font-medium">{d.domain}</span>
+                        <Badge tone={d.kind === "main" ? "accent" : "neutral"}>{t(`imports.kind.${d.kind}`)}</Badge>
+                        {taken && <Badge tone="warn">{t("imports.taken")}</Badge>}
+                      </span>
+                      <span className="truncate font-mono text-xs text-muted">~/{d.docroot}</span>
+                      {!!d.aliases?.length && <span className="truncate text-xs text-muted">{t("imports.aliases", { names: d.aliases.join(", ") })}</span>}
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <span className="text-muted">PHP</span>
+                    <select value={php[d.domain]} disabled={!on} onChange={(e) => setPHP({ ...php, [d.domain]: e.target.value })} className={select}>
+                      {plan.php_versions.map((v) => (
+                        <option key={v} value={v}>
+                          {v}
+                        </option>
+                      ))}
+                    </select>
+                    {d.php_version && d.php_version !== php[d.domain] && <span className="text-xs text-muted">{t("imports.was_php", { version: d.php_version })}</span>}
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      <section className="grid gap-2">
+        <h3 className="font-semibold">{t("imports.databases")}</h3>
+        {dbs.length === 0 ? (
+          <p className="text-sm text-muted">{t("imports.no_databases")}</p>
+        ) : (
+          <ul className="divide-y divide-line rounded-lg border border-line">
+            {dbs.map((d) => {
+              const taken = plan.taken_databases.includes(d.name);
+              return (
+                <li key={d.name} className={cx("px-3 py-2.5", taken && "opacity-70")}>
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <input type="checkbox" checked={databases.includes(d.name)} disabled={taken} onChange={() => toggle(databases, setDatabases, d.name)} className="mt-1 accent-[var(--accent)]" />
+                    <span className="grid min-w-0 flex-1 gap-0.5">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="truncate font-mono font-medium">{d.name}</span>
+                        <span className="text-sm text-muted tabular-nums">{formatBytes(d.bytes, lng)}</span>
+                        {taken && <Badge tone="warn">{t("imports.taken")}</Badge>}
+                      </span>
+                      <span className="truncate text-xs text-muted">
+                        {d.user ? t("imports.db_user", { user: d.user }) : t("imports.db_no_user")}
+                        {d.user && !d.password_hash && ` · ${t("imports.db_new_password")}`}
+                      </span>
+                    </span>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      {cron.length > 0 && (
+        <section className="grid gap-2">
+          <label className="flex cursor-pointer items-start gap-3">
+            <input type="checkbox" checked={withCron && mainChosen} disabled={!mainChosen} onChange={(e) => setWithCron(e.target.checked)} className="mt-1 accent-[var(--accent)]" />
+            <span className="grid gap-0.5">
+              <span className="font-semibold">{t("imports.cron", { count: cron.length })}</span>
+              <span className="text-sm text-muted">{mainChosen ? t("imports.cron_hint", { user: plan.user }) : t("imports.cron_needs_main")}</span>
+            </span>
+          </label>
+          <ul className="grid gap-1 ps-7">
+            {cron.map((c, i) => (
+              <li key={i} className="truncate font-mono text-xs text-muted">
+                {c}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <OwnerField value={owner} onChange={setOwner} />
+
+      {notes.length > 0 && (
+        <div className="flex gap-3 rounded-lg bg-sunk px-4 py-3 text-sm">
+          <Info className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden />
+          <div className="grid gap-1">
+            <p className="font-medium">{t("imports.not_yet")}</p>
+            <ul className="list-disc ps-5 text-muted">
+              {notes.map((n) => (
+                <li key={n}>{n}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      <ErrorAlert>{error}</ErrorAlert>
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        <p className="text-sm text-muted">{t("imports.summary", { sites: sites.length, databases: databases.length })}</p>
+        <Button variant="primary" loading={busy} disabled={sites.length + databases.length === 0} onClick={start}>
+          {t("imports.start")}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+function ImportProgress({ taskId, onAgain }: { taskId: string; onAgain: () => void }) {
+  const { t, i18n } = useTranslation();
+  const task = useQuery({
+    queryKey: ["tasks", taskId],
+    queryFn: () => api.get<Task>(`/tasks/${taskId}`),
+    refetchInterval: (q) => (q.state.data?.status === "succeeded" || q.state.data?.status === "failed" ? false : 2000),
+  });
+  const d = task.data;
+  const report = (d?.result ?? null) as ImportReport | null;
+  const done = d?.status === "succeeded";
+  const failed = d?.status === "failed";
+  return (
+    <Card className="grid gap-4 p-5" aria-live="polite">
+      <div className="flex items-center gap-3">
+        {done ? (
+          <CheckCircle2 className="size-6 text-ok" aria-hidden />
+        ) : failed ? (
+          <XCircle className="size-6 text-crit" aria-hidden />
+        ) : (
+          <Loader2 className="size-6 animate-spin text-accent" aria-hidden />
+        )}
+        <h2 className="text-lg font-semibold">{done ? t("imports.done") : failed ? t("imports.failed") : t("imports.running")}</h2>
+      </div>
+      {!done && !failed && <p className="text-sm text-muted">{t("imports.running_body")}</p>}
+      {failed && d?.error && <ErrorAlert>{d.error}</ErrorAlert>}
+      {failed && <p className="text-sm text-muted">{t("imports.failed_body")}</p>}
+      {done && report && (
+        <div className="grid gap-4">
+          <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 text-sm">
+            <dt className="text-muted">{t("imports.websites")}</dt>
+            <dd>{report.sites.length ? report.sites.join(", ") : "—"}</dd>
+            <dt className="text-muted">{t("imports.databases")}</dt>
+            <dd className="font-mono">{report.databases?.length ? report.databases.join(", ") : "—"}</dd>
+            <dt className="text-muted">{t("imports.files")}</dt>
+            <dd>{t("imports.files_value", { count: report.files, size: formatBytes(report.bytes, i18n.language) })}</dd>
+            <dt className="text-muted">{t("imports.cron_jobs")}</dt>
+            <dd>{report.cron}</dd>
+          </dl>
+          {!!report.paths_changed_count && (
+            <details className="text-sm">
+              <summary className="cursor-pointer">{t("imports.paths_changed", { count: report.paths_changed_count })}</summary>
+              <ul className="mt-1 grid gap-0.5 ps-5 font-mono text-xs text-muted">
+                {(report.paths_changed ?? []).map((p) => (
+                  <li key={p} className="truncate">
+                    /home/{p}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          {!!report.new_password?.length && (
+            <p className="rounded-lg bg-warn-soft px-4 py-3 text-sm text-warn">{t("imports.new_passwords", { names: report.new_password.join(", ") })}</p>
+          )}
+          {!!report.not_imported?.length && (
+            <div className="grid gap-1 text-sm">
+              <p className="font-medium">{t("imports.not_imported")}</p>
+              <ul className="list-disc ps-5 text-muted">
+                {report.not_imported.map((n, i) => (
+                  <li key={i} className="break-words">
+                    {t(`imports.note.${n.code}`, { ...n, defaultValue: [n.code, n.name, n.detail].filter(Boolean).join(": ") })}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <p className="text-sm text-muted">{t("imports.after")}</p>
+        </div>
+      )}
+      {(done || failed) && (
+        <div className="flex flex-wrap justify-end gap-2">
+          <Link to="/sites" className="inline-flex h-10 items-center rounded-lg px-4 font-medium text-accent hover:bg-sunk">
+            {t("imports.open_sites")}
+          </Link>
+          <Button onClick={onAgain}>{t("imports.another")}</Button>
+        </div>
+      )}
+    </Card>
+  );
+}

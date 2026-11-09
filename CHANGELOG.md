@@ -27,6 +27,13 @@ All notable changes to ekPanel are listed here. The format follows
 - Rebuild a website on another server from its newest backup, when its server is gone: connect
   the same S3 storage there with its recovery key, and the website's page offers the rebuild
   while the old server is offline (4c)
+- Import a cPanel account from its full backup (Admin → Import): websites with their files,
+  MySQL databases with the same users and passwords, and cron jobs; paths to the old home
+  folder in configuration files and cron jobs follow, and a report lists what was not
+  imported yet (email, DNS zones, certificates) (4d)
+
+### Changed
+- PHP websites serve a folder's `index.html` when it has no `index.php`, as Apache does (4d)
 
 ## [v0.1.0] - 2026-11-09
 
