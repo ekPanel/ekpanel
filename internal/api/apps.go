@@ -456,6 +456,9 @@ func (s *Server) handleDeleteApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, p := range previews {
+		if p.State == "deleting" {
+			continue // already going (its pull request was closed)
+		}
 		if _, err := s.store.MarkAppDeleting(r.Context(), p.ID, true); err != nil {
 			s.internalError(w, r, err)
 			return
