@@ -176,11 +176,15 @@ Each phase ends with something installable and usable.
 - FTP, PHP extensions/ini editor, redirects, hotlink protection
 
 ### Phase 4 — "Beyond"
+- Signed releases, one-line installer from releases, self-update of panel and agents
 - Multi-server: place sites/apps on any node, move between nodes
 - Reseller accounts, white-label, billing integrations
 - Importers (cPanel, aaPanel, Coolify)
-- Game servers module
-- Public API docs site, `panel` CLI, Terraform provider
+- WAF (Coraza) and rate limiting
+- Public API docs site, `ekpanel` CLI, Terraform provider
+
+### Phase 5 — Game servers
+- Minecraft and other game servers in containers, console, files, startup variables
 
 ---
 
@@ -806,4 +810,82 @@ Agreed (2026-11-07):
       ClamAV)
 
 **Next**
-- [ ] Phase 3 is done; phase 4 next
+- [x] Phase 3 is done; phase 4 next (section 13)
+
+---
+
+## 13. Phase 4 plan
+
+Agreed (2026-11-09):
+
+- **Release first.** Nobody else can install ekPanel, or keep it current, until there are
+  signed releases, an installer that downloads them and self-update. The GitHub workflow is
+  written and tried locally; nothing is pushed or published without the owner's go-ahead.
+- **In phase 4:** release and updates, the API with a CLI (and later Terraform), moving
+  between servers, importers, resellers and white-label, the WAF, billing integrations.
+- **Game servers move to phase 5.** They are a module of their own (Pterodactyl's scope) and
+  wait until the hosting side is released and in use.
+- **Order:** 4a → 4b → 4c → 4d → 4e → 4f → 4g, each tested in the VM like phase 3. Billing
+  comes last: it builds on the API tokens (4b) and resellers (4e).
+
+**4a. Releases and updates**
+- [ ] Release builds in CI (linux amd64 and arm64) with checksums and signatures (minisign or
+      cosign), reproducible from a tag; the web UI built into the panel
+- [ ] One-line installer that downloads a release, checks its signature and installs panel,
+      agent and Caddy; also installs an agent alone for a second server
+- [ ] Self-update: the panel shows a newer release, updates itself (keeping the old binary
+      to go back to), then updates every agent through a typed operation, one server at a time
+- [ ] Release notes and a changelog; versions shown in the panel per server
+- [ ] Weblate (or another translation site) set up before the first public release
+
+**4b. API, CLI, Terraform**
+- [ ] API tokens per user with scopes (read, websites, databases, DNS …) and expiry, shown
+      once, revocable, in the audit log
+- [ ] An OpenAPI description of the API, checked in CI against the handlers, and a docs site
+- [ ] The `ekpanel` CLI for the same API (sites, databases, apps, DNS, backups), with tokens
+- [ ] Terraform provider: later in phase 4, once the API is stable
+
+**4c. Moving between servers**
+- [ ] Move a website (files, databases, cron, settings), an app or a database to another
+      ekPanel server: copy, switch DNS (hosted or Cloudflare) and the certificate, then remove
+      the old copy after a check
+- [ ] Restore a backup onto another server; move a whole customer
+- [ ] Server-to-server copy over the agents' own connection, not public SSH
+
+**4d. Importers**
+- [ ] cPanel backups (cpmove): accounts, files, MySQL databases and users, mail accounts and
+      mail, DNS zones, cron jobs, SSL certificates
+- [ ] aaPanel sites and databases; plain WordPress from another host (files and database)
+- [ ] Coolify applications and services (Compose and environment)
+- [ ] A report of what was imported and what was not
+
+**4e. Resellers and white-label**
+- [ ] Resellers: their own packages and customers within the limits an administrator gives
+      them; they see only their customers
+- [ ] White-label: name, logo, colors and the panel's domain, per panel and per reseller
+- [ ] Sub-users of an account with chosen permissions (only files, only email …)
+- [ ] Passkeys (WebAuthn) besides passwords and two-factor codes; active sessions listed and
+      ended from the panel
+
+**4f. Security center**
+- [ ] WAF: Coraza with the OWASP Core Rule Set in a Caddy that ekPanel builds and ships (with
+      the modules it needs), per site on/off and in detect-only mode first
+- [ ] Rate limiting per site and for the panel's sign-in, fail2ban-style blocking for
+      services CrowdSec does not read
+
+**4g. Billing integrations**
+- [ ] Provisioning modules for WHMCS, Blesta and Paymenter: create, suspend, unsuspend,
+      change package and remove accounts, single sign-on into the panel
+- [ ] Built-in billing (Stripe, bKash, SSLCommerz): after the modules, if still wanted
+
+**Smaller things left from earlier phases** (taken along where they fit)
+- [ ] Database browser and import/export (4b or 4c)
+- [ ] Single-file restore and downloading a backup (4c)
+- [ ] Suspending a customer, bandwidth limits in packages, alerts for failed cron jobs (4e)
+- [ ] DNS-01 wildcard certificates through Cloudflare or the built-in DNS (4a or later)
+- [ ] Moving a website, database or app to another owner (4e)
+- [ ] Not yet tried for real: the Cloudflare API, outside mail delivery (need an account,
+      a domain and a server with port 25)
+
+**Next**
+- [ ] 4a. Releases and updates
