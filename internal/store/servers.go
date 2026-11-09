@@ -21,14 +21,19 @@ type Server struct {
 	AgentVersion    string     `json:"agent_version"`
 	LastSeenAt      *time.Time `json:"last_seen_at"`
 	CreatedAt       time.Time  `json:"created_at"`
+	// Addresses are what the agent reports; PublicIPv4/6 are set by hand, or nil.
+	Addresses  []string `json:"addresses"`
+	PublicIPv4 *string  `json:"public_ipv4"`
+	PublicIPv6 *string  `json:"public_ipv6"`
 }
 
-const serverColumns = `id, name, enrolled_at, enroll_expires_at, hostname, os, kernel, arch, cpu_count, agent_version, last_seen_at, created_at`
+const serverColumns = `id, name, enrolled_at, enroll_expires_at, hostname, os, kernel, arch, cpu_count, agent_version, last_seen_at, created_at,
+	addresses, host(public_ipv4), host(public_ipv6)`
 
 func scanServer(row pgx.Row) (Server, error) {
 	var s Server
 	err := row.Scan(&s.ID, &s.Name, &s.EnrolledAt, &s.EnrollExpiresAt, &s.Hostname, &s.OS, &s.Kernel, &s.Arch,
-		&s.CPUCount, &s.AgentVersion, &s.LastSeenAt, &s.CreatedAt)
+		&s.CPUCount, &s.AgentVersion, &s.LastSeenAt, &s.CreatedAt, &s.Addresses, &s.PublicIPv4, &s.PublicIPv6)
 	return s, notFound(err)
 }
 
@@ -44,10 +49,11 @@ func (s *Store) CreateServer(ctx context.Context, name string, enrollHash []byte
 }
 
 // RenewEnrollToken replaces the enrolment token of a server, for example after it expired.
-// It also revokes the current agent credential, so a re-enrolled agent replaces the old one.
+// It also revokes the current agent certificate, so a re-enrolled agent replaces the old one.
 func (s *Store) RenewEnrollToken(ctx context.Context, id string, enrollHash []byte) (Server, error) {
 	return scanServer(s.pool.QueryRow(ctx, `
-		UPDATE servers SET enroll_token_hash = $2, enroll_expires_at = now() + $3 * interval '1 second', agent_secret_hash = NULL
+		UPDATE servers SET enroll_token_hash = $2, enroll_expires_at = now() + $3 * interval '1 second',
+			agent_cert_sha256 = NULL, agent_cert_expires_at = NULL
 		WHERE id = $1
 		RETURNING `+serverColumns, id, enrollHash, int64(EnrollTokenTTL.Seconds())))
 }
@@ -72,27 +78,63 @@ func (s *Store) DeleteServer(ctx context.Context, id string) error {
 	return err
 }
 
-// EnrollServer consumes a valid enrolment token and stores the agent's credential hash.
-// The token works once: it is cleared in the same statement.
-func (s *Store) EnrollServer(ctx context.Context, tokenHash, secretHash []byte) (Server, error) {
-	return scanServer(s.pool.QueryRow(ctx, `
-		UPDATE servers
-		SET enroll_token_hash = NULL, enroll_expires_at = NULL, agent_secret_hash = $2, enrolled_at = now()
-		WHERE enroll_token_hash = $1 AND enroll_expires_at > now()
-		RETURNING `+serverColumns, tokenHash, secretHash))
-}
+// IssueFunc signs an agent certificate for a server ID and returns its fingerprint and expiry.
+type IssueFunc func(serverID string) (fingerprint string, expires time.Time, err error)
 
-// AuthenticateAgent checks an agent's credential for server id.
-func (s *Store) AuthenticateAgent(ctx context.Context, id string, secretHash []byte) (Server, error) {
-	var stored []byte
-	err := s.pool.QueryRow(ctx, `SELECT agent_secret_hash FROM servers WHERE id = $1`, id).Scan(&stored)
+// EnrollServer consumes a valid enrolment token and records the certificate that issue
+// creates for the server. The token works once: the row stays locked until it is cleared.
+func (s *Store) EnrollServer(ctx context.Context, tokenHash []byte, issue IssueFunc) (Server, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Server{}, err
+	}
+	defer tx.Rollback(ctx)
+	var id string
+	err = tx.QueryRow(ctx, `
+		SELECT id FROM servers WHERE enroll_token_hash = $1 AND enroll_expires_at > now() FOR UPDATE`, tokenHash).Scan(&id)
 	if err != nil {
 		return Server{}, notFound(err)
 	}
-	if stored == nil || subtle.ConstantTimeCompare(stored, secretHash) != 1 {
+	fp, expires, err := issue(id)
+	if err != nil {
+		return Server{}, err
+	}
+	srv, err := scanServer(tx.QueryRow(ctx, `
+		UPDATE servers
+		SET enroll_token_hash = NULL, enroll_expires_at = NULL, enrolled_at = now(),
+		    agent_cert_sha256 = $2, agent_cert_expires_at = $3
+		WHERE id = $1
+		RETURNING `+serverColumns, id, fp, expires))
+	if err != nil {
+		return Server{}, err
+	}
+	return srv, tx.Commit(ctx)
+}
+
+// AuthenticateAgent accepts a verified client certificate only if it is the one the panel
+// last issued to that server.
+func (s *Store) AuthenticateAgent(ctx context.Context, id, fingerprint string) (Server, error) {
+	var stored *string
+	err := s.pool.QueryRow(ctx, `SELECT agent_cert_sha256 FROM servers WHERE id = $1`, id).Scan(&stored)
+	if err != nil {
+		return Server{}, notFound(err)
+	}
+	if stored == nil || subtle.ConstantTimeCompare([]byte(*stored), []byte(fingerprint)) != 1 {
 		return Server{}, ErrNotFound
 	}
 	return s.GetServer(ctx, id)
+}
+
+// ReplaceAgentCert swaps an agent's certificate during renewal. It only succeeds while
+// oldFingerprint is still current, so a revoked agent cannot renew itself back in.
+func (s *Store) ReplaceAgentCert(ctx context.Context, id, oldFingerprint, newFingerprint string, expires time.Time) error {
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE servers SET agent_cert_sha256 = $3, agent_cert_expires_at = $4
+		WHERE id = $1 AND agent_cert_sha256 = $2`, id, oldFingerprint, newFingerprint, expires)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
 }
 
 type ServerFacts struct {
@@ -102,13 +144,27 @@ type ServerFacts struct {
 	Arch         string
 	CPUCount     int
 	AgentVersion string
+	Addresses    []string
 }
 
 func (s *Store) UpdateServerFacts(ctx context.Context, id string, f ServerFacts) error {
 	_, err := s.pool.Exec(ctx, `
-		UPDATE servers SET hostname = $2, os = $3, kernel = $4, arch = $5, cpu_count = $6, agent_version = $7, last_seen_at = now()
-		WHERE id = $1`, id, f.Hostname, f.OS, f.Kernel, f.Arch, f.CPUCount, f.AgentVersion)
+		UPDATE servers SET hostname = $2, os = $3, kernel = $4, arch = $5, cpu_count = $6, agent_version = $7,
+			addresses = COALESCE($8, addresses), last_seen_at = now()
+		WHERE id = $1`, id, f.Hostname, f.OS, f.Kernel, f.Arch, f.CPUCount, f.AgentVersion, f.Addresses)
 	return err
+}
+
+// SetServerAddresses sets the public addresses DNS records use (nil: found automatically).
+func (s *Store) SetServerAddresses(ctx context.Context, id string, v4, v6 *string) (Server, error) {
+	tag, err := s.pool.Exec(ctx, `UPDATE servers SET public_ipv4 = $2::inet, public_ipv6 = $3::inet WHERE id = $1`, id, v4, v6)
+	if err != nil {
+		return Server{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		return Server{}, ErrNotFound
+	}
+	return s.GetServer(ctx, id)
 }
 
 func (s *Store) TouchServer(ctx context.Context, id string) error {

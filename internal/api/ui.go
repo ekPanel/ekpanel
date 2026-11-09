@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const uiNotBuilt = `<!doctype html><meta charset="utf-8"><title>HostPanel</title>
+const uiNotBuilt = `<!doctype html><meta charset="utf-8"><title>ekPanel</title>
 <p>The web UI has not been built into this binary. Run <code>make ui</code>, then rebuild,
 or use the Vite dev server (<code>make dev-ui</code>).</p>`
 

@@ -7,15 +7,17 @@ import (
 	"encoding/base64"
 	"errors"
 	"image/png"
+	"maps"
 	"net/http"
 	"net/mail"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/pquerna/otp"
 
-	"hostpanel/internal/auth"
-	"hostpanel/internal/store"
+	"ekpanel/internal/auth"
+	"ekpanel/internal/store"
 )
 
 type ctxKey int
@@ -28,9 +30,9 @@ const (
 func (s *Server) cookieName() string {
 	if s.opts.SecureCookies {
 		// The __Host- prefix makes browsers refuse the cookie unless it is Secure, host-only and Path=/.
-		return "__Host-hostpanel_session"
+		return "__Host-ekpanel_session"
 	}
-	return "hostpanel_session"
+	return "ekpanel_session"
 }
 
 func (s *Server) setSessionCookie(w http.ResponseWriter, token string, maxAge int) {
@@ -84,10 +86,10 @@ func requireUser(next http.Handler) http.Handler {
 	})
 }
 
-func requireRole(role string) func(http.Handler) http.Handler {
+func requireRole(roles ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return requireUser(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if currentUser(r).Role != role {
+			if !slices.Contains(roles, currentUser(r).Role) {
 				writeError(w, http.StatusForbidden, "forbidden", "you do not have permission for this")
 				return
 			}
@@ -96,10 +98,29 @@ func requireRole(role string) func(http.Handler) http.Handler {
 	}
 }
 
+func notImpersonating(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if currentUser(r).ImpersonatorID != nil {
+			writeError(w, http.StatusForbidden, "forbidden", "only the account's owner can do this")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (s *Server) audit(r *http.Request, action, target string, details map[string]any) {
 	var actor *string
 	if u := currentUser(r); u != nil {
 		actor = &u.ID
+		if u.ImpersonatorID != nil {
+			// The administrator did it, in the customer's account.
+			actor = u.ImpersonatorID
+			details = maps.Clone(details)
+			if details == nil {
+				details = map[string]any{}
+			}
+			details["as_customer"] = u.ID
+		}
 	}
 	s.auditAs(r, actor, action, target, details)
 }
@@ -274,6 +295,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		s.internalError(w, r, err)
 		return
 	}
+	s.checkNewSignIn(r, &u)
 	s.auditAs(r, &u.ID, "auth.login", u.Email, nil)
 	writeJSON(w, http.StatusOK, u)
 }
@@ -349,7 +371,7 @@ func (s *Server) handleTOTPSetup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "totp_already_enabled", "two-factor authentication is already on")
 		return
 	}
-	secret, url, err := auth.NewTOTP("HostPanel", u.Email)
+	secret, url, err := auth.NewTOTP("ekPanel", u.Email)
 	if err != nil {
 		s.internalError(w, r, err)
 		return

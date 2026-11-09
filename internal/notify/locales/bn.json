@@ -1,0 +1,77 @@
+{
+  "events": {
+    "server_offline": {
+      "title": "সার্ভার {{server}} অফলাইন",
+      "body": "{{server}}-এর এজেন্ট {{minutes}} মিনিট ধরে সংযুক্ত নেই। এর ওয়েবসাইটগুলো বন্ধ থাকতে পারে।"
+    },
+    "server_online": {
+      "title": "সার্ভার {{server}} আবার অনলাইন",
+      "body": "{{server}}-এর এজেন্ট আবার সংযুক্ত হয়েছে।"
+    },
+    "server_disk": {
+      "title": "{{server}}-এর ডিস্ক প্রায় ভরা",
+      "body": "{{server}}-এর ডিস্ক {{percent}}% ভরা। ওয়েবসাইট আর ডেটাবেস লেখা বন্ধ করার আগে কিছু জায়গা খালি করুন।"
+    },
+    "backup_failed": {
+      "title": "{{repo}}-এ ব্যাকআপ ব্যর্থ",
+      "body": "{{message}}"
+    },
+    "backup_partial": {
+      "title": "{{repo}}-এ ব্যাকআপ আংশিক ব্যর্থ",
+      "body": "{{message}}"
+    },
+    "site_error": {
+      "title": "ওয়েবসাইট {{name}}-এ সমস্যা",
+      "body": "{{message}}"
+    },
+    "certificate_expiring": {
+      "title": "{{name}}-এর সার্টিফিকেটের মেয়াদ শিগগির শেষ হবে",
+      "body": "মেয়াদ শেষ হবে {{date}}-এ। নতুন একটি আপলোড করুন, অথবা সাইটটিকে আবার ফ্রি সার্টিফিকেটে ফেরান।"
+    },
+    "app_error": {
+      "title": "অ্যাপ {{name}}-এ সমস্যা",
+      "body": "{{message}}"
+    },
+    "deploy_failed": {
+      "title": "{{name}}-এর ডিপ্লয় ব্যর্থ হয়েছে",
+      "body": "{{message}}"
+    },
+    "mail_error": {
+      "title": "{{name}}-এর ইমেইলে সমস্যা",
+      "body": "{{message}}"
+    },
+    "wordpress_update": {
+      "title": "{{name}}-এ WordPress আপডেটে সমস্যা",
+      "body": "{{message}}"
+    },
+    "malware_found": {
+      "title": "{{name}}-এ সম্ভাব্য malware",
+      "body": "Malware scan-এ {{count}}টা সন্দেহজনক ফাইল পাওয়া গেছে ({{quarantined}}টা quarantine-এ সরানো হয়েছে):\n{{files}}\n\nWebsite-এর পাতায় ফাইলগুলো দেখুন: মুছে ফেলুন, অথবা ক্ষতিকর না হলে নিরাপদ হিসেবে চিহ্নিত করুন।"
+    },
+    "database_error": {
+      "title": "ডেটাবেস {{name}}-এ সমস্যা",
+      "body": "{{message}}"
+    },
+    "quota_warning": {
+      "title": "ডিস্কের জায়গা প্রায় শেষ",
+      "body": "{{customer}} {{limit}}-এর মধ্যে {{used}} ব্যবহার করছেন। ভরে গেলে ফাইল বা নতুন ওয়েবসাইট যোগ করা যাবে না।"
+    },
+    "quota_full": {
+      "title": "ডিস্কের জায়গা শেষ",
+      "body": "{{customer}} {{limit}}-এর মধ্যে {{used}} ব্যবহার করছেন। জায়গা খালি না করা পর্যন্ত ফাইল বা নতুন ওয়েবসাইট যোগ করা যাবে না।"
+    },
+    "task_failed": {
+      "title": "একটা কাজ ব্যর্থ: {{task}}",
+      "body": "{{message}}"
+    },
+    "login_new_ip": {
+      "title": "আপনার অ্যাকাউন্টে নতুন সাইন-ইন",
+      "body": "কেউ {{ip}} থেকে আপনার ekPanel অ্যাকাউন্টে ঢুকেছেন। আপনি না হলে পাসওয়ার্ড বদলান আর অন্য ডিভাইস থেকে সাইন আউট করুন।"
+    },
+    "test": {
+      "title": "ekPanel থেকে পরীক্ষামূলক নোটিফিকেশন",
+      "body": "এই চ্যানেল কাজ করছে। এখানে নোটিফিকেশন পাবেন।"
+    }
+  },
+  "open": "ekPanel-এ খুলুন: {{link}}"
+}

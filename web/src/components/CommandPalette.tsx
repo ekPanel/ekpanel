@@ -2,8 +2,25 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { CornerDownLeft, Gauge, Plus, ScrollText, Search, Server as ServerIcon, ShieldCheck } from "lucide-react";
-import { api, type Server, type User } from "../lib/api";
+import {
+  ArchiveRestore,
+  Bell,
+  Boxes,
+  CloudCog,
+  CornerDownLeft,
+  Database as DatabaseIcon,
+  Gauge,
+  Globe,
+  LayoutGrid,
+  Package as PackageIcon,
+  Plus,
+  ScrollText,
+  Search,
+  Server as ServerIcon,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
+import { api, type Database, type Server, type Site, type User } from "../lib/api";
 import { cx } from "./ui";
 
 interface Item {
@@ -29,6 +46,16 @@ export function CommandPalette({ open, onClose, user }: { open: boolean; onClose
     queryFn: () => api.get<Server[]>("/servers"),
     enabled: open && isAdmin,
   });
+  const sites = useQuery({
+    queryKey: ["sites", "all"],
+    queryFn: () => api.get<Site[]>("/sites"),
+    enabled: open,
+  });
+  const databases = useQuery({
+    queryKey: ["databases", "all"],
+    queryFn: () => api.get<Database[]>("/databases"),
+    enabled: open,
+  });
 
   useEffect(() => {
     const d = ref.current;
@@ -48,10 +75,31 @@ export function CommandPalette({ open, onClose, user }: { open: boolean; onClose
     };
     const pages = t("palette.pages");
     const list: Item[] = [{ id: "dash", group: pages, label: t("nav.dashboard"), icon: <Gauge />, run: go("/") }];
+    list.push(
+      { id: "sites", group: pages, label: t("nav.sites"), icon: <Globe />, run: go("/sites") },
+      { id: "databases", group: pages, label: t("nav.databases"), icon: <DatabaseIcon />, run: go("/databases") },
+      { id: "apps", group: pages, label: t("nav.apps"), icon: <Boxes />, run: go("/apps") },
+      { id: "catalog", group: pages, label: t("catalog.title"), icon: <LayoutGrid />, run: go("/apps/catalog") },
+      { id: "dns", group: pages, label: t("nav.dns"), icon: <CloudCog />, run: go("/dns") },
+      { id: "add-site", group: t("palette.actions"), label: t("sites.add"), icon: <Plus />, run: go("/sites?add=1") },
+      { id: "add-db", group: t("palette.actions"), label: t("databases.add"), icon: <Plus />, run: go("/databases?add=1") },
+      { id: "add-app", group: t("palette.actions"), label: t("apps.add"), icon: <Plus />, run: go("/apps?add=1") },
+    );
+    for (const d of databases.data ?? []) {
+      list.push({ id: "d-" + d.id, group: t("nav.databases"), label: d.name, hint: d.server_name, icon: <DatabaseIcon />, run: go(`/databases/${d.id}`) });
+    }
+    for (const s of sites.data ?? []) {
+      list.push({ id: "w-" + s.id, group: t("nav.sites"), label: s.domain_display, hint: s.server_name, icon: <Globe />, run: go(`/sites/${s.id}`) });
+    }
     if (isAdmin) {
       list.push(
+        { id: "customers", group: pages, label: t("nav.customers"), icon: <Users />, run: go("/customers") },
+        { id: "packages", group: pages, label: t("nav.packages"), icon: <PackageIcon />, run: go("/packages") },
+        { id: "add-customer", group: t("palette.actions"), label: t("customers.add"), icon: <Plus />, run: go("/customers?add=1") },
+        { id: "backups", group: pages, label: t("nav.backups"), icon: <ArchiveRestore />, run: go("/backups") },
         { id: "servers", group: pages, label: t("nav.servers"), icon: <ServerIcon />, run: go("/servers") },
         { id: "audit", group: pages, label: t("nav.audit"), icon: <ScrollText />, run: go("/audit") },
+        { id: "add-backup", group: t("palette.actions"), label: t("backups.add"), icon: <Plus />, run: go("/backups?add=1") },
         { id: "add-server", group: t("palette.actions"), label: t("servers.add"), icon: <Plus />, run: go("/servers?add=1") },
       );
       for (const s of servers.data ?? []) {
@@ -59,8 +107,9 @@ export function CommandPalette({ open, onClose, user }: { open: boolean; onClose
       }
     }
     list.push({ id: "security", group: pages, label: t("nav.security"), icon: <ShieldCheck />, run: go("/settings/security") });
+    list.push({ id: "notifications", group: pages, label: t("nav.notifications"), icon: <Bell />, run: go("/settings/notifications") });
     return list;
-  }, [t, isAdmin, servers.data, navigate, onClose]);
+  }, [t, isAdmin, servers.data, sites.data, databases.data, navigate, onClose]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase();

@@ -120,7 +120,10 @@ func (s *Server) csrfGuard(next http.Handler) http.Handler {
 			writeError(w, http.StatusForbidden, "cross_site", "cross-site requests are not allowed")
 			return
 		}
-		if r.ContentLength != 0 && !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+		// HTML forms can only send form or text bodies, so requiring JSON (or raw bytes, for
+		// uploads) means a cross-site form can never reach these endpoints.
+		ct := r.Header.Get("Content-Type")
+		if r.ContentLength != 0 && !strings.HasPrefix(ct, "application/json") && !strings.HasPrefix(ct, "application/octet-stream") {
 			writeError(w, http.StatusUnsupportedMediaType, "json_required", "send the body as application/json")
 			return
 		}

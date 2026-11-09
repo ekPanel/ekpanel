@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"hostpanel/internal/agentproto"
+	"ekpanel/internal/agentproto"
 )
 
 func TestParseCPUAndPercent(t *testing.T) {

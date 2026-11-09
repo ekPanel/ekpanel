@@ -85,16 +85,18 @@ export function EnrollInstructions({ result }: { result: EnrollResult }) {
     if (connected) qc.invalidateQueries({ queryKey: ["servers"] });
   }, [connected, qc]);
 
-  const panel = window.location.origin;
-  const enroll = `sudo hostpanel-agent enroll \\\n  --panel ${panel} \\\n  --token ${result.enroll_token}`;
+  // Agents connect to this panel's host name on the agent port, and pin its CA.
+  const panel = `${window.location.hostname}:${result.agent_port}`;
+  const enroll = `sudo ekpanel-agent enroll \\\n  --panel ${panel} \\\n  --token ${result.enroll_token} \\\n  --ca-pin ${result.ca_pin}`;
   const expires = result.server.enroll_expires_at ? formatRelative(result.server.enroll_expires_at, i18n.language) : "";
 
   return (
     <div className="grid gap-5">
       <p className="text-muted">{t("servers.enroll.intro")}</p>
       <CommandBlock label={t("servers.enroll.step1")} command={enroll} />
-      <CommandBlock label={t("servers.enroll.step2")} command="sudo hostpanel-agent run" />
+      <CommandBlock label={t("servers.enroll.step2")} command="sudo ekpanel-agent run" />
       <p className="text-sm text-muted">{t("servers.enroll.token_note", { when: expires })}</p>
+      <p className="text-sm text-muted">{t("servers.enroll.port_note", { port: result.agent_port })}</p>
       <div className={`flex items-center gap-3 rounded-lg px-3 py-3 ${connected ? "bg-ok-soft text-ok" : "bg-sunk text-muted"}`} role="status">
         {connected ? <CheckCircle2 className="size-5 shrink-0" aria-hidden /> : <Terminal className="size-5 shrink-0 animate-pulse" aria-hidden />}
         <span className="font-medium">{connected ? t("servers.enroll.connected") : t("servers.enroll.waiting")}</span>

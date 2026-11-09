@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 export type Theme = "light" | "dark" | "system";
 
-const STORAGE_KEY = "hostpanel.theme";
+const STORAGE_KEY = "ekpanel.theme";
 const media = () => window.matchMedia("(prefers-color-scheme: dark)");
 
 function readTheme(): Theme {

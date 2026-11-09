@@ -1,6 +1,6 @@
-# Translating HostPanel
+# Translating ekPanel
 
-HostPanel should feel native in every language, not only in English. Translations are plain
+ekPanel should feel native in every language, not only in English. Translations are plain
 JSON files, so you do not need to know how to program.
 
 ## Add a new language
@@ -13,7 +13,10 @@ JSON files, so you do not need to know how to program.
    using the language's own name for itself, e.g. `{ code: "es", name: "Español" }`.
 4. Add the code to `supportedLocales` in `internal/api/auth.go`, so the panel remembers it
    as a user's preference.
-5. Run `cd web && npm run i18n:check` to confirm nothing is missing, then open a pull request.
+5. Notifications (email, Telegram and the others) have their own texts: copy
+   `internal/notify/locales/en.json` to `internal/notify/locales/<code>.json`, translate it the
+   same way, and add the code to the list of languages in `internal/notify/notify.go`.
+6. Run `cd web && npm run i18n:check` to confirm nothing is missing, then open a pull request.
 
 ## Things to know
 

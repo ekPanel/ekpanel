@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"hostpanel/internal/agentproto"
+	"ekpanel/internal/agentproto"
 )
 
 func TestHistoryRingKeepsNewestInOrder(t *testing.T) {
@@ -36,7 +36,7 @@ func TestOnlineStatusAndSubscribers(t *testing.T) {
 	events, unsubscribe := h.Subscribe("s1")
 	defer unsubscribe()
 
-	done := h.Connected("s1")
+	done := h.Connected("s1", nil)
 	if e := <-events; e.Type != "status" || !e.Online {
 		t.Fatalf("want online status, got %+v", e)
 	}

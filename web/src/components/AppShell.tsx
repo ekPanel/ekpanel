@@ -2,26 +2,19 @@ import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, Gauge, Languages, LogOut, Menu, Monitor, Moon, ScrollText, Search, Server, ShieldCheck, Sun, X } from "lucide-react";
+import { Activity, ArchiveRestore, Bell, Boxes, CloudCog, Database, Package, Users, Gauge, Globe, Languages, LogOut, Mail, Menu, Newspaper, Monitor, Moon, ScrollText, Search, Server, ShieldCheck, ShieldHalf, Sun, X } from "lucide-react";
 import { api, type User } from "../lib/api";
 import { meKey } from "../lib/session";
 import { useTheme, type Theme } from "../lib/theme";
 import { languages } from "../i18n";
 import { CommandPalette } from "./CommandPalette";
-import { cx } from "./ui";
+import { Logo } from "./Brand";
 
-export function Logo({ className }: { className?: string }) {
-  return (
-    <span className={cx("flex items-center gap-2 font-bold tracking-tight", className)}>
-      <svg viewBox="0 0 32 32" className="size-7" aria-hidden>
-        <rect width="32" height="32" rx="8" fill="var(--accent)" />
-        <rect x="8" y="9" width="16" height="5" rx="1.5" fill="var(--accent-ink)" />
-        <rect x="8" y="18" width="16" height="5" rx="1.5" fill="var(--accent-ink)" opacity=".7" />
-      </svg>
-      HostPanel
-    </span>
-  );
-}
+export { Logo };
+import { TaskTray } from "./Tasks";
+import { ImpersonationBanner } from "../pages/CustomersPage";
+import { NotificationBell } from "../pages/NotificationsPage";
+import { cx } from "./ui";
 
 function NavItem({ to, icon, children }: { to: string; icon: ReactNode; children: ReactNode }) {
   return (
@@ -46,15 +39,26 @@ function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => void }) 
   return (
     <nav className="grid content-start gap-1 p-3" onClick={onNavigate} aria-label={t("nav.main")}>
       <NavItem to="/" icon={<Gauge />}>{t("nav.dashboard")}</NavItem>
+      <NavItem to="/sites" icon={<Globe />}>{t("nav.sites")}</NavItem>
+      <NavItem to="/wordpress" icon={<Newspaper />}>WordPress</NavItem>
+      <NavItem to="/databases" icon={<Database />}>{t("nav.databases")}</NavItem>
+      <NavItem to="/apps" icon={<Boxes />}>{t("nav.apps")}</NavItem>
+      <NavItem to="/mail" icon={<Mail />}>{t("nav.mail")}</NavItem>
+      <NavItem to="/dns" icon={<CloudCog />}>{t("nav.dns")}</NavItem>
       {user.role === "admin" && (
         <>
+          <NavItem to="/backups" icon={<ArchiveRestore />}>{t("nav.backups")}</NavItem>
           <NavItem to="/servers" icon={<Server />}>{t("nav.servers")}</NavItem>
+          <NavItem to="/security" icon={<ShieldHalf />}>{t("nav.security_page")}</NavItem>
           <p className="px-3 pt-5 pb-1 text-xs font-semibold tracking-wider text-muted uppercase">{t("nav.admin")}</p>
+          <NavItem to="/customers" icon={<Users />}>{t("nav.customers")}</NavItem>
+          <NavItem to="/packages" icon={<Package />}>{t("nav.packages")}</NavItem>
           <NavItem to="/audit" icon={<ScrollText />}>{t("nav.audit")}</NavItem>
         </>
       )}
       <p className="px-3 pt-5 pb-1 text-xs font-semibold tracking-wider text-muted uppercase">{t("nav.account")}</p>
       <NavItem to="/settings/security" icon={<ShieldCheck />}>{t("nav.security")}</NavItem>
+      <NavItem to="/settings/notifications" icon={<Bell />}>{t("nav.notifications")}</NavItem>
     </nav>
   );
 }
@@ -180,6 +184,7 @@ export function AppShell({ user }: { user: User }) {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
+        <ImpersonationBanner user={user} />
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-line bg-bg/90 px-4 backdrop-blur sm:px-6">
           <button onClick={() => setDrawer(true)} className="rounded-md p-1.5 text-muted lg:hidden" aria-label={t("nav.open_menu")}>
             <Menu className="size-5" />
@@ -198,6 +203,7 @@ export function AppShell({ user }: { user: User }) {
               <ThemeMenu />
             </div>
             <div className="flex items-center gap-2 ps-1">
+              <NotificationBell />
               <span className="grid size-9 place-items-center rounded-full bg-amber-soft text-xs font-bold text-amber" title={user.email} aria-hidden>
                 {initials || <Activity className="size-4" />}
               </span>
@@ -218,6 +224,7 @@ export function AppShell({ user }: { user: User }) {
         </footer>
       </div>
       <CommandPalette open={palette} onClose={() => setPalette(false)} user={user} />
+      <TaskTray />
     </div>
   );
 }

@@ -13,6 +13,22 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { ServersPage } from "./pages/ServersPage";
 import { ServerDetailPage } from "./pages/ServerDetailPage";
 import { AuditPage, SecurityPage } from "./pages/AccountPages";
+import { SitesPage } from "./pages/SitesPage";
+import { SiteDetailPage } from "./pages/SiteDetailPage";
+import { DatabaseDetailPage, DatabasesPage } from "./pages/DatabasesPage";
+import { FileManagerPage } from "./pages/FileManagerPage";
+import { BackupRepoPage, BackupsPage } from "./pages/BackupsPage";
+import { AppDetailPage, AppsPage } from "./pages/AppsPage";
+import { CatalogPage } from "./pages/CatalogPage";
+import { DNSPage } from "./pages/DNSPage";
+import { ZonePage } from "./pages/ZonePage";
+import { HostedZonePage } from "./pages/HostedZonePage";
+import { MailDomainPage, MailPage } from "./pages/MailPage";
+import { WordPressPage } from "./pages/WordPressPage";
+import { ServerSecurityPage } from "./pages/SecurityPage";
+import { CustomersPage, PackagesPage } from "./pages/CustomersPage";
+import { NotificationsPage } from "./pages/NotificationsPage";
+import { AppTerminalPage, ServerTerminalPage } from "./pages/TerminalPage";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true } },
@@ -66,11 +82,34 @@ const router = createBrowserRouter([
     children: [
       { path: "/", element: <DashboardPage /> },
       { path: "/settings/security", element: <SecurityPage /> },
+      { path: "/settings/notifications", element: <NotificationsPage /> },
+      // Customers use these too; the API shows them only what they own.
+      { path: "/sites", element: <SitesPage /> },
+      { path: "/sites/:id", element: <SiteDetailPage /> },
+      { path: "/sites/:id/files", element: <FileManagerPage /> },
+      { path: "/databases", element: <DatabasesPage /> },
+      { path: "/databases/:id", element: <DatabaseDetailPage /> },
+      { path: "/apps", element: <AppsPage /> },
+      { path: "/wordpress", element: <WordPressPage /> },
+      { path: "/mail", element: <MailPage /> },
+      { path: "/mail/:id", element: <MailDomainPage /> },
+      { path: "/dns", element: <DNSPage /> },
+      { path: "/dns/:id", element: <ZonePage /> },
+      { path: "/dns/hosted/:id", element: <HostedZonePage /> },
+      { path: "/apps/catalog", element: <CatalogPage /> },
+      { path: "/apps/:id", element: <AppDetailPage /> },
+      { path: "/apps/:id/terminal", element: <AppTerminalPage /> },
       {
         element: <AdminOnly />,
         children: [
+          { path: "/customers", element: <CustomersPage /> },
+          { path: "/packages", element: <PackagesPage /> },
+          { path: "/backups", element: <BackupsPage /> },
+          { path: "/backups/:id", element: <BackupRepoPage /> },
+          { path: "/security", element: <ServerSecurityPage /> },
           { path: "/servers", element: <ServersPage /> },
           { path: "/servers/:id", element: <ServerDetailPage /> },
+          { path: "/servers/:id/terminal", element: <ServerTerminalPage /> },
           { path: "/audit", element: <AuditPage /> },
         ],
       },

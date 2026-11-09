@@ -169,6 +169,54 @@ function SessionsCard() {
   );
 }
 
+function PasswordCard() {
+  const { t } = useTranslation();
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
+  return (
+    <Card className="p-6">
+      <form
+        className="grid gap-4"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          setError("");
+          setDone(false);
+          try {
+            await api.post("/auth/password", { current, new: next });
+            setCurrent("");
+            setNext("");
+            setDone(true);
+          } catch (err) {
+            setError(errorMessage(t, err));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <div>
+          <h2 className="font-semibold">{t("security.password.title")}</h2>
+          <p className="text-muted">{t("security.password.body")}</p>
+        </div>
+        <ErrorAlert>{error}</ErrorAlert>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t("security.password.current")} type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" required />
+          <Field label={t("security.password.new")} type="password" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" minLength={10} required />
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="submit" loading={busy}>
+            {t("security.password.save")}
+          </Button>
+          {done && <span className="text-sm text-ok">{t("security.password.saved")}</span>}
+        </div>
+      </form>
+    </Card>
+  );
+}
+
 export function SecurityPage() {
   const { t } = useTranslation();
   const me = useMe();
@@ -176,8 +224,15 @@ export function SecurityPage() {
     <>
       <PageHeader title={t("nav.security")} description={t("security.intro")} />
       <div className="grid max-w-3xl gap-6">
-        <TwoFactorCard user={me.data!} />
-        <SessionsCard />
+        {me.data!.impersonator_id ? (
+          <ErrorAlert>{t("security.not_while_acting")}</ErrorAlert>
+        ) : (
+          <>
+            <PasswordCard />
+            <TwoFactorCard user={me.data!} />
+            <SessionsCard />
+          </>
+        )}
       </div>
     </>
   );

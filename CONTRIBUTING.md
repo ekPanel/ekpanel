@@ -1,11 +1,11 @@
-# Contributing to HostPanel
+# Contributing to ekPanel
 
 Thank you for helping. Contributions of every size are welcome: code, translations, docs,
 bug reports and design feedback.
 
 ## Development setup
 
-Requirements: Linux, Go 1.26+ (an older `go` downloads 1.26 by itself), Node.js 22+, `make`.
+Requirements: Linux, Go 1.27+ (an older `go` downloads 1.27 by itself), Node.js 22+, `make`.
 You do **not** need PostgreSQL or Docker: `make dev` starts a private embedded PostgreSQL
 inside `.data/`, and the tests start their own.
 
@@ -13,24 +13,48 @@ inside `.data/`, and the tests start their own.
 make ui          # install web dependencies and build the UI into the panel
 make dev         # run the panel at http://127.0.0.1:8080 (prints a setup token)
 make dev-ui      # optional: Vite dev server with hot reload at http://localhost:5173
-make dev-agent TOKEN=...   # enrol and run an agent on this machine
+make dev-agent TOKEN=... PIN=...   # enrol and run an agent on this machine
 make test        # everything CI runs
 ```
 
 `make help` lists all tasks. To start over, stop the panel and delete `.data/`.
 
+### A real test server
+
+Anything that changes a server (the installer, and every hosting feature from phase 1 on)
+must be tested on a real Ubuntu machine. `scripts/test-vm.sh` makes a throwaway Ubuntu 24.04
+VM with QEMU/KVM, without root:
+
+```bash
+scripts/test-vm.sh create                         # first time: downloads Ubuntu (~600 MB)
+make panel agent
+scripts/test-vm.sh copy bin/ekpanel bin/ekpanel-agent deploy/install.sh
+scripts/test-vm.sh ssh 'sudo ./install.sh --local-dir .'
+# the panel is now at https://127.0.0.1:8443 (self-signed certificate),
+# and its agent port at 127.0.0.1:17443 for testing agents from this machine
+scripts/test-vm.sh stop                           # or destroy, to delete its disk
+```
+
+## Branches
+
+All work happens on **`dev`**. **`pub`** holds published code and changes only through
+a pull request from `dev`. Open your pull requests against `dev`.
+
 ## Project layout
 
 | Path | What it is |
 | --- | --- |
-| `cmd/hostpanel` | the panel binary |
-| `cmd/hostpanel-agent` | the agent binary that runs on managed servers |
+| `cmd/ekpanel` | the panel binary |
+| `cmd/ekpanel-agent` | the agent binary that runs on managed servers |
 | `internal/api` | HTTP API, sessions, CSRF protection, agent endpoints |
 | `internal/store` | PostgreSQL queries |
 | `internal/db/migrations` | schema migrations, applied in name order at startup |
 | `internal/agent` | metric collection and the agent's connection loop |
 | `internal/agentproto` | messages shared by the panel and agents |
-| `internal/hub` | live server state and fan-out to browsers |
+| `internal/hub` | live server state, fan-out to browsers, routing operations to agents |
+| `internal/pki` | the panel's private CA for agent mutual TLS |
+| `internal/catalog` | the one-click service catalogue: Compose templates and their variables |
+| `internal/tasks` | background task queue and its handlers |
 | `web/` | React + TypeScript UI (Vite, Tailwind, TanStack Query, i18next) |
 
 ## Guidelines
@@ -49,8 +73,41 @@ make test        # everything CI runs
   PostgreSQL in `internal/api/api_test.go`.
 - Run `gofmt` and `make test` before opening a pull request.
 
+## Trying the DNS features without Cloudflare
+
+`go run ./internal/cloudflare/cloudflaretest/fakecf -zones example.com` serves an in-memory
+copy of the parts of Cloudflare's API ekPanel uses. Start the panel with
+`EKPANEL_CLOUDFLARE_API=http://127.0.0.1:18080/client/v4` and connect with the token
+`test-token`.
+
+## Trying email
+
+Turn email on for the test VM's server with a host name such as `mail.php.test` and the
+self-signed certificate. Mail delivered inside the VM (to 127.0.0.1 port 25) reaches
+mailboxes; webmail answers with `curl -k --resolve mail.php.test:443:127.0.0.1
+https://mail.php.test/`. Mail to the outside cannot leave the VM and stays queued. The
+agent's administrator login for Stalwart's API (127.0.0.1:18900) is in
+`/etc/ekpanel/mail/admin.env` on the server.
+
+## Adding a service to the catalogue
+
+Each service is a Compose file in `internal/catalog/templates/<id>.yaml` and an entry in
+`internal/catalog/catalog.go` (name, category, images, the service and port that get the
+domain, and its variables). Customers can install templates, so they must follow the rules
+that `go test ./internal/catalog` checks: named volumes only, no published ports, no
+privileged mode, capabilities, devices, host namespaces or Docker socket. Values that differ
+per install are `${VARIABLES}`: generated passwords and keys, or fixed text using `{domain}`.
+Pin a major version of the image where the project publishes one, describe the service in
+`catalog.apps.<id>` in `en.json` (and `bn.json` if you can), and test it on a real server.
+Raise `Version` whenever you change a template.
+
+## License of contributions
+
+ekPanel is licensed under [AGPL-3.0-only](LICENSE). By opening a pull request you agree
+that your contribution is released under the same license.
+
 ## Reporting bugs
 
 Open an issue with what you did, what you expected and what happened, plus the panel and agent
-versions (`hostpanel version`, `hostpanel-agent version`) and the server's OS. For security
+versions (`ekpanel version`, `ekpanel-agent version`) and the server's OS. For security
 problems, follow [SECURITY.md](SECURITY.md) instead.

@@ -44,7 +44,7 @@ func TestTokens(t *testing.T) {
 }
 
 func TestTOTP(t *testing.T) {
-	secret, url, err := NewTOTP("HostPanel", "admin@example.com")
+	secret, url, err := NewTOTP("ekPanel", "admin@example.com")
 	if err != nil || secret == "" || url == "" {
 		t.Fatalf("NewTOTP: %v", err)
 	}

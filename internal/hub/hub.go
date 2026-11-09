@@ -3,10 +3,21 @@
 package hub
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"sync"
 
-	"hostpanel/internal/agentproto"
+	"ekpanel/internal/agentproto"
 )
+
+// ErrOffline means the server's agent is not connected.
+var ErrOffline = errors.New("the server's agent is not connected")
+
+// Caller sends an operation to one agent connection and waits for the result.
+type Caller interface {
+	Call(ctx context.Context, op string, params any) (json.RawMessage, error)
+}
 
 // historySize keeps about 20 minutes of samples at the agent's 2-second interval.
 const historySize = 600
@@ -19,6 +30,7 @@ type Event struct {
 
 type server struct {
 	connections int
+	callers     []Caller             // open agent connections, newest last
 	history     []agentproto.Metrics // ring buffer, oldest at index start
 	start       int
 	subs        map[chan Event]struct{}
@@ -52,10 +64,12 @@ func (s *server) broadcast(e Event) {
 }
 
 // Connected marks an agent connection open and returns a func to call when it closes.
-func (h *Hub) Connected(id string) (disconnected func()) {
+// c receives operations for the server while it is the newest connection.
+func (h *Hub) Connected(id string, c Caller) (disconnected func()) {
 	h.mu.Lock()
 	s := h.get(id)
 	s.connections++
+	s.callers = append(s.callers, c)
 	if s.connections == 1 {
 		s.broadcast(Event{Type: "status", Online: true})
 	}
@@ -67,6 +81,12 @@ func (h *Hub) Connected(id string) (disconnected func()) {
 			h.mu.Lock()
 			defer h.mu.Unlock()
 			s.connections--
+			for i, x := range s.callers {
+				if x == c {
+					s.callers = append(s.callers[:i], s.callers[i+1:]...)
+					break
+				}
+			}
 			if s.connections == 0 {
 				s.broadcast(Event{Type: "status", Online: false})
 			}
@@ -124,6 +144,41 @@ func (h *Hub) Subscribe(id string) (<-chan Event, func()) {
 		h.mu.Lock()
 		delete(h.get(id).subs, ch)
 		h.mu.Unlock()
+	}
+}
+
+// Call runs an operation on the server's agent (its newest connection).
+func (h *Hub) Call(ctx context.Context, id, op string, params any) (json.RawMessage, error) {
+	h.mu.Lock()
+	var c Caller
+	if s := h.servers[id]; s != nil && len(s.callers) > 0 {
+		c = s.callers[len(s.callers)-1]
+	}
+	h.mu.Unlock()
+	if c == nil {
+		return nil, ErrOffline
+	}
+	return c.Call(ctx, op, params)
+}
+
+// Disconnecter is implemented by agent connections that can be closed from the panel.
+type Disconnecter interface {
+	Disconnect(reason string)
+}
+
+// Disconnect closes every open connection of a server's agent, as when its certificate is
+// revoked: a revoked agent must not keep a connection it opened before.
+func (h *Hub) Disconnect(id string) {
+	h.mu.Lock()
+	var callers []Caller
+	if s := h.servers[id]; s != nil {
+		callers = append(callers, s.callers...)
+	}
+	h.mu.Unlock()
+	for _, c := range callers {
+		if d, ok := c.(Disconnecter); ok {
+			d.Disconnect("the agent's certificate was revoked")
+		}
 	}
 }
 

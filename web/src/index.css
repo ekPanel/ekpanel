@@ -15,9 +15,10 @@
   --ink: #15211f;
   --muted: #586764;
   --line: #d6dedb;
-  --accent: #0a7a72;
+  /* Brand green, from the logo's cursor (assets/brand). */
+  --accent: #13804a;
   --accent-ink: #ffffff;
-  --accent-soft: #dcefec;
+  --accent-soft: #ddf3e6;
   --amber: #a9600f;
   --amber-soft: #f7e8d6;
   --ok: #1d8549;
@@ -26,7 +27,7 @@
   --warn-soft: #faedcf;
   --crit: #bf352e;
   --crit-soft: #fadfdc;
-  --term-bg: #0f1716;
+  --term-bg: #0f1513;
   --term-fg: #cde2de;
   color-scheme: light;
 }
@@ -38,9 +39,9 @@
   --ink: #e1ebe8;
   --muted: #93a3a0;
   --line: #243330;
-  --accent: #3db5a9;
-  --accent-ink: #052019;
-  --accent-soft: #133834;
+  --accent: #36d27e;
+  --accent-ink: #0f1513;
+  --accent-soft: #12301f;
   --amber: #e39a54;
   --amber-soft: #36260f;
   --ok: #4cc27f;

@@ -1,0 +1,13 @@
+services:
+  vaultwarden:
+    image: vaultwarden/server:latest
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN_URL}
+      SIGNUPS_ALLOWED: ${SIGNUPS_ALLOWED}
+      ADMIN_TOKEN: ${ADMIN_TOKEN}
+    volumes:
+      - data:/data
+
+volumes:
+  data:
