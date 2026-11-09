@@ -904,11 +904,36 @@ How 4b works (decided 2026-11-09):
   endpoint.
 
 **4c. Moving between servers**
-- [ ] Move a website (files, databases, cron, settings), an app or a database to another
-      ekPanel server: copy, switch DNS (hosted or Cloudflare) and the certificate, then remove
-      the old copy after a check
+- [x] Move a website (files, databases, cron, settings) to another ekPanel server: copy,
+      switch DNS (hosted or Cloudflare) and the certificate, then remove the old copy after a
+      check. Tried with two VMs: a PHP site with a MariaDB database (Bangla text) and a 20 MB
+      file moved in about 90 s (most of it installing PHP and MariaDB on the new server), same
+      certificate, files, owners and ACLs; the old copy served until it was removed
+- [ ] Move an app, or a database on its own
 - [ ] Restore a backup onto another server; move a whole customer
-- [ ] Server-to-server copy over the agents' own connection, not public SSH
+- [x] Server-to-server copy over the agents' own connection, not public SSH
+
+How 4c works (decided 2026-11-09; websites first, then databases alone, apps, backups and
+whole customers):
+- **Copy over the agents' connections.** The panel opens an export stream on the source agent
+  and an import stream on the target, and passes the bytes between them with flow control:
+  the source sends only as many chunks as the panel allows, the target says when it has
+  written each one, so a slow side never fills memory or holds up other work. The data is
+  gzip in simple frames: the site's home folder (a tar with owners and ACLs), a dump of each
+  chosen database, the site's certificates from Caddy's storage, and a SHA-256 at the end.
+  The target keeps it in `/srv/ekpanel/incoming/<move>/` until it is used.
+- **The switch.** The certificates go straight into the target's Caddy storage, so HTTPS works
+  at once. The site and its databases then belong to the target (one database transaction);
+  the target is reconciled (account, PHP pool, web server, databases with the same password
+  hashes), the files and dumps are put in place, and the site is checked through the local
+  web server. Records the panel manages (built-in DNS or Cloudflare) follow by themselves;
+  otherwise the page says which address to point the domain to. Cron jobs move with the site.
+- **The old copy keeps serving** until someone removes it from the move's page (that deletes
+  the old account, files and databases on the source). Changes made on the old copy after the
+  copy started are not carried over, which the page says before the move.
+- **Failures:** before the switch nothing changes on the source; after it, the site goes back
+  to the source and the target's half-made copy is removed. Moves are kept in a `moves` table
+  and shown on the site's page.
 
 **4d. Importers**
 - [ ] cPanel backups (cpmove): accounts, files, MySQL databases and users, mail accounts and
@@ -962,4 +987,5 @@ How 4b works (decided 2026-11-09):
 - [x] 4a. Releases and updates; the signing key is in the `release` environment
 - [x] v0.1.0, the first release, published 2026-11-09 (signature, checksums and attestation checked)
 - [x] 4b. API tokens, OpenAPI and ekctl (Terraform later in phase 4)
-- [ ] 4c. Moving between servers
+- [ ] 4c. Moving between servers (websites done; apps, databases alone, backups onto
+      another server and whole customers next)

@@ -72,6 +72,8 @@ type Envelope struct {
 	Cols   int    `json:"cols,omitempty"`
 	Rows   int    `json:"rows,omitempty"`
 	Reason string `json:"reason,omitempty"`
+	// Credit lets the other side send this many more chunks (TypeStreamCredit).
+	Credit int `json:"credit,omitempty"`
 }
 
 // OpError is a failed operation. Code is stable (the UI translates it); Message is detail.

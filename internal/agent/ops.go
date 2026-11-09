@@ -49,6 +49,18 @@ func opError(code, format string, a ...any) *agentproto.OpError {
 // Dispatch runs one operation requested by the panel.
 func Dispatch(ctx context.Context, op string, params json.RawMessage) (any, *agentproto.OpError) {
 	switch op {
+	case agentproto.OpTransferFinish:
+		var p agentproto.TransferFinishParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return transferFinish(ctx, realSystem, p)
+	case agentproto.OpTransferDiscard:
+		var p agentproto.TransferDiscardParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return transferDiscard(realSystem, p)
 	case agentproto.OpSystemUpdate:
 		var p agentproto.SystemUpdateParams
 		if err := json.Unmarshal(params, &p); err != nil {

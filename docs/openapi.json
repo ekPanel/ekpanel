@@ -4040,6 +4040,51 @@
         "x-ekpanel-scope": "any"
       }
     },
+    "/api/v1/moves/{id}/cleanup": {
+      "post": {
+        "operationId": "postMovesIdCleanup",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Move cleanup",
+        "tags": [
+          "moves"
+        ],
+        "x-ekpanel-scope": "sites"
+      }
+    },
     "/api/v1/notifications": {
       "get": {
         "operationId": "getNotifications",
@@ -6697,6 +6742,86 @@
           "sites"
         ],
         "x-ekpanel-scope": "sites"
+      }
+    },
+    "/api/v1/sites/{id}/move": {
+      "post": {
+        "operationId": "postSitesIdMove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Move site",
+        "tags": [
+          "sites"
+        ],
+        "x-ekpanel-scope": "sites"
+      }
+    },
+    "/api/v1/sites/{id}/moves": {
+      "get": {
+        "operationId": "getSitesIdMoves",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Site moves",
+        "tags": [
+          "sites"
+        ],
+        "x-ekpanel-scope": "read or sites"
       }
     },
     "/api/v1/sites/{id}/sftp": {

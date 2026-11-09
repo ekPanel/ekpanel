@@ -229,6 +229,9 @@ func (s *Server) router() chi.Router {
 
 		r.Group(func(r chi.Router) {
 			r.Use(requireRole("admin"))
+			r.Post("/sites/{id}/move", s.handleMoveSite)
+			r.Get("/sites/{id}/moves", s.handleSiteMoves)
+			r.Post("/moves/{id}/cleanup", s.handleMoveCleanup)
 			r.Get("/updates", s.handleGetUpdates)
 			r.Post("/updates/check", s.handleCheckUpdates)
 			r.With(notImpersonating).Post("/updates/panel", s.handleUpdatePanel)

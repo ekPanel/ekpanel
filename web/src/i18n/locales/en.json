@@ -440,7 +440,7 @@
     "invalid_engine": "Choose MariaDB or PostgreSQL.",
     "invalid_database_name": "Use up to 32 lowercase letters, digits and _ , starting with a letter. System names are not allowed.",
     "invalid_database_user": "Use up to 32 lowercase letters, digits and _ , starting with a letter. System names are not allowed.",
-    "database_name_taken": "This server already has a database with that name.",
+    "database_name_taken": "The target server already has a database or user with the same name.",
     "database_user_taken": "This server already has a database user with that name.",
     "database_not_found": "That database does not exist. It may have been deleted.",
     "database_deleting": "This database is being deleted.",
@@ -615,7 +615,15 @@
     "invalid_expiry": "Choose when the token expires.",
     "too_many_tokens": "You have 50 tokens. Revoke one you no longer use first.",
     "token_not_found": "That token no longer exists.",
-    "task_not_found": "That task no longer exists."
+    "task_not_found": "That task no longer exists.",
+    "same_server": "The website is already on this server.",
+    "invalid_server": "Choose a server to move the website to.",
+    "site_not_active": "The website must be working before it can move.",
+    "invalid_database": "A chosen database is not on the website's server or belongs to someone else.",
+    "database_not_active": "A chosen database must be working before it can move.",
+    "move_open": "This website is being moved, or its old copy is still on the other server. Finish the move first.",
+    "move_not_found": "That move no longer exists.",
+    "move_not_moved": "There is no old copy to remove."
   },
   "not_found": {
     "title": "Page not found",
@@ -2297,6 +2305,38 @@
       "servers": "Servers, their services, firewall and security.",
       "customers": "Customers and packages.",
       "settings": "Panel settings, updates, notifications and the audit log."
+    }
+  },
+  "move": {
+    "title": "Move to another server",
+    "intro": "Copy this website (files, chosen databases and certificate) from {{server}} to another server, with no downtime.",
+    "start": "Move…",
+    "dialog_title": "Move {{domain}}",
+    "target": "Move to",
+    "choose_server": "Choose a server",
+    "databases": "Databases to move with it",
+    "no_databases": "No databases of this website's owner on its server.",
+    "databases_hint": "They keep their names, users and passwords, so the website's settings stay right.",
+    "step_copy": "The files, databases and certificate are copied straight from server to server.",
+    "step_switch": "The new server sets up the website and is checked. If anything fails, the website stays where it is.",
+    "step_dns": "DNS records the panel manages point to the new server by themselves; otherwise you change them.",
+    "step_cleanup": "The old copy keeps serving until you remove it.",
+    "writes_warning": "Changes made on the old copy after the copy starts (new orders, comments, uploads) are not carried over. Move at a quiet time.",
+    "confirm": "Start the move",
+    "route": "{{from}} → {{to}}",
+    "copied": "{{size}} copied",
+    "moved": "The website now runs on {{to}}. The old copy on {{from}} still answers visitors whose DNS has not changed yet.",
+    "dns_hint": "If the panel does not manage this domain's DNS, point its records to {{ip}} now.",
+    "dns_hint_noip": "If the panel does not manage this domain's DNS, point its records to the new server now.",
+    "cleanup": "Remove the old copy on {{server}}",
+    "cleanup_confirm": "Remove the old copy on {{server}}? Its files and databases there are deleted. Only do this once the domain points to the new server.",
+    "phase": {
+      "copying": "Copying",
+      "switching": "Switching over",
+      "moved": "Moved",
+      "cleaning": "Removing the old copy",
+      "done": "Done",
+      "failed": "Failed"
     }
   }
 }

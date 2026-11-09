@@ -227,6 +227,8 @@ func session(ctx context.Context, log *slog.Logger, cfg Config, collector *Colle
 	defer terms.closeAll()
 	blds := newBuilds(realSystem, func(env agentproto.Envelope) error { return send(ctx, conn, env) })
 	defer blds.closeAll()
+	xfers := newTransfers(realSystem, func(env agentproto.Envelope) error { return send(ctx, conn, env) })
+	defer xfers.closeAll()
 
 	// Requests from the panel run concurrently; each answers with a response envelope.
 	readErr := make(chan error, 1)
@@ -243,7 +245,14 @@ func session(ctx context.Context, log *slog.Logger, cfg Config, collector *Colle
 			}
 			switch env.Type {
 			case agentproto.TypeStreamData:
-				terms.input(env)
+				if xfers.has(env.Stream) {
+					xfers.input(env)
+				} else {
+					terms.input(env)
+				}
+				continue
+			case agentproto.TypeStreamCredit:
+				xfers.credit(env)
 				continue
 			case agentproto.TypeStreamResize:
 				terms.resize(env)
@@ -251,6 +260,7 @@ func session(ctx context.Context, log *slog.Logger, cfg Config, collector *Colle
 			case agentproto.TypeStreamClose:
 				terms.close(env.Stream)
 				blds.close(env.Stream)
+				xfers.close(env)
 				continue
 			case agentproto.TypeRequest:
 			default:
@@ -268,6 +278,30 @@ func session(ctx context.Context, log *slog.Logger, cfg Config, collector *Colle
 				}
 				if resp.Error != nil {
 					resp.Result = nil
+				}
+				send(ctx, conn, resp)
+				continue
+			}
+			if env.Op == agentproto.OpTransferExport || env.Op == agentproto.OpTransferImport {
+				resp := agentproto.Envelope{Type: agentproto.TypeResponse, ID: env.ID, Result: json.RawMessage("{}")}
+				var opErr *agentproto.OpError
+				if env.Op == agentproto.OpTransferExport {
+					var p agentproto.TransferExportParams
+					if err := json.Unmarshal(env.Params, &p); err != nil {
+						opErr = opError(agentproto.ErrInvalidParams, "%v", err)
+					} else {
+						opErr = xfers.startExport(ctx, p)
+					}
+				} else {
+					var p agentproto.TransferImportParams
+					if err := json.Unmarshal(env.Params, &p); err != nil {
+						opErr = opError(agentproto.ErrInvalidParams, "%v", err)
+					} else {
+						opErr = xfers.startImport(ctx, p)
+					}
+				}
+				if opErr != nil {
+					resp.Error, resp.Result = opErr, nil
 				}
 				send(ctx, conn, resp)
 				continue

@@ -76,6 +76,8 @@ func (r *Runner) alert(ctx context.Context, owner *string, event, severity strin
 func New(st *store.Store, h *hub.Hub, log *slog.Logger) *Runner {
 	r := &Runner{store: st, hub: h, log: log, wake: make(chan struct{}, 1), handlers: map[string]Handler{}, vault: newVault(), agentWait: agentReturnWait}
 	r.handlers[KindServiceRestart] = r.serviceRestart
+	r.handlers[KindSiteMove] = r.moveSite
+	r.handlers[KindMoveCleanup] = r.cleanupMove
 	r.handlers[KindUpdatePanel] = r.updatePanel
 	r.handlers[KindUpdateAgents] = r.updateAgents
 	r.handlers[KindServerReconcile] = r.serverReconcile
@@ -321,6 +323,11 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 	if err != nil {
 		return sum, err
 	}
+	// Sites moving away (or a failed move's half-made copy) are applied here too.
+	moving, err := r.movesOn(ctx, serverID, &sites)
+	if err != nil {
+		return sum, err
+	}
 	params := agentproto.StateApplyParams{Sites: make([]agentproto.SiteSpec, 0, len(sites))}
 	anyFTP := false
 	// Each customer with something here gets a slice with their package's limits. Things
@@ -349,6 +356,10 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			ID: s.ID, Generation: s.Generation, Domain: s.Domain, Aliases: s.Aliases, Kind: s.Kind,
 			TLS: s.TLS, User: s.LinuxUser, Deleted: s.State == "deleting", Web: s.Web,
 		}
+		siteState := s.State
+		if m, ok := moving[s.ID]; ok && moveDeletes(m, serverID) {
+			spec.Deleted, siteState = true, "deleting"
+		}
 		if s.TLS == "custom" && s.TLSCert != nil && !spec.Deleted {
 			if r.secrets == nil {
 				return sum, errors.New("the panel cannot open certificate keys")
@@ -366,7 +377,7 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		if s.SFTPPasswordHash != nil {
 			spec.SFTPPasswordHash = *s.SFTPPasswordHash
 		}
-		id, pkg, err := owner(s.OwnerID, s.State)
+		id, pkg, err := owner(s.OwnerID, siteState)
 		if err != nil {
 			return sum, err
 		}
@@ -393,6 +404,22 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			ID: d.ID, Generation: d.Generation, Engine: d.Engine, Name: d.Name, User: d.Username,
 			PasswordHash: d.PasswordHash, Deleted: d.State == "deleting",
 		})
+	}
+	// The databases of a moved site's copy that is being removed here.
+	movingDB := map[string]string{} // database ID → move ID
+	for _, m := range moving {
+		if !moveDeletes(m, serverID) {
+			continue
+		}
+		for _, d := range m.Databases {
+			if slices.ContainsFunc(dbs, func(x store.Database) bool { return x.ID == d.ID }) {
+				continue // it belongs here (again): never delete it
+			}
+			movingDB[d.ID] = m.ID
+			params.Databases = append(params.Databases, agentproto.DatabaseSpec{
+				ID: d.ID, Engine: d.Engine, Name: d.Name, User: d.Username, Deleted: true,
+			})
+		}
 	}
 	apps, err := r.store.ListApps(ctx, serverID)
 	if err != nil {
@@ -525,7 +552,20 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 	for _, a := range apps {
 		wasError[a.ID] = a.State == "error"
 	}
+	// What moves left here is not the site's (or database's) own: record it on the move.
+	cleaned := map[string]string{} // move ID → error ("" when it worked)
+	for _, m := range moving {
+		if moveDeletes(m, serverID) {
+			cleaned[m.ID] = ""
+		}
+	}
 	for _, sr := range res.Sites {
+		if m, ok := moving[sr.ID]; ok {
+			if _, del := cleaned[m.ID]; del && !sr.OK {
+				cleaned[m.ID] = sr.Error
+			}
+			continue
+		}
 		if !sr.OK && !wasError[sr.ID] {
 			for _, s := range sites {
 				if s.ID == sr.ID && s.State != "deleting" {
@@ -543,6 +583,12 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		}
 	}
 	for _, dr := range res.Databases {
+		if moveID, ok := movingDB[dr.ID]; ok {
+			if !dr.OK && cleaned[moveID] == "" {
+				cleaned[moveID] = dr.Error
+			}
+			continue
+		}
 		if !dr.OK && !wasError[dr.ID] {
 			for _, d := range dbs {
 				if d.ID == dr.ID && d.State != "deleting" {
@@ -615,6 +661,9 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		if res.NameServer.Error != "" {
 			sum.Failed++
 		}
+	}
+	for id, msg := range cleaned {
+		r.recordMoveCleanup(ctx, moving, id, serverID, msg)
 	}
 	if res.Firewall != nil {
 		st := store.FirewallStatus{Active: res.Firewall.Active, SSHPorts: res.Firewall.SSHPorts, Error: res.Firewall.Error, At: time.Now()}

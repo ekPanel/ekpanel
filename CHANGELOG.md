@@ -15,6 +15,10 @@ All notable changes to ekPanel are listed here. The format follows
   `docs/openapi.json`), made from the router, with the scope each operation needs (4b)
 - `ekctl`, a command-line tool for Linux, macOS and Windows: servers, websites, databases,
   apps, DNS, backups and tasks, `--json` output, and `ekctl api` for any endpoint (4b)
+- Move a website to another server (with the databases you choose), from its page: files,
+  databases and certificate are copied straight between the servers' agents, the new server
+  is checked before anything switches, DNS the panel manages follows, and the old copy keeps
+  serving until you remove it. A failed move leaves the website where it was (4c)
 
 ## [v0.1.0] - 2026-11-09
 

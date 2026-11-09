@@ -638,6 +638,27 @@ export interface AuditEntry {
 }
 
 /** An error response from the panel. `code` is stable; translate it with errorMessage. */
+// ---- Moving websites ----
+
+export interface SiteMove {
+  id: string;
+  site_id: string | null;
+  from_server: string;
+  to_server: string;
+  from_server_name: string;
+  to_server_name: string;
+  database_ids: string[];
+  databases: { id: string; engine: string; name: string; username: string }[];
+  phase: "copying" | "switching" | "moved" | "cleaning" | "done" | "failed";
+  error: string | null;
+  bytes: number;
+  check_status: number | null;
+  target_cleanup: boolean;
+  created_at: string;
+  moved_at: string | null;
+  finished_at: string | null;
+}
+
 // ---- API tokens ----
 
 export interface APIToken {

@@ -32,6 +32,7 @@ var (
 var routeScopes = map[string][]string{
 	"sites":         {"sites"},
 	"wordpress":     {"sites"},
+	"moves":         {"sites"},
 	"php-apps":      {"sites"},
 	"php-versions":  {"sites"},
 	"cron":          {"sites", "apps"},
