@@ -644,7 +644,11 @@
     "import_zone_taken": "ekPanel already has the zone {{name}}.",
     "import_zone_not_owned": "The zone {{name}} needs a website on that domain for this customer. Import the website too.",
     "invalid_site_archive": "Choose a .zip, .tar.gz or .tar archive in /srv/ekpanel/imports on the server.",
-    "invalid_dump": "Choose one .sql or .sql.gz database dump."
+    "invalid_dump": "Choose one .sql or .sql.gz database dump.",
+    "invalid_coolify": "Enter Coolify's address (https://…) and an API token.",
+    "coolify_unauthorized": "Coolify did not accept the token. Make a new one under Keys & Tokens, and check that the API is on (Settings → Advanced).",
+    "coolify_unreachable": "Could not read Coolify's API: {{detail}}",
+    "coolify_resource": "Could not read it from Coolify."
   },
   "not_found": {
     "title": "Page not found",
@@ -2482,7 +2486,18 @@
       "dump_unused": "Database dump {{name}}: no database was made for it",
       "open_basedir": "open_basedir in .user.ini (it named the old server's folder; PHP here limits the website itself)",
       "dumps_one": "{{count}} database dump in the website's folder (it could have been downloaded)",
-      "dumps_other": "{{count}} database dumps in the website's folder (they could have been downloaded)"
+      "dumps_other": "{{count}} database dumps in the website's folder (they could have been downloaded)",
+      "coolify_env_hidden_one": "{{count}} variable came without its value: the token may not read sensitive data. Fill it in on the app's page",
+      "coolify_env_hidden_other": "{{count}} variables came without their values: the token may not read sensitive data. Fill them in on the app's page",
+      "coolify_volumes_one": "{{count}} volume: the folder is kept here, empty. Copy its data from Coolify's server",
+      "coolify_volumes_other": "{{count}} volumes: the folders are kept here, empty. Copy their data from Coolify's server",
+      "coolify_files_one": "{{count}} file mount from Coolify is not imported",
+      "coolify_files_other": "{{count}} file mounts from Coolify are not imported",
+      "coolify_more_domains": "More domains ({{name}}): an app here has one domain; point the others at it with a redirect or another app",
+      "coolify_no_port": "The domain {{name}} has no port to route to: add the domain and the container port on the app's page",
+      "coolify_builder": "Built with Railpack here (Coolify used {{name}}): check the first build",
+      "coolify_deploy_key": "A private repository: add the app's deploy key (on its page) to the repository, then deploy",
+      "coolify_deploy": "Nothing runs yet: deploy it from the app's page to build the first release"
     },
     "email": "Email",
     "mail_off": "This server has no email. Turn on email for it (Email → Servers) to import mailboxes.",
@@ -2503,7 +2518,9 @@
       "cpanel": "cPanel backup",
       "cpanel_hint": "A whole account: websites, databases, email, cron jobs, DNS",
       "archive": "Website archive",
-      "archive_hint": "One website from a .zip or .tar.gz, with its database dump"
+      "archive_hint": "One website from a .zip or .tar.gz, with its database dump",
+      "coolify": "Coolify",
+      "coolify_hint": "Applications and services, through Coolify's API"
     },
     "archive_body": "Copy the website's files as one .zip, .tar.gz or .tar to {{dir}} on the server, and its database dump (.sql or .sql.gz) next to it if it has one. aaPanel's site and database backups work as they are.",
     "files_here": "In the folder now: {{names}}",
@@ -2532,6 +2549,30 @@
     "db_password_once": "The database's password, shown only now:",
     "step_upload_archive": "1. Put the archive on a server",
     "archive_file": "Archive file name",
-    "read_archive": "Read archive"
+    "read_archive": "Read archive",
+    "coolify_step": "1. Connect to Coolify",
+    "coolify_body": "In Coolify, open Keys & Tokens → API tokens and make a token that may read (with read:sensitive, so variables come with their values). The token is used for this import only and is not kept.",
+    "coolify_url": "Coolify's address",
+    "coolify_token": "API token",
+    "coolify_read": "Read Coolify",
+    "coolify_choose": "2. Choose what to import",
+    "coolify_empty": "Coolify has no applications or services.",
+    "coolify_kind": {
+      "application": "Application",
+      "service": "Service",
+      "database": "Database"
+    },
+    "coolify_reason": {
+      "database": "Databases are not imported: make one here and load a dump of it",
+      "build_pack": "This kind of build cannot be imported",
+      "no_repository": "It has no Git repository",
+      "no_compose": "Coolify did not send its Compose file: the token needs read:sensitive"
+    },
+    "coolify_app_name": "Name here",
+    "coolify_data": "Settings come over: image, Compose file or Git repository, the first domain and its port, variables and the folders kept in volumes. The data in the volumes does not: copy it yourself before you point the domains here.",
+    "coolify_done_one": "{{made}} of {{count}} made",
+    "coolify_done_other": "{{made}} of {{count}} made",
+    "coolify_after": "The apps start on the server now. Copy their data, check them, then point their domains at this server.",
+    "open_apps": "Open apps"
   }
 }

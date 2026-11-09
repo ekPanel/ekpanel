@@ -39,11 +39,15 @@ All notable changes to ekPanel are listed here. The format follows
   .tar.gz or .tar from any host, aaPanel's site backups included, with its database dump.
   WordPress is recognised and keeps its database password; wp-config.php is pointed at the
   database here (4d)
+- Import applications and services from Coolify (Import → Coolify): through its API with a
+  token used once, they become image, Git or Compose apps with their variables, domain,
+  port and kept folders; the data in volumes is for you to copy (4d)
 
 ### Changed
 - PHP websites serve a folder's `index.html` when it has no `index.php`, as Apache does (4d)
 
 ### Fixed
+- An app whose Compose file had become invalid could not be deleted
 - Turning on email could fail once on a new server ("table users already exists") while
   setting up webmail
 

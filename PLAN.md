@@ -986,7 +986,10 @@ whole customers):
       its dump inside and a remote DB_HOST came up on its old password with DB_HOST
       localhost, the dump not published; an aaPanel site and database backup pair was found
       by its names and imported with a new database password shown once
-- [ ] Coolify applications and services (Compose and environment)
+- [x] Coolify applications and services (Compose and environment). Tried in the VM with a
+      real Coolify v4: an nginx image app with its variables and volume, a Nixpacks Node app
+      (built here with Railpack after its first deploy), the one-click Uptime Kuma service and
+      a custom Compose service all ran; a PostgreSQL database was listed, not imported
 - [x] A report of what was imported and what was not (cPanel; the others will add to it)
 
 How the cPanel import works (decided 2026-11-09; websites, files, MySQL and cron first; mail,
@@ -1035,6 +1038,16 @@ DNS zones and certificates next):
   with it, and wp-config.php gets the name, user and DB_HOST localhost. Other databases get
   a new password, shown once in the answer (never stored in the task). A dump inside the
   website folder is loaded, never published; aaPanel's open_basedir in .user.ini goes.
+- **Coolify** (decided 2026-11-09): through Coolify's API with a token given for the one
+  request (never stored; the panel calls Coolify, redirects not followed). Image apps,
+  Git apps (Nixpacks and static built with Railpack here) and Compose apps of Docker Compose
+  applications and services, with variables (Coolify's SERVICE_* ones too), the first domain
+  and port, and volume paths; the volumes' data, databases, file mounts and one-domain-more
+  are left to the administrator and reported. Coolify's raw Compose files use named volumes
+  without declaring them; the import declares them.
+- Found while trying it: an app whose Compose file Compose no longer accepts could not be
+  deleted (`down` failed on the file); its containers and networks now go by the project's
+  label.
 - **Links in the archive** are kept only when they stay inside the website, and every file
   is written through the home folder's `os.Root`, so a chain of links (each harmless alone)
   cannot lead the agent's root-owned writes into another account.
@@ -1089,4 +1102,5 @@ DNS zones and certificates next):
 - [x] 4b. API tokens, OpenAPI and ekctl (Terraform later in phase 4)
 - [x] 4c. Moving between servers (websites, apps, databases, whole customers, and rebuilding
       a website from a backup on another server)
-- [ ] 4d. Importers
+- [x] 4d. Importers (cPanel with email and DNS, website archives for aaPanel and any host,
+      Coolify)

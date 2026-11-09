@@ -3770,6 +3770,76 @@
         "x-ekpanel-scope": "sites"
       }
     },
+    "/api/v1/imports/coolify": {
+      "post": {
+        "operationId": "postImportsCoolify",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Make apps of Coolify applications and services",
+        "tags": [
+          "imports"
+        ],
+        "x-ekpanel-scope": "sites"
+      }
+    },
+    "/api/v1/imports/coolify/inspect": {
+      "post": {
+        "operationId": "postImportsCoolifyInspect",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "List the applications, services and databases of a Coolify instance",
+        "tags": [
+          "imports"
+        ],
+        "x-ekpanel-scope": "sites"
+      }
+    },
     "/api/v1/imports/files": {
       "get": {
         "operationId": "getImportsFiles",

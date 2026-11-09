@@ -246,6 +246,8 @@ func (s *Server) router() chi.Router {
 			r.Get("/imports/files", s.handleImportFiles)
 			r.Post("/imports/site/inspect", s.handleInspectSiteArchive)
 			r.Post("/imports/site", s.handleImportSiteArchive)
+			r.Post("/imports/coolify/inspect", s.handleInspectCoolify)
+			r.Post("/imports/coolify", s.handleImportCoolify)
 			r.Get("/updates", s.handleGetUpdates)
 			r.Post("/updates/check", s.handleCheckUpdates)
 			r.With(notImpersonating).Post("/updates/panel", s.handleUpdatePanel)

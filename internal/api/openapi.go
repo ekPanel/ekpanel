@@ -53,6 +53,8 @@ var summaryOverrides = map[string]string{
 	"GET /api/v1/imports/files":                         "The backups and archives in a server's import folder",
 	"POST /api/v1/imports/site/inspect":                 "Read a website archive (any host, aaPanel) on a server",
 	"POST /api/v1/imports/site":                         "Import a website, and its database, from an archive",
+	"POST /api/v1/imports/coolify/inspect":              "List the applications, services and databases of a Coolify instance",
+	"POST /api/v1/imports/coolify":                      "Make apps of Coolify applications and services",
 }
 
 // tagNames gives a few path segments a nicer tag.

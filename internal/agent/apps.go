@@ -579,7 +579,11 @@ func (a *applier) removeApp(ctx context.Context, ap agentproto.AppSpec) error {
 	}
 	if _, err := os.Stat(a.sys.path(appDir(ap.Name) + "/" + appComposeFile)); err == nil {
 		if _, err := compose(ctx, a.sys, ap.Name, st.Env, args...); err != nil {
-			return err
+			// A Compose file Compose no longer accepts must not keep the app from going:
+			// its containers and networks carry the project's label.
+			if err := a.removeProject(ctx, ap.Name); err != nil {
+				return err
+			}
 		}
 	}
 	if ap.Kind == "git" {
@@ -606,6 +610,27 @@ func (a *applier) removeApp(ctx context.Context, ap agentproto.AppSpec) error {
 	}
 	// Keep the data, but mark the folder so a new app with this name does not take it over.
 	return os.Rename(a.sys.path(appDir(ap.Name)+"/"+appStateFile), a.sys.path(appDir(ap.Name)+"/"+appStateFile+".deleted"))
+}
+
+// removeProject removes an app's containers and networks by the Compose project label,
+// without its Compose file.
+func (a *applier) removeProject(ctx context.Context, name string) error {
+	label := "label=com.docker.compose.project=" + appProject(name)
+	out, err := a.sys.run(ctx, "docker", "ps", "--all", "--quiet", "--filter", label)
+	if err != nil {
+		return err
+	}
+	if ids := strings.Fields(string(out)); len(ids) > 0 {
+		if _, err := a.sys.run(ctx, "docker", append([]string{"rm", "--force"}, ids...)...); err != nil {
+			return err
+		}
+	}
+	if out, err := a.sys.run(ctx, "docker", "network", "ls", "--quiet", "--filter", label); err == nil {
+		if ids := strings.Fields(string(out)); len(ids) > 0 {
+			a.sys.run(ctx, "docker", append([]string{"network", "rm"}, ids...)...)
+		}
+	}
+	return nil
 }
 
 // removeAppOrphans drops the web configuration of apps the panel no longer knows.

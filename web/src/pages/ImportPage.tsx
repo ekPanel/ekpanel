@@ -117,7 +117,7 @@ export function ImportPage() {
   const [error, setError] = useState("");
   const [plan, setPlan] = useState<Inspection | null>(null);
   const [sitePlan, setSitePlan] = useState<SiteInspection | null>(null);
-  const [mode, setMode] = useState<"cpanel" | "archive">("cpanel");
+  const [mode, setMode] = useState<"cpanel" | "archive" | "coolify">("cpanel");
   const [taskId, setTaskId] = useState("");
   const [dbPassword, setDBPassword] = useState("");
   const files = useQuery({
@@ -159,7 +159,7 @@ export function ImportPage() {
   };
   return (
     // Room at the bottom: the running-tasks box must not cover the import button.
-    <div className="grid gap-6 pb-28">
+    <div className="grid gap-6 pb-48">
       <PageHeader title={t("imports.title")} description={t("imports.description")} />
       {taskId ? (
         <ImportProgress
@@ -176,7 +176,7 @@ export function ImportPage() {
       ) : (
         <>
           <div role="tablist" aria-label={t("imports.kinds")} className="flex flex-wrap gap-2">
-            {(["cpanel", "archive"] as const).map((m) => (
+            {(["cpanel", "archive", "coolify"] as const).map((m) => (
               <button
                 key={m}
                 role="tab"
@@ -195,6 +195,8 @@ export function ImportPage() {
               </button>
             ))}
           </div>
+          {mode === "coolify" && <CoolifyImport servers={ready} />}
+          {mode !== "coolify" && (
           <Card className="grid gap-4 p-5">
             <h2 className="text-lg font-semibold">{t(mode === "cpanel" ? "imports.step_upload" : "imports.step_upload_archive")}</h2>
             <p className="max-w-2xl text-sm text-muted">{t(mode === "cpanel" ? "imports.upload_body" : "imports.archive_body", { dir: importDir })}</p>
@@ -248,6 +250,7 @@ export function ImportPage() {
             {busy && <p className="text-sm text-muted">{t("imports.reading")}</p>}
             <ErrorAlert>{error}</ErrorAlert>
           </Card>
+          )}
           {plan && (
             <ImportChoices
               key={server + readFile}
@@ -766,5 +769,225 @@ function ArchiveChoices({ plan, server, archive, dumps, onStarted }: {
         </Button>
       </div>
     </Card>
+  );
+}
+
+interface CoolifyResource {
+  uuid: string;
+  kind: "application" | "service" | "database";
+  name: string;
+  type: string;
+  status?: string;
+  domains: string[];
+  image?: string;
+  git_url?: string;
+  app_name: string;
+  app_kind: "" | "image" | "compose" | "git";
+  reason?: string;
+}
+
+interface CoolifyResult {
+  uuid: string;
+  name: string;
+  app_id?: string;
+  code?: string;
+  message?: string;
+  data?: Record<string, unknown>;
+  notes: ImportNote[];
+}
+
+/** Import → Coolify: read applications and services through Coolify's API, and make apps of them. */
+function CoolifyImport({ servers }: { servers: Server[] }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const [url, setURL] = useState("");
+  const [token, setToken] = useState("");
+  const [server, setServer] = useState("");
+  const [owner, setOwner] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [list, setList] = useState<CoolifyResource[] | null>(null);
+  const [chosen, setChosen] = useState<Record<string, string>>({}); // uuid → app name
+  const [results, setResults] = useState<CoolifyResult[] | null>(null);
+  useEffect(() => {
+    if (!server && servers.length > 0) setServer(servers[0].id);
+  }, [servers, server]);
+
+  const read = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    setList(null);
+    setResults(null);
+    try {
+      const res = await api.post<{ resources: CoolifyResource[] }>("/imports/coolify/inspect", { url, token });
+      setList(res.resources);
+      setChosen(Object.fromEntries(res.resources.filter((r) => r.app_kind).map((r) => [r.uuid, r.app_name])));
+    } catch (err) {
+      setError(errorMessage(t, err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const start = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const resources = (list ?? []).filter((r) => r.uuid in chosen).map((r) => ({ kind: r.kind, uuid: r.uuid, name: chosen[r.uuid] }));
+      const res = await api.post<{ results: CoolifyResult[] }>("/imports/coolify", { url, token, server_id: server, owner_id: owner, resources });
+      setResults(res.results);
+      qc.invalidateQueries({ queryKey: ["apps"] });
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      window.scrollTo({ top: 0 });
+    } catch (err) {
+      setError(errorMessage(t, err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (results) {
+    const made = results.filter((r) => r.app_id).length;
+    return (
+      <Card className="grid gap-4 p-5" aria-live="polite">
+        <div className="flex items-center gap-3">
+          {made === results.length ? <CheckCircle2 className="size-6 text-ok" aria-hidden /> : <Info className="size-6 text-warn" aria-hidden />}
+          <h2 className="text-lg font-semibold">{t("imports.coolify_done", { made, count: results.length })}</h2>
+        </div>
+        <ul className="divide-y divide-line rounded-lg border border-line">
+          {results.map((r) => (
+            <li key={r.uuid + r.name} className="grid gap-1 px-3 py-2.5 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                {r.app_id ? <CheckCircle2 className="size-4 text-ok" aria-hidden /> : <XCircle className="size-4 text-crit" aria-hidden />}
+                {r.app_id ? (
+                  <Link to={`/apps/${r.app_id}`} className="font-mono font-medium hover:text-accent">
+                    {r.name}
+                  </Link>
+                ) : (
+                  <span className="font-mono font-medium">{r.name}</span>
+                )}
+                {r.code && <span className="text-crit">{t(`errors.${r.code}`, { ...r.data, defaultValue: r.message ?? r.code })}</span>}
+              </div>
+              {r.notes.length > 0 && (
+                <ul className="list-disc ps-10 text-muted">
+                  {r.notes.map((n, i) => (
+                    <li key={i}>{t(`imports.note.${n.code}`, { ...n, defaultValue: [n.code, n.name].filter(Boolean).join(": ") })}</li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          ))}
+        </ul>
+        <p className="text-sm text-muted">{t("imports.coolify_after")}</p>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Link to="/apps" className="inline-flex h-10 items-center rounded-lg px-4 font-medium text-accent hover:bg-sunk">
+            {t("imports.open_apps")}
+          </Link>
+          <Button onClick={() => setResults(null)}>{t("imports.another")}</Button>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <Card className="grid gap-4 p-5">
+        <h2 className="text-lg font-semibold">{t("imports.coolify_step")}</h2>
+        <p className="max-w-2xl text-sm text-muted">{t("imports.coolify_body")}</p>
+        <form onSubmit={read} className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+          <Field
+            label={t("imports.coolify_url")}
+            placeholder="https://coolify.example.com"
+            value={url}
+            onChange={(e) => setURL(e.target.value)}
+            className="[&_input]:font-mono"
+            autoComplete="off"
+            spellCheck={false}
+            required
+          />
+          <Field label={t("imports.coolify_token")} type="password" value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" required />
+          <Button type="submit" variant="primary" loading={busy && !list} disabled={!url || !token}>
+            {t("imports.coolify_read")}
+          </Button>
+        </form>
+        {!list && <ErrorAlert>{error}</ErrorAlert>}
+      </Card>
+      {list && (
+        <Card className="grid gap-6 p-5">
+          <h2 className="text-lg font-semibold">{t("imports.coolify_choose")}</h2>
+          {list.length === 0 ? (
+            <p className="text-sm text-muted">{t("imports.coolify_empty")}</p>
+          ) : (
+            <ul className="divide-y divide-line rounded-lg border border-line">
+              {list.map((r) => {
+                const on = r.uuid in chosen;
+                return (
+                  <li key={r.uuid} className={cx("flex flex-wrap items-center gap-3 px-3 py-2.5", !r.app_kind && "opacity-70")}>
+                    <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        disabled={!r.app_kind}
+                        onChange={() => {
+                          const next = { ...chosen };
+                          if (on) delete next[r.uuid];
+                          else next[r.uuid] = r.app_name;
+                          setChosen(next);
+                        }}
+                        className="mt-1 accent-[var(--accent)]"
+                      />
+                      <span className="grid min-w-0 gap-0.5">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="truncate font-medium">{r.name}</span>
+                          <Badge tone="neutral">{t(`imports.coolify_kind.${r.kind}`)}</Badge>
+                          <span className="text-xs text-muted">{r.type}</span>
+                        </span>
+                        <span className="truncate text-xs text-muted">{r.domains.join(", ") || r.image || r.git_url || "—"}</span>
+                        {r.reason && <span className="text-xs text-warn">{t(`imports.coolify_reason.${r.reason}`, { defaultValue: r.reason })}</span>}
+                      </span>
+                    </label>
+                    {on && (
+                      <label className="flex items-center gap-2 text-sm">
+                        <span className="text-muted">{t("imports.coolify_app_name")}</span>
+                        <input
+                          value={chosen[r.uuid]}
+                          onChange={(e) => setChosen({ ...chosen, [r.uuid]: e.target.value.toLowerCase() })}
+                          className="h-9 w-44 rounded-lg border border-line bg-surface px-2 font-mono text-sm text-ink"
+                          spellCheck={false}
+                        />
+                      </label>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="grid min-w-0 gap-1.5">
+              <span className="text-sm font-medium">{t("sites.server")}</span>
+              <select value={server} onChange={(e) => setServer(e.target.value)} className="h-10 rounded-lg border border-line bg-surface px-3 text-ink">
+                {servers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <OwnerField value={owner} onChange={setOwner} />
+          </div>
+          <div className="flex gap-3 rounded-lg bg-sunk px-4 py-3 text-sm">
+            <Info className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden />
+            <p className="text-muted">{t("imports.coolify_data")}</p>
+          </div>
+          <ErrorAlert>{error}</ErrorAlert>
+          <div className="flex justify-end">
+            <Button variant="primary" loading={busy} disabled={Object.keys(chosen).length === 0 || !server} onClick={start}>
+              {t("imports.start")}
+            </Button>
+          </div>
+        </Card>
+      )}
+    </>
   );
 }
