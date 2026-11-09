@@ -15,6 +15,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--only-13804a" alt="License: AGPL-3.0-only"></a>
+  <a href="https://github.com/ekPanel/ekpanel/releases/latest"><img src="https://img.shields.io/github/v/release/ekPanel/ekpanel?color=13804a" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/status-early%20development-orange" alt="Status: early development">
   <img src="https://img.shields.io/badge/languages-English%20%C2%B7%20%E0%A6%AC%E0%A6%BE%E0%A6%82%E0%A6%B2%E0%A6%BE-13804a" alt="Languages: English and Bangla">
   <img src="https://img.shields.io/badge/Go-1.27-00ADD8" alt="Go 1.27">
@@ -26,7 +27,7 @@
 hosting (like cPanel and aaPanel), Git and Docker app deployment (like Coolify), email and
 DNS, with a modern UI in your own language.
 
-> **Status: early development (phases 0 to 3 done, phase 4 under way, 5 to come).** Everything below works end to end
+> **Status: early development (first release v0.1.0; phases 0 to 3 done, phase 4 under way, 5 to come).** Everything below works end to end
 > on a test server, but there is no release yet: do not use it for production hosting.
 > See the [roadmap](https://ekpanel.github.io/ekPanel-docs/project/roadmap/) and [PLAN.md](PLAN.md).
 

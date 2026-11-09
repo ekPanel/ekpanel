@@ -930,5 +930,5 @@ How 4a works (decided 2026-11-09):
 
 **Next**
 - [x] 4a. Releases and updates; the signing key is in the `release` environment
-- [ ] v0.1.0, the first release (tag on `pub`)
+- [x] v0.1.0, the first release, published 2026-11-09 (signature, checksums and attestation checked)
 - [ ] 4b. API, CLI, Terraform
