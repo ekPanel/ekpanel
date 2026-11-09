@@ -5,7 +5,7 @@ bug reports and design feedback.
 
 ## Development setup
 
-Requirements: Linux, Go 1.26+ (an older `go` downloads 1.26 by itself), Node.js 22+, `make`.
+Requirements: Linux, Go 1.27+ (an older `go` downloads 1.27 by itself), Node.js 22+, `make`.
 You do **not** need PostgreSQL or Docker: `make dev` starts a private embedded PostgreSQL
 inside `.data/`, and the tests start their own.
 

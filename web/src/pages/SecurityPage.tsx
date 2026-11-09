@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, CircleAlert, Loader2, ShieldBan, ShieldCheck } from "lucide-react";
 import { api, ApiError, errorMessage, type Server } from "../lib/api";
@@ -84,7 +85,7 @@ const durations = ["1h", "4h", "24h", "168h", "720h", "8760h"];
 const select = "h-10 rounded-lg border border-line bg-surface px-3 text-ink";
 
 /** "crowdsecurity/http-bf-wordpress_bf" -> "http-bf-wordpress_bf", looked up in the texts. */
-function scenarioName(t: (k: string, o?: Record<string, unknown>) => string, s: string) {
+function scenarioName(t: TFunction, s: string) {
   const short = s.replace(/^crowdsecurity\//, "");
   return t(`serversec.scenarios.${short.replace(/[^a-z0-9_]/g, "_")}`, { defaultValue: short });
 }

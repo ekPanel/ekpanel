@@ -17,7 +17,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--only-13804a" alt="License: AGPL-3.0-only"></a>
   <img src="https://img.shields.io/badge/status-early%20development-orange" alt="Status: early development">
   <img src="https://img.shields.io/badge/languages-English%20%C2%B7%20%E0%A6%AC%E0%A6%BE%E0%A6%82%E0%A6%B2%E0%A6%BE-13804a" alt="Languages: English and Bangla">
-  <img src="https://img.shields.io/badge/Go-1.26-00ADD8" alt="Go 1.26">
+  <img src="https://img.shields.io/badge/Go-1.27-00ADD8" alt="Go 1.27">
 </p>
 
 # ekPanel
@@ -129,7 +129,7 @@ Agents only accept typed operations; there is no "run this shell command" endpoi
 
 ## Try it locally
 
-You need Go 1.26+ (older Go downloads it automatically), Node.js 22+ and Linux.
+You need Go 1.27+ (older Go downloads it automatically), Node.js 22+ and Linux.
 
 ```bash
 make ui      # build the web UI
