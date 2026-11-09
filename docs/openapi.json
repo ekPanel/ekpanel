@@ -1046,6 +1046,74 @@
         "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
       }
     },
+    "/api/v1/auth/2fa/recovery-codes": {
+      "get": {
+        "operationId": "getAuth2faRecoveryCodes",
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "How many two-factor recovery codes are left",
+        "tags": [
+          "account"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      },
+      "post": {
+        "operationId": "postAuth2faRecoveryCodes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Make new two-factor recovery codes",
+        "tags": [
+          "account"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
     "/api/v1/auth/2fa/setup": {
       "post": {
         "operationId": "postAuth2faSetup",
@@ -1304,6 +1372,234 @@
         "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
       }
     },
+    "/api/v1/auth/passkey/login": {
+      "post": {
+        "operationId": "postAuthPasskeyLogin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Sign in with a passkey",
+        "tags": [
+          "account"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
+    "/api/v1/auth/passkey/options": {
+      "post": {
+        "operationId": "postAuthPasskeyOptions",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Start signing in with a passkey",
+        "tags": [
+          "account"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
+    "/api/v1/auth/passkeys": {
+      "get": {
+        "operationId": "getAuthPasskeys",
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "List passkeys",
+        "tags": [
+          "account"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      },
+      "post": {
+        "operationId": "postAuthPasskeys",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Add passkey",
+        "tags": [
+          "account"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
+    "/api/v1/auth/passkeys/options": {
+      "post": {
+        "operationId": "postAuthPasskeysOptions",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Start adding a passkey (asks for the password)",
+        "tags": [
+          "account"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
+    "/api/v1/auth/passkeys/{id}": {
+      "delete": {
+        "operationId": "deleteAuthPasskeysId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Delete passkey",
+        "tags": [
+          "account"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
     "/api/v1/auth/password": {
       "post": {
         "operationId": "postAuthPassword",
@@ -1344,6 +1640,36 @@
         "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
       }
     },
+    "/api/v1/auth/sessions": {
+      "get": {
+        "operationId": "getAuthSessions",
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "List sessions",
+        "tags": [
+          "account"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
     "/api/v1/auth/sessions/revoke-others": {
       "post": {
         "operationId": "postAuthSessionsRevokeOthers",
@@ -1378,6 +1704,46 @@
           }
         ],
         "summary": "Revoke other sessions",
+        "tags": [
+          "account"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
+    "/api/v1/auth/sessions/{id}": {
+      "delete": {
+        "operationId": "deleteAuthSessionsId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "End session",
         "tags": [
           "account"
         ],
@@ -2154,6 +2520,56 @@
           "customers"
         ],
         "x-ekpanel-scope": "customers"
+      }
+    },
+    "/api/v1/customers/{id}/2fa/reset": {
+      "post": {
+        "operationId": "postCustomersId2faReset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Turn off a customer's two-factor sign-in",
+        "tags": [
+          "customers"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
       }
     },
     "/api/v1/customers/{id}/impersonate": {

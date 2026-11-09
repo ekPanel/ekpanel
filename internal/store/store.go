@@ -122,10 +122,15 @@ func (s *Store) SetTOTP(ctx context.Context, id string, secret *string, enabled 
 const SessionTTL = 7 * 24 * time.Hour
 
 func (s *Store) CreateSession(ctx context.Context, tokenHash []byte, userID, ip, userAgent string) error {
+	return s.CreateSessionBy(ctx, tokenHash, userID, ip, userAgent, "password")
+}
+
+// CreateSessionBy starts a session, recording how the account signed in (password, passkey).
+func (s *Store) CreateSessionBy(ctx context.Context, tokenHash []byte, userID, ip, userAgent, method string) error {
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO sessions (token_hash, user_id, ip, user_agent, expires_at)
-		VALUES ($1, $2, $3, $4, now() + $5 * interval '1 second')`,
-		tokenHash, userID, ip, userAgent, int64(SessionTTL.Seconds()))
+		INSERT INTO sessions (token_hash, user_id, ip, user_agent, expires_at, method)
+		VALUES ($1, $2, $3, $4, now() + $5 * interval '1 second', $6)`,
+		tokenHash, userID, ip, userAgent, int64(SessionTTL.Seconds()), method)
 	return err
 }
 

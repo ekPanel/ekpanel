@@ -1,9 +1,10 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
 import { Trans, useTranslation } from "react-i18next";
-import { KeyRound } from "lucide-react";
+import { Fingerprint, KeyRound } from "lucide-react";
 import { api, ApiError, errorMessage, type User } from "../lib/api";
 import { useMe, useSetupStatus, useSignedIn } from "../lib/session";
+import { cancelled, getPasskey, passkeysSupported } from "../lib/passkeys";
 import { LanguageMenu, Logo, ThemeMenu } from "../components/AppShell";
 import { Button, ErrorAlert, Field, Spinner } from "../components/ui";
 
@@ -118,6 +119,22 @@ export function LoginPage() {
   const next = params.get("next");
   const target = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
 
+  const withPasskey = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const start = await api.post<{ ceremony: string; options: unknown }>("/auth/passkey/options");
+      const credential = await getPasskey(start.options);
+      const user = await api.post<User>("/auth/passkey/login", { ceremony: start.ceremony, credential });
+      signedIn(user);
+      navigate(target, { replace: true });
+    } catch (err) {
+      if (!cancelled(err)) setError(errorMessage(t, err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -153,12 +170,13 @@ export function LoginPage() {
               {t("login.code_help")}
             </div>
             <Field
-              label={t("security.code")}
+              label={t("login.code_or_recovery")}
+              hint={t("login.recovery_hint")}
               value={form.totp_code}
-              onChange={(e) => setForm({ ...form, totp_code: e.target.value.replace(/\D/g, "").slice(0, 6) })}
-              inputMode="numeric"
+              onChange={(e) => setForm({ ...form, totp_code: e.target.value.replace(/[^0-9A-Za-z -]/g, "").slice(0, 12) })}
               autoComplete="one-time-code"
               className="[&_input]:font-mono [&_input]:tracking-[0.3em]"
+              spellCheck={false}
               required
               autoFocus
             />
@@ -171,6 +189,19 @@ export function LoginPage() {
           <Button type="button" variant="ghost" onClick={() => { setNeedsCode(false); setForm({ ...form, totp_code: "" }); }}>
             {t("common.back")}
           </Button>
+        )}
+        {!needsCode && passkeysSupported() && (
+          <>
+            <div className="flex items-center gap-3 text-xs text-muted" aria-hidden>
+              <span className="h-px flex-1 bg-line" />
+              {t("login.or")}
+              <span className="h-px flex-1 bg-line" />
+            </div>
+            <Button type="button" onClick={withPasskey} disabled={busy}>
+              <Fingerprint className="size-4" aria-hidden />
+              {t("login.passkey")}
+            </Button>
+          </>
         )}
       </form>
     </AuthLayout>

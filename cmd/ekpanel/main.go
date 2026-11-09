@@ -43,6 +43,8 @@ func main() {
 		fmt.Println(version)
 	case len(os.Args) > 1 && os.Args[1] == "add-server":
 		err = addServer(os.Args[2:])
+	case len(os.Args) > 1 && os.Args[1] == "reset-2fa":
+		err = resetTOTP(os.Args[2:])
 	default:
 		err = run(log, os.Args[1:])
 	}
@@ -50,6 +52,65 @@ func main() {
 		log.Error("ekpanel", "err", err)
 		os.Exit(1)
 	}
+}
+
+// panelEnvFile holds the installed panel's settings; commands run by hand read it too.
+const panelEnvFile = "/etc/ekpanel/panel.env"
+
+// loadPanelEnv sets EKPANEL_* variables from the panel's settings file, unless set already.
+func loadPanelEnv() {
+	b, err := os.ReadFile(panelEnvFile)
+	if err != nil {
+		return
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		k, v, ok := strings.Cut(strings.TrimSpace(line), "=")
+		if !ok || !strings.HasPrefix(k, "EKPANEL_") || os.Getenv(k) != "" {
+			continue
+		}
+		os.Setenv(k, strings.Trim(v, `"'`))
+	}
+}
+
+// resetTOTP turns off an account's two-factor sign-in, for an administrator who lost their
+// phone and recovery codes. Run it on the panel's server as the panel's user:
+//
+//	sudo -u ekpanel ekpanel reset-2fa admin@example.com
+func resetTOTP(args []string) error {
+	if len(args) < 1 || strings.HasPrefix(args[0], "-") {
+		return errors.New("usage: ekpanel reset-2fa EMAIL [panel flags such as --database-url]")
+	}
+	email := args[0]
+	loadPanelEnv()
+	cfg, err := config.Load(args[1:])
+	if err != nil {
+		return err
+	}
+	if cfg.DevDB {
+		return fmt.Errorf("reset-2fa needs --database-url; the embedded dev database only runs inside the panel process")
+	}
+	ctx := context.Background()
+	pool, err := db.Open(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	st := store.New(pool)
+	u, err := st.UserByEmail(ctx, email)
+	if err != nil {
+		return fmt.Errorf("no account with the email %s", email)
+	}
+	if err := st.SetTOTP(ctx, u.ID, nil, false); err != nil {
+		return err
+	}
+	if err := st.SetRecoveryCodes(ctx, u.ID, nil); err != nil {
+		return err
+	}
+	if err := st.AddAudit(ctx, nil, "", "auth.2fa_reset", u.Email, map[string]any{"user_id": u.ID, "via": "cli"}); err != nil {
+		return err
+	}
+	fmt.Printf("Two-factor sign-in is off for %s. Sign in with the password and turn it on again.\n", u.Email)
+	return nil
 }
 
 // addServer registers a server from the command line and prints its one-time enrolment

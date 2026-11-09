@@ -43,6 +43,15 @@ All notable changes to ekPanel are listed here. The format follows
   token used once, they become image, Git or Compose apps with their variables, domain,
   port and kept folders; the data in volumes is for you to copy (4d)
 
+- Two-factor recovery codes: ten one-time codes when two-factor is turned on, usable in the
+  sign-in's code field, with a notification when one is used; new ones from the Security page.
+  Administrators can reset a customer's two-factor, and `ekpanel reset-2fa EMAIL` on the
+  panel's server resets an administrator's (4e)
+- The Security page lists every signed-in device (browser, address, when) and signs out any
+  of them (4e)
+- Passkeys: add them on the Security page and sign in with one instead of a password and
+  code (4e)
+
 ### Changed
 - PHP websites serve a folder's `index.html` when it has no `index.php`, as Apache does (4d)
 

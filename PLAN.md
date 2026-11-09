@@ -1060,8 +1060,30 @@ DNS zones and certificates next):
       them; they see only their customers
 - [ ] White-label: name, logo, colors and the panel's domain, per panel and per reseller
 - [ ] Sub-users of an account with chosen permissions (only files, only email …)
-- [ ] Passkeys (WebAuthn) besides passwords and two-factor codes; active sessions listed and
-      ended from the panel
+- [x] Passkeys (WebAuthn) besides passwords and two-factor codes; active sessions listed and
+      ended from the panel (4e-1, with recovery codes and resetting someone's two-factor).
+      Passkeys are tested with a virtual authenticator (go test); in a browser on a local panel,
+      recovery codes and sessions were tried, not adding a passkey with a real device
+
+Order (decided 2026-11-09): **4e-1 account security** (recovery codes, resetting someone's
+two-factor, sessions, passkeys), **4e-2 customers** (suspending, moving a website, database or
+app to another owner, alerts for failed cron jobs, bandwidth limits), **4e-3 resellers**,
+**4e-4 white-label**, **4e-5 sub-users**. Each is tried in the VM and documented before the next.
+
+How 4e-1 works:
+- **Recovery codes:** turning two-factor on makes ten one-time codes (shown once, kept as
+  SHA-256 hashes). The sign-in's code field takes one instead of the app's code; it is used up,
+  the audit log and a notification say so. New codes replace the old set (password asked).
+- **Losing two-factor:** an administrator resets a customer's two-factor from the customers
+  page; for an administrator's own account, `ekpanel reset-2fa EMAIL` on the panel's server
+  (root shell) does it. Both are in the audit log.
+- **Sessions:** the account page lists signed-in browsers (address, browser, started, last
+  seen, this one marked) and ends any of them; "sign out everywhere else" stays.
+- **Passkeys (WebAuthn, go-webauthn):** added from the account page after giving the password
+  again; named, listed with their last use, removed. "Sign in with a passkey" uses a
+  discoverable credential with user verification, so it counts as both factors (no password,
+  no code). The relying party is the panel's host name as the browser reaches it (passkeys
+  need HTTPS, or localhost); a passkey made on one address does not work on another.
 
 **4f. Security center**
 - [ ] WAF: Coraza with the OWASP Core Rule Set in a Caddy that ekPanel builds and ships (with
@@ -1086,8 +1108,8 @@ DNS zones and certificates next):
 **Found while writing the documentation** (2026-11-09)
 - [x] A second server needs Caddy, `acl`, the Caddyfile import, a systemd unit and a
       readable /etc/ekpanel; the agent sets up none of these (4a: `install.sh --agent`)
-- [ ] Two-factor sign-in has no recovery codes, and administrators cannot reset someone's
-      two-factor (4e)
+- [x] Two-factor sign-in has no recovery codes, and administrators cannot reset someone's
+      two-factor (4e-1: ten recovery codes; customers page and `ekpanel reset-2fa`)
 - [ ] The email page asks to add DNS records by hand for domains on ekPanel's own name
       servers, although ekPanel adds them there itself
 - [ ] Backups taken before a staging push or pull are never cleaned up; a failed WordPress

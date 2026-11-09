@@ -294,7 +294,22 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusUnauthorized, "totp_required", "enter the code from your authenticator app")
 			return
 		}
-		if u.TOTPSecret == nil || !auth.CheckTOTP(*u.TOTPSecret, strings.TrimSpace(req.TOTPCode)) {
+		code := strings.TrimSpace(req.TOTPCode)
+		switch {
+		case looksLikeRecoveryCode(code):
+			used, err := s.store.UseRecoveryCode(r.Context(), u.ID, hashRecoveryCode(code))
+			if err != nil {
+				s.internalError(w, r, err)
+				return
+			}
+			if !used {
+				fail("invalid_totp", "the authentication code is not correct")
+				return
+			}
+			left, _ := s.store.RecoveryCodesLeft(r.Context(), u.ID)
+			s.auditAs(r, &u.ID, "auth.recovery_code_used", u.Email, map[string]any{"left": left})
+			s.notifyRecoveryCodeUsed(r, &u, left)
+		case u.TOTPSecret == nil || !auth.CheckTOTP(*u.TOTPSecret, code):
 			fail("invalid_totp", "the authentication code is not correct")
 			return
 		}
@@ -441,9 +456,14 @@ func (s *Server) handleTOTPEnable(w http.ResponseWriter, r *http.Request) {
 		s.internalError(w, r, err)
 		return
 	}
+	codes, hashes := newRecoveryCodes()
+	if err := s.store.SetRecoveryCodes(r.Context(), u.ID, hashes); err != nil {
+		s.internalError(w, r, err)
+		return
+	}
 	s.audit(r, "auth.2fa_enabled", u.Email, nil)
 	u.TOTPEnabled = true
-	writeJSON(w, http.StatusOK, u)
+	writeJSON(w, http.StatusOK, userWithCodes{User: *u, RecoveryCodes: codes})
 }
 
 type passwordRequest struct {
@@ -456,17 +476,14 @@ func (s *Server) handleTOTPDisable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	u := currentUser(r)
-	key := "reauth:" + u.ID
-	if s.limiter.Blocked(key) {
-		writeError(w, http.StatusTooManyRequests, "too_many_attempts", "too many attempts; try again later")
-		return
-	}
-	if ok, err := auth.VerifyPassword(req.Password, u.PasswordHash); err != nil || !ok {
-		s.limiter.Fail(key)
-		writeError(w, http.StatusForbidden, "invalid_password", "the password is not correct")
+	if !s.checkPasswordAgain(w, u, req.Password) {
 		return
 	}
 	if err := s.store.SetTOTP(r.Context(), u.ID, nil, false); err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if err := s.store.SetRecoveryCodes(r.Context(), u.ID, nil); err != nil {
 		s.internalError(w, r, err)
 		return
 	}

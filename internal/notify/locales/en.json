@@ -83,6 +83,10 @@
     "update_failed": {
       "title": "Update to ekPanel {{version}} failed",
       "body": "{{message}}\n\nThe panel keeps running its current version. Settings → Updates has the details."
+    },
+    "recovery_code_used": {
+      "title": "A recovery code signed in to your account",
+      "body": "Someone signed in to your ekPanel account from {{ip}} with a two-factor recovery code; {{left}} codes are left. If it was not you, change your password, make new recovery codes and sign out other devices."
     }
   },
   "open": "Open in ekPanel: {{link}}"

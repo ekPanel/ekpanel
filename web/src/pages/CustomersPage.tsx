@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRightLeft, KeyRound, LogIn, Package as PackageIcon, Pencil, Plus, Trash2, Users } from "lucide-react";
+import { ArrowRightLeft, KeyRound, LogIn, Package as PackageIcon, Pencil, Plus, ShieldOff, Trash2, Users } from "lucide-react";
 import { api, errorMessage, type Customer, type Package, type Server, type Usage, type User } from "../lib/api";
 import { formatBytes, formatNumber } from "../lib/format";
 import { meKey, useMe } from "../lib/session";
@@ -351,6 +351,21 @@ export function CustomersPage() {
                     <KeyRound className="size-4" aria-hidden />
                     {t("customers.reset_password")}
                   </Button>
+                  {c.totp_enabled && (
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        window.confirm(t("customers.reset_2fa_confirm", { name: c.name })) &&
+                        act(async () => {
+                          await api.post(`/customers/${c.id}/2fa/reset`);
+                          qc.invalidateQueries({ queryKey: ["customers"] });
+                        })
+                      }
+                    >
+                      <ShieldOff className="size-4" aria-hidden />
+                      {t("customers.reset_2fa")}
+                    </Button>
+                  )}
                   <Button size="sm" onClick={() => setMoving(c)}>
                     <ArrowRightLeft className="size-4" aria-hidden />
                     {t("customers.move.button")}

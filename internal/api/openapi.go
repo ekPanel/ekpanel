@@ -55,6 +55,12 @@ var summaryOverrides = map[string]string{
 	"POST /api/v1/imports/site":                         "Import a website, and its database, from an archive",
 	"POST /api/v1/imports/coolify/inspect":              "List the applications, services and databases of a Coolify instance",
 	"POST /api/v1/imports/coolify":                      "Make apps of Coolify applications and services",
+	"POST /api/v1/auth/passkey/options":                 "Start signing in with a passkey",
+	"POST /api/v1/auth/passkey/login":                   "Sign in with a passkey",
+	"POST /api/v1/auth/passkeys/options":                "Start adding a passkey (asks for the password)",
+	"GET /api/v1/auth/2fa/recovery-codes":               "How many two-factor recovery codes are left",
+	"POST /api/v1/auth/2fa/recovery-codes":              "Make new two-factor recovery codes",
+	"POST /api/v1/customers/{id}/2fa/reset":             "Turn off a customer's two-factor sign-in",
 }
 
 // tagNames gives a few path segments a nicer tag.

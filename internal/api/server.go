@@ -55,6 +55,9 @@ type Server struct {
 	setupMu    sync.Mutex
 	setupToken string
 
+	// passkeyCeremonies are the passkey challenges handed out and not answered yet.
+	passkeyCeremonies ceremonies
+
 	// importPlans keeps recent backup inspections, so an import does not read the archive again.
 	importPlans sync.Map
 }
@@ -88,6 +91,8 @@ func (s *Server) router() chi.Router {
 		r.Get("/setup/status", s.handleSetupStatus)
 		r.Post("/setup", s.handleSetup)
 		r.Post("/auth/login", s.handleLogin)
+		r.Post("/auth/passkey/options", s.handlePasskeyLoginOptions)
+		r.Post("/auth/passkey/login", s.handlePasskeyLogin)
 
 		r.Group(func(r chi.Router) {
 			r.Use(requireUser)
@@ -101,6 +106,14 @@ func (s *Server) router() chi.Router {
 			r.With(notImpersonating).Post("/auth/2fa/enable", s.handleTOTPEnable)
 			r.With(notImpersonating).Post("/auth/2fa/disable", s.handleTOTPDisable)
 			r.With(notImpersonating).Post("/auth/sessions/revoke-others", s.handleRevokeOtherSessions)
+			r.Get("/auth/sessions", s.handleListSessions)
+			r.Get("/auth/passkeys", s.handleListPasskeys)
+			r.With(notImpersonating).Post("/auth/passkeys/options", s.handlePasskeyOptions)
+			r.With(notImpersonating).Post("/auth/passkeys", s.handleAddPasskey)
+			r.With(notImpersonating).Delete("/auth/passkeys/{id}", s.handleDeletePasskey)
+			r.With(notImpersonating).Delete("/auth/sessions/{id}", s.handleEndSession)
+			r.Get("/auth/2fa/recovery-codes", s.handleRecoveryCodesLeft)
+			r.With(notImpersonating).Post("/auth/2fa/recovery-codes", s.handleNewRecoveryCodes)
 			// API tokens are managed only in a browser session (a token cannot reach these).
 			r.With(notImpersonating).Get("/tokens", s.handleListTokens)
 			r.With(notImpersonating).Post("/tokens", s.handleCreateToken)
@@ -265,6 +278,7 @@ func (s *Server) router() chi.Router {
 			r.Put("/customers/{id}", s.handleUpdateCustomer)
 			r.Delete("/customers/{id}", s.handleDeleteCustomer)
 			r.Post("/customers/{id}/password", s.handleResetCustomerPassword)
+			r.With(notImpersonating).Post("/customers/{id}/2fa/reset", s.handleResetCustomerTOTP)
 			r.Post("/customers/{id}/impersonate", s.handleImpersonate)
 			r.Post("/servers", s.handleCreateServer)
 			r.Get("/servers/{id}", s.handleGetServer)

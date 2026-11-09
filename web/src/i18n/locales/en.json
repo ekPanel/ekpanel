@@ -67,7 +67,11 @@
     "code_subtitle": "One more step to keep your account safe.",
     "code_help": "Open your authenticator app and enter the 6-digit code for ekPanel.",
     "verify": "Verify",
-    "submit": "Sign in"
+    "submit": "Sign in",
+    "code_or_recovery": "Code from the app, or a recovery code",
+    "recovery_hint": "Lost your phone? Enter one of your recovery codes.",
+    "or": "or",
+    "passkey": "Sign in with a passkey"
   },
   "security": {
     "intro": "Protect your account and control where you are signed in.",
@@ -88,9 +92,15 @@
     },
     "sessions": {
       "title": "Signed-in devices",
-      "body": "If you signed in on a computer you no longer use, sign out everywhere else. This device stays signed in.",
+      "body": "Where your account is signed in now. Sign out a device you no longer use or do not recognise.",
       "revoke": "Sign out all other devices",
-      "revoked": "All other devices are signed out."
+      "revoked": "All other devices are signed out.",
+      "this": "This device",
+      "passkey": "Passkey",
+      "admin": "An administrator",
+      "since": "signed in {{when}}",
+      "seen": "seen {{when}}",
+      "end": "Sign out"
     },
     "password": {
       "title": "Password",
@@ -100,7 +110,32 @@
       "save": "Change password",
       "saved": "Password changed"
     },
-    "not_while_acting": "These settings belong to the customer. Go back to your own account to change yours."
+    "not_while_acting": "These settings belong to the customer. Go back to your own account to change yours.",
+    "recovery": {
+      "title": "Recovery codes",
+      "left_one": "{{count}} code left. Each signs you in once instead of the app's code.",
+      "left_other": "{{count}} codes left. Each signs you in once instead of the app's code.",
+      "renew": "Make new recovery codes",
+      "password": "Enter your password to make new codes (the old ones stop working)",
+      "save": "Save these recovery codes somewhere safe, away from your phone. Each one signs you in once if you lose your authenticator app. They are shown only now.",
+      "download": "Download",
+      "saved": "I have saved them"
+    },
+    "passkeys": {
+      "title": "Passkeys",
+      "body": "Sign in with your fingerprint, face or device PIN instead of a password and code. A passkey works only on the address you add it on.",
+      "add": "Add a passkey",
+      "name": "Name",
+      "name_hint": "Laptop, phone, security key…",
+      "password": "Your password",
+      "create": "Create the passkey",
+      "added": "Added {{when}}",
+      "used": "last used {{when}}",
+      "never": "not used yet",
+      "remove": "Remove {{name}}",
+      "remove_confirm": "Remove the passkey {{name}}? It will no longer sign you in.",
+      "unsupported": "This browser cannot use passkeys here. Passkeys need HTTPS and a browser that supports them."
+    }
   },
   "servers": {
     "add": "Add server",
@@ -649,7 +684,15 @@
     "coolify_unauthorized": "Coolify did not accept the token. Make a new one under Keys & Tokens, and check that the API is on (Settings → Advanced).",
     "coolify_unreachable": "Could not read Coolify's API: {{detail}}",
     "coolify_resource": "Could not read it from Coolify.",
-    "invalid_backup_repo": "Choose a backup storage connected on the new server."
+    "invalid_backup_repo": "Choose a backup storage connected on the new server.",
+    "passkey_unavailable": "Passkeys cannot be used on this address. Open the panel by its host name over HTTPS.",
+    "passkey_failed": "The passkey could not be used. Try again, or sign in with your password.",
+    "passkey_expired": "That took too long. Try again.",
+    "passkey_exists": "This passkey is added already.",
+    "passkey_not_found": "That passkey is gone already.",
+    "session_current": "This is the device you are using: sign out instead.",
+    "session_not_found": "That device is signed out already.",
+    "totp_not_enabled": "Turn on two-factor authentication first."
   },
   "not_found": {
     "title": "Page not found",
@@ -2021,7 +2064,9 @@
       "from": "Move from",
       "warning": "Apps are unavailable while they move, and changes made to websites after their copy starts are not carried over. Each old copy stays until you remove it from the website's, database's or app's page.",
       "started": "The move has started. Each website, database and app shows its progress on its own page, where you can also remove its old copy once it has moved."
-    }
+    },
+    "reset_2fa": "Reset two-factor",
+    "reset_2fa_confirm": "Turn off two-factor sign-in for {{name}}? They sign in with their password and can turn it on again. Do this only when you know it is really them."
   },
   "packages": {
     "intro": "What each customer may use: how many websites, databases and apps, disk space, and memory and CPU for all their processes together.",
@@ -2203,7 +2248,8 @@
       "malware_found": "Malware found",
       "update_available": "New ekPanel version",
       "update_finished": "ekPanel updated",
-      "update_failed": "ekPanel update failed"
+      "update_failed": "ekPanel update failed",
+      "recovery_code_used": "Sign-in with a recovery code"
     },
     "inbox_note": "Notifications are kept for 90 days.",
     "mail": {

@@ -70,7 +70,7 @@ func tokenScopeFor(method, path string) (scopes []string, ok bool) {
 	}
 	// Nor anything that makes a browser session: signing in as a customer would give a
 	// session without the token's limits.
-	if slices.Contains(parts, "terminal") || slices.Contains(parts, "impersonate") {
+	if slices.Contains(parts, "terminal") || slices.Contains(parts, "impersonate") || slices.Contains(parts, "2fa") {
 		return nil, false
 	}
 	scopes, ok = routeScopes[parts[0]]
