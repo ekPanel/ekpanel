@@ -29,6 +29,7 @@ import { ServerSecurityPage } from "./pages/SecurityPage";
 import { CustomersPage, PackagesPage } from "./pages/CustomersPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { UpdatesPage } from "./pages/UpdatesPage";
+import { TokensPage } from "./pages/TokensPage";
 import { AppTerminalPage, ServerTerminalPage } from "./pages/TerminalPage";
 
 const queryClient = new QueryClient({
@@ -84,6 +85,7 @@ const router = createBrowserRouter([
       { path: "/", element: <DashboardPage /> },
       { path: "/settings/security", element: <SecurityPage /> },
       { path: "/settings/notifications", element: <NotificationsPage /> },
+      { path: "/settings/tokens", element: <TokensPage /> },
       // Customers use these too; the API shows them only what they own.
       { path: "/sites", element: <SitesPage /> },
       { path: "/sites/:id", element: <SiteDetailPage /> },

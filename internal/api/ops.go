@@ -100,6 +100,21 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, list)
 }
 
+func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	t, err := s.store.GetTask(r.Context(), id)
+	// Customers see only the tasks they started.
+	if !isUUID(id) || errors.Is(err, store.ErrNotFound) || (err == nil && !isAdmin(r) && (t.CreatedBy == nil || *t.CreatedBy != currentUser(r).ID)) {
+		writeError(w, http.StatusNotFound, "task_not_found", "no such task")
+		return
+	}
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, t)
+}
+
 // metricRanges maps the UI's range choices to how history is read. Steps keep every
 // chart at a few hundred points.
 var metricRanges = map[string]struct {

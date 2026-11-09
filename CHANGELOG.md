@@ -6,6 +6,16 @@ All notable changes to ekPanel are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+- API tokens (Account → API tokens): keys for scripts and the command-line tool, with
+  scopes (read, websites, databases, apps, DNS, email, backups, servers, customers, settings)
+  and an expiry; shown once, revocable, and named in the audit log. Tokens can never change
+  account security, manage tokens or open a terminal (4b)
+- An OpenAPI 3.1 description of the whole API at `/api/v1/openapi.json` (also
+  `docs/openapi.json`), made from the router, with the scope each operation needs (4b)
+- `ekctl`, a command-line tool for Linux, macOS and Windows: servers, websites, databases,
+  apps, DNS, backups and tasks, `--json` output, and `ekctl api` for any endpoint (4b)
+
 ## [v0.1.0] - 2026-11-09
 
 The first release: everything from roadmap phases 0 to 3 and the start of phase 4, grouped

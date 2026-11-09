@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pquerna/otp/totp"
 
 	"ekpanel/internal/agent"
@@ -61,6 +62,7 @@ type testPanel struct {
 	agentAddr string
 	store     *store.Store
 	runner    *tasks.Runner
+	pool      *pgxpool.Pool
 }
 
 func newPanel(t *testing.T) *httptest.Server { return newTestPanel(t).web }
@@ -126,7 +128,7 @@ func newTestPanel(t *testing.T, configure ...func(*api.Options, *store.Store)) *
 		<-done
 		pool.Close()
 	})
-	return &testPanel{web: web, agentAddr: agents.Listener.Addr().String(), store: st, runner: runner}
+	return &testPanel{web: web, agentAddr: agents.Listener.Addr().String(), store: st, runner: runner, pool: pool}
 }
 
 type client struct {

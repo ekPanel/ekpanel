@@ -4,7 +4,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 DATA_DIR ?= .data
 
-.PHONY: help build ui panel agent release sign test test-go test-web dev dev-ui dev-agent clean
+.PHONY: help build ui panel agent ekctl release sign test test-go test-web dev dev-ui dev-agent clean
 
 help: ## Show this help
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*## "}{printf "  %-12s %s\n", $$1, $$2}'
@@ -22,6 +22,9 @@ panel: ## Build bin/ekpanel
 agent: ## Build bin/ekpanel-agent
 	CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/ekpanel-agent ./cmd/ekpanel-agent
 
+ekctl: ## Build bin/ekctl, the command-line tool for the API
+	CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/ekctl ./cmd/ekctl
+
 # Releases are reproducible: the same commit and VERSION give the same files.
 SOURCE_DATE_EPOCH ?= $(shell git log -1 --format=%ct 2>/dev/null || echo 0)
 RELEASE_LDFLAGS := -s -w -buildid= -X main.version=$(VERSION)$(if $(RELEASE_EXTRA_KEY), -X ekpanel/internal/release.extraKey=$(RELEASE_EXTRA_KEY))
@@ -37,6 +40,15 @@ release: ui ## Build a release (VERSION=v1.2.3) into dist/: archives, install.sh
 		CGO_ENABLED=0 GOOS=linux GOARCH=$$arch go build -trimpath -ldflags '$(RELEASE_LDFLAGS)' -o $$dir/ekpanel ./cmd/ekpanel; \
 		CGO_ENABLED=0 GOOS=linux GOARCH=$$arch go build -trimpath -ldflags '$(RELEASE_LDFLAGS)' -o $$dir/ekpanel-agent ./cmd/ekpanel-agent; \
 		cp dist/install.sh LICENSE $$dir/; \
+		tar --sort=name --mtime=@$(SOURCE_DATE_EPOCH) --owner=0 --group=0 --numeric-owner \
+			-C dist -cf - $$(basename $$dir) | gzip -n -9 > $$dir.tar.gz; \
+		rm -rf $$dir; \
+	done
+	set -e; for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do \
+		os=$${target%/*}; arch=$${target#*/}; ext=; [ $$os = windows ] && ext=.exe; \
+		dir=dist/ekctl-$(VERSION)-$$os-$$arch; mkdir -p $$dir; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags '$(RELEASE_LDFLAGS)' -o $$dir/ekctl$$ext ./cmd/ekctl; \
+		cp LICENSE $$dir/; \
 		tar --sort=name --mtime=@$(SOURCE_DATE_EPOCH) --owner=0 --group=0 --numeric-owner \
 			-C dist -cf - $$(basename $$dir) | gzip -n -9 > $$dir.tar.gz; \
 		rm -rf $$dir; \

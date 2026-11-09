@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { ArchiveRestore, Bell, Boxes, CircleArrowUp, CloudCog, CornerDownLeft, Database as DatabaseIcon, Gauge, Globe, LayoutGrid, Package as PackageIcon, Plus, ScrollText, Search, Server as ServerIcon, ShieldCheck, Users } from "lucide-react";
+import { ArchiveRestore, Bell, Boxes, CircleArrowUp, CloudCog, CornerDownLeft, Database as DatabaseIcon, Gauge, Globe, KeyRound, LayoutGrid, Package as PackageIcon, Plus, ScrollText, Search, Server as ServerIcon, ShieldCheck, Users } from "lucide-react";
 import { api, type Database, type Server, type Site, type User } from "../lib/api";
 import { cx } from "./ui";
 
@@ -92,6 +92,7 @@ export function CommandPalette({ open, onClose, user }: { open: boolean; onClose
     }
     list.push({ id: "security", group: pages, label: t("nav.security"), icon: <ShieldCheck />, run: go("/settings/security") });
     list.push({ id: "notifications", group: pages, label: t("nav.notifications"), icon: <Bell />, run: go("/settings/notifications") });
+    list.push({ id: "tokens", group: pages, label: t("nav.tokens"), icon: <KeyRound />, run: go("/settings/tokens") });
     return list;
   }, [t, isAdmin, servers.data, sites.data, databases.data, navigate, onClose]);
 

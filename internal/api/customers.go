@@ -348,6 +348,12 @@ func (s *Server) handleImpersonate(w http.ResponseWriter, r *http.Request) {
 		s.writeCustomerError(w, r, err)
 		return
 	}
+	// Only from the administrator's own browser session (never with an API token): the
+	// cookie kept for going back must be that session.
+	if _, ok := r.Context().Value(sessionHashKey).([]byte); !ok || currentToken(r) != nil {
+		writeError(w, http.StatusForbidden, "token_not_allowed", "this needs a signed-in session; API tokens cannot do it")
+		return
+	}
 	own, err := r.Cookie(s.cookieName())
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "unauthenticated", "sign in first")

@@ -30,6 +30,12 @@ curl -fsSL https://github.com/ekPanel/ekpanel/releases/download/$version/install
 An existing panel updates itself: **Settings → Updates**. See the
 [installation guide](https://ekpanel.github.io/ekPanel-docs/start/install/).
 
+## The ekctl command-line tool
+
+For your own computer: \`ekctl-$version-<os>-<arch>.tar.gz\` (Linux, macOS and Windows, amd64 and
+arm64). Unpack it, put \`ekctl\` on your PATH, make an API token in the panel (**API tokens**)
+and run \`ekctl login --url https://your-panel\`.
+
 ## Check the files
 
 \`SHA256SUMS\` is signed with the ekPanel release key
