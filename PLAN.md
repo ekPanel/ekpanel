@@ -912,7 +912,9 @@ How 4b works (decided 2026-11-09):
 - [x] Move an app. Tried with two VMs: an nginx app with a data volume (a page and a 5 MB
       file owned by uid 101) moved in 45 s with Docker installed on the way; same data and
       owners, the old copy stopped until removed
-- [ ] Move a database on its own
+- [x] Move a database on its own (dump, switch, load; the old copy stays until removed).
+      Websites and apps on the old server keep using their old copy: the dialog says to move
+      the website with its database instead
 - [ ] App moves, later: fetch the app's page after the move; carry a Git app's kept builds
       too (rollbacks to earlier releases need them; until then, deploy again); remove an image
       already loaded on the target when the copy fails; a token scope per kind of move
@@ -927,7 +929,16 @@ How 4b works (decided 2026-11-09):
 - [ ] Moves: check the target's free disk space first (it needs about twice the home folder
       plus the databases), and suggest the databases a site really uses (WordPress's
       wp-config.php, the PHP app installer's records) instead of all of the owner's
-- [ ] Restore a backup onto another server; move a whole customer
+- [x] Move a whole customer: everything they have on one server, one thing at a time (the
+      first website takes all their databases along), checked before it starts, stopping at
+      the first failure
+- [ ] Restore a backup onto another server, for a server that is gone (decided 2026-11-09):
+      only for S3 storage (a local repository is on the lost server). The panel gives the new
+      server the repository (setup with the same password and keys), moves the site's and its
+      databases' records there without copying (like a switch), reconciles, restores the
+      files (the account name is the same, so the paths in the snapshot match) and each
+      database from its newest snapshot, then the DNS follows. The repository then belongs to
+      the new server, so scheduled backups go on from there
 - [x] Server-to-server copy over the agents' own connection, not public SSH
 
 How 4c works (decided 2026-11-09; websites first, then databases alone, apps, backups and
@@ -1005,5 +1016,5 @@ whole customers):
 - [x] 4a. Releases and updates; the signing key is in the `release` environment
 - [x] v0.1.0, the first release, published 2026-11-09 (signature, checksums and attestation checked)
 - [x] 4b. API tokens, OpenAPI and ekctl (Terraform later in phase 4)
-- [ ] 4c. Moving between servers (websites and apps done; databases alone, backups onto
-      another server and whole customers next)
+- [ ] 4c. Moving between servers (websites, apps, databases and whole customers done;
+      restoring a backup onto another server next)

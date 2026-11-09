@@ -2206,6 +2206,51 @@
         "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
       }
     },
+    "/api/v1/customers/{id}/move": {
+      "post": {
+        "operationId": "postCustomersIdMove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Move customer",
+        "tags": [
+          "customers"
+        ],
+        "x-ekpanel-scope": "customers"
+      }
+    },
     "/api/v1/customers/{id}/password": {
       "post": {
         "operationId": "postCustomersIdPassword",
@@ -2371,6 +2416,86 @@
           }
         },
         "summary": "Get database",
+        "tags": [
+          "databases"
+        ],
+        "x-ekpanel-scope": "read or databases"
+      }
+    },
+    "/api/v1/databases/{id}/move": {
+      "post": {
+        "operationId": "postDatabasesIdMove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Move database",
+        "tags": [
+          "databases"
+        ],
+        "x-ekpanel-scope": "databases"
+      }
+    },
+    "/api/v1/databases/{id}/moves": {
+      "get": {
+        "operationId": "getDatabasesIdMoves",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Database moves",
         "tags": [
           "databases"
         ],
@@ -4162,7 +4287,7 @@
         "tags": [
           "moves"
         ],
-        "x-ekpanel-scope": "sites or apps"
+        "x-ekpanel-scope": "sites or apps or databases"
       }
     },
     "/api/v1/notifications": {

@@ -110,6 +110,18 @@ func (s *Store) OpenAppMove(ctx context.Context, appID string) (Move, error) {
 		WHERE m.app_id = $1 AND m.phase IN ('copying', 'switching', 'moved', 'cleaning')`, appID))
 }
 
+// DatabaseMoves lists the moves a database was part of, newest first.
+func (s *Store) DatabaseMoves(ctx context.Context, dbID string) ([]Move, error) {
+	rows, err := s.pool.Query(ctx, `SELECT `+moveColumns+moveFrom+` WHERE $1 = ANY(m.database_ids) ORDER BY m.created_at DESC LIMIT 20`, dbID)
+	return s.collectMoves(rows, err)
+}
+
+// OpenDatabaseMove is an unfinished move the database is part of, if any.
+func (s *Store) OpenDatabaseMove(ctx context.Context, dbID string) (Move, error) {
+	return scanMove(s.pool.QueryRow(ctx, `SELECT `+moveColumns+moveFrom+`
+		WHERE $1 = ANY(m.database_ids) AND m.phase IN ('copying', 'switching', 'moved', 'cleaning') LIMIT 1`, dbID))
+}
+
 // SiteMoves lists a site's moves, newest first.
 func (s *Store) SiteMoves(ctx context.Context, siteID string) ([]Move, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+moveColumns+moveFrom+` WHERE m.site_id = $1 ORDER BY m.created_at DESC LIMIT 20`, siteID)

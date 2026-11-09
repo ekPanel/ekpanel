@@ -29,6 +29,94 @@ func (r *Runner) QueueSiteMove(ctx context.Context, moveID string, by *string) (
 		MaxAttempts: 1, DedupeKey: "move:" + moveID})
 }
 
+// KindCustomerMove moves everything a customer has on one server to another, one thing at a
+// time: the first website takes all their databases there along (websites reach their
+// databases on the same server), then the other websites, then databases if they have no
+// website there, then apps. It stops at the first failure; what moved stays moved.
+const KindCustomerMove = "customer.move"
+
+type CustomerMoveParams struct {
+	Customer string `json:"customer"`
+	From     string `json:"from"`
+	To       string `json:"to"`
+}
+
+func (r *Runner) QueueCustomerMove(ctx context.Context, p CustomerMoveParams, by *string) (store.Task, error) {
+	return r.Enqueue(ctx, store.NewTask{Kind: KindCustomerMove, Params: p, CreatedBy: by, MaxAttempts: 1,
+		DedupeKey: "customer-move:" + p.Customer})
+}
+
+// CustomerMoveResult says what moved.
+type CustomerMoveResult struct {
+	Moves []string `json:"moves"`
+}
+
+func (r *Runner) moveCustomer(ctx context.Context, t store.Task) (any, error) {
+	var p CustomerMoveParams
+	if err := json.Unmarshal(t.Params, &p); err != nil {
+		return nil, err
+	}
+	sites, err := r.store.ListSites(ctx, p.From)
+	if err != nil {
+		return nil, err
+	}
+	dbs, err := r.store.ListDatabases(ctx, p.From)
+	if err != nil {
+		return nil, err
+	}
+	apps, err := r.store.ListApps(ctx, p.From)
+	if err != nil {
+		return nil, err
+	}
+	owned := func(o *string) bool { return o != nil && *o == p.Customer }
+	var moves []store.Move
+	var mdbs []store.MoveDatabase
+	var dbIDs []string
+	for _, d := range dbs {
+		if owned(d.OwnerID) && d.State != "deleting" {
+			mdbs = append(mdbs, store.MoveDatabase{ID: d.ID, Engine: d.Engine, Name: d.Name, Username: d.Username})
+			dbIDs = append(dbIDs, d.ID)
+		}
+	}
+	first := true
+	for _, s := range sites {
+		if !owned(s.OwnerID) || s.State == "deleting" {
+			continue
+		}
+		m := store.Move{SiteID: &s.ID, FromServer: p.From, ToServer: p.To, LinuxUser: s.LinuxUser,
+			DatabaseIDs: []string{}, Databases: []store.MoveDatabase{}, CreatedBy: t.CreatedBy}
+		if first && len(mdbs) > 0 {
+			m.DatabaseIDs, m.Databases = dbIDs, mdbs
+		}
+		first = false
+		moves = append(moves, m)
+	}
+	if first { // no website: each database on its own
+		for _, d := range mdbs {
+			moves = append(moves, store.Move{FromServer: p.From, ToServer: p.To, DatabaseIDs: []string{d.ID},
+				Databases: []store.MoveDatabase{d}, CreatedBy: t.CreatedBy})
+		}
+	}
+	for _, a := range apps {
+		if owned(a.OwnerID) && a.State != "deleting" && a.PreviewOf == nil {
+			moves = append(moves, store.Move{AppID: &a.ID, FromServer: p.From, ToServer: p.To,
+				DatabaseIDs: []string{}, Databases: []store.MoveDatabase{}, CreatedBy: t.CreatedBy})
+		}
+	}
+	var res CustomerMoveResult
+	for _, m := range moves {
+		created, err := r.store.CreateMove(ctx, m)
+		if err != nil {
+			return res, fmt.Errorf("after %d of %d moved: %w", len(res.Moves), len(moves), err)
+		}
+		res.Moves = append(res.Moves, created.ID)
+		if _, err := r.runMove(ctx, t, created.ID); err != nil {
+			return res, fmt.Errorf("after %d of %d moved: %w", len(res.Moves)-1, len(moves), err)
+		}
+	}
+	return res, nil
+}
+
 func (r *Runner) QueueMoveCleanup(ctx context.Context, moveID string, by *string) (store.Task, error) {
 	return r.Enqueue(ctx, store.NewTask{Kind: KindMoveCleanup, Params: map[string]string{"move": moveID}, CreatedBy: by,
 		MaxAttempts: 3, DedupeKey: "move-cleanup:" + moveID})
@@ -49,6 +137,11 @@ func (r *Runner) moveSite(ctx context.Context, t store.Task) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	return r.runMove(ctx, t, id)
+}
+
+// runMove runs one move (of a site, an app or databases) up to "moved".
+func (r *Runner) runMove(ctx context.Context, t store.Task, id string) (any, error) {
 	m, err := r.store.GetMove(ctx, id)
 	if err != nil {
 		return nil, err
@@ -60,6 +153,9 @@ func (r *Runner) moveSite(ctx context.Context, t store.Task) (any, error) {
 	defer cancel()
 	if m.AppID != nil {
 		return r.moveApp(ctx, t, m)
+	}
+	if m.SiteID == nil {
+		return r.moveDatabases(ctx, t, m)
 	}
 	site, err := r.store.GetSite(ctx, *m.SiteID)
 	if err != nil {
@@ -515,4 +611,72 @@ func (r *Runner) appMovesOn(ctx context.Context, serverID string, apps *[]store.
 		*apps = append(*apps, a)
 	}
 	return extra, copying, nil
+}
+
+// moveDatabases moves databases on their own: dump, switch, set them up on the target and
+// load the dumps. The old copies stay until they are removed.
+func (r *Runner) moveDatabases(ctx context.Context, t store.Task, m store.Move) (any, error) {
+	exp := agentproto.TransferExportParams{}
+	for _, d := range m.Databases {
+		exp.Databases = append(exp.Databases, agentproto.TransferDatabase{Engine: d.Engine, Name: d.Name})
+	}
+	res, err := r.copyData(ctx, m, exp)
+	if err != nil {
+		r.discardCopy(m)
+		return nil, r.failMove(ctx, m, fmt.Errorf("copy: %w", err))
+	}
+	r.store.SetMoveCopied(ctx, m.ID, res.Bytes)
+	if err := r.store.SwitchMove(ctx, m); err != nil {
+		r.discardCopy(m)
+		return nil, r.failMove(ctx, m, err)
+	}
+	if err := r.finishDatabaseSwitch(ctx, m); err != nil {
+		r.rollBackMove(ctx, m)
+		return nil, r.failMove(ctx, m, err)
+	}
+	if _, err := r.Reconcile(ctx, m.FromServer); err != nil {
+		r.log.Warn("reconcile the source after a move", "move", m.ID, "err", err)
+	}
+	if err := r.store.SetMovePhase(ctx, m.ID, "moved", nil); err != nil {
+		return nil, err
+	}
+	return r.store.GetMove(ctx, m.ID)
+}
+
+func (r *Runner) finishDatabaseSwitch(ctx context.Context, m store.Move) error {
+	if _, err := r.Reconcile(ctx, m.ToServer); err != nil {
+		return fmt.Errorf("set up the database on the new server: %w", err)
+	}
+	p := agentproto.TransferFinishParams{Move: m.ID}
+	for _, d := range m.Databases {
+		db, err := r.store.GetDatabase(ctx, d.ID)
+		if err != nil {
+			return err
+		}
+		if db.State != "active" {
+			return fmt.Errorf("the new server could not set up the database %s", d.Name)
+		}
+		p.Databases = append(p.Databases, agentproto.TransferDatabase{Engine: d.Engine, Name: d.Name, User: d.Username})
+	}
+	callCtx, cancel := context.WithTimeout(ctx, 2*time.Hour)
+	defer cancel()
+	if _, err := r.hub.Call(callCtx, m.ToServer, agentproto.OpTransferFinish, p); err != nil {
+		return fmt.Errorf("load the data: %w", err)
+	}
+	return nil
+}
+
+// databaseMovesOn are the moves of databases on their own that concern serverID.
+func (r *Runner) databaseMovesOn(ctx context.Context, serverID string) ([]store.Move, error) {
+	moves, err := r.store.MovesOn(ctx, serverID)
+	if err != nil {
+		return nil, err
+	}
+	var out []store.Move
+	for _, m := range moves {
+		if m.SiteID == nil && m.AppID == nil {
+			out = append(out, m)
+		}
+	}
+	return out, nil
 }

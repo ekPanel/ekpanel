@@ -15,11 +15,14 @@ const phaseTone: Record<SiteMove["phase"], Tone> = {
   failed: "crit",
 };
 
+/** The text key for a kind of thing: "intro" for websites, "intro_app", "intro_database". */
+const kindKey = (thing: { kind: string }, key: string) => (thing.kind === "site" ? key : `${key}_${thing.kind}`);
+
 const running = (m: SiteMove) => m.phase === "copying" || m.phase === "switching" || m.phase === "cleaning";
 
 /** What can move: a website or an app. */
 export interface Movable {
-  kind: "site" | "app";
+  kind: "site" | "app" | "database";
   id: string;
   name: string;
   server_id: string;
@@ -40,7 +43,7 @@ export function SiteMoveCard({ site }: { site: Site }) {
 /** Moving a website or an app to another server (administrators). */
 export function MoveCard({ thing }: { thing: Movable }) {
   const site = thing;
-  const base = thing.kind === "site" ? "sites" : "apps";
+  const base = thing.kind === "site" ? "sites" : thing.kind === "app" ? "apps" : "databases";
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -57,7 +60,7 @@ export function MoveCard({ thing }: { thing: Movable }) {
   const targetIP = target?.public_ipv4 ?? target?.addresses?.[0];
 
   const cleanup = async (m: SiteMove) => {
-    if (!window.confirm(t(thing.kind === "site" ? "move.cleanup_confirm" : "move.cleanup_confirm_app", { server: m.from_server_name }))) return;
+    if (!window.confirm(t(`move.${kindKey(thing, "cleanup_confirm")}`, { server: m.from_server_name }))) return;
     setBusy(true);
     setError("");
     try {
@@ -77,7 +80,7 @@ export function MoveCard({ thing }: { thing: Movable }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">{t("move.title")}</h2>
-          <p className="text-sm text-muted">{t(thing.kind === "site" ? "move.intro" : "move.intro_app", { server: site.server_name })}</p>
+          <p className="text-sm text-muted">{t(`move.${kindKey(thing, "intro")}`, { server: site.server_name })}</p>
         </div>
         {canMove && (
           <Button onClick={() => setOpen(true)}>
@@ -102,7 +105,7 @@ export function MoveCard({ thing }: { thing: Movable }) {
             <>
               <p className="flex items-start gap-2">
                 <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-ok" aria-hidden />
-                {t(thing.kind === "site" ? "move.moved" : "move.moved_app", { to: latest.to_server_name, from: latest.from_server_name })}
+                {t(`move.${kindKey(thing, "moved")}`, { to: latest.to_server_name, from: latest.from_server_name })}
               </p>
               <p className="text-muted">{targetIP ? t("move.dns_hint", { ip: targetIP }) : t("move.dns_hint_noip")}</p>
               <div>
@@ -121,7 +124,7 @@ export function MoveCard({ thing }: { thing: Movable }) {
 
 function MoveDialog({ thing, onClose }: { thing: Movable; onClose: () => void }) {
   const site = thing;
-  const base = thing.kind === "site" ? "sites" : "apps";
+  const base = thing.kind === "site" ? "sites" : thing.kind === "app" ? "apps" : "databases";
   const { t } = useTranslation();
   const qc = useQueryClient();
   const servers = useQuery({ queryKey: ["servers"], queryFn: () => api.get<Server[]>("/servers") });
@@ -183,12 +186,12 @@ function MoveDialog({ thing, onClose }: { thing: Movable; onClose: () => void })
         </fieldset>
         )}
         <ol className="grid list-decimal gap-1 ps-5 text-sm text-muted">
-          <li>{t(thing.kind === "site" ? "move.step_copy" : "move.step_copy_app")}</li>
+          <li>{t(`move.${kindKey(thing, "step_copy")}`)}</li>
           <li>{t("move.step_switch")}</li>
-          <li>{t("move.step_dns")}</li>
-          <li>{t(thing.kind === "site" ? "move.step_cleanup" : "move.step_cleanup_app")}</li>
+          {thing.kind !== "database" && <li>{t("move.step_dns")}</li>}
+          <li>{t(`move.${kindKey(thing, "step_cleanup")}`)}</li>
         </ol>
-        <p className="rounded-lg bg-warn-soft px-3 py-2 text-sm text-warn">{t(thing.kind === "site" ? "move.writes_warning" : "move.app_warning")}</p>
+        <p className="rounded-lg bg-warn-soft px-3 py-2 text-sm text-warn">{t(`move.${thing.kind === "site" ? "writes_warning" : thing.kind === "app" ? "app_warning" : "database_warning"}`)}</p>
         <div className="flex justify-end gap-2">
           <Button onClick={onClose}>{t("common.cancel")}</Button>
           <Button variant="primary" loading={busy} disabled={!target} onClick={submit}>

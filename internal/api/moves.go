@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"ekpanel/internal/store"
+	"ekpanel/internal/tasks"
 )
 
 // Moving a website (with chosen databases) to another server. Administrators only.
@@ -71,6 +72,10 @@ func (s *Server) handleMoveSite(w http.ResponseWriter, r *http.Request) {
 		}
 		if db.State != "active" {
 			writeError(w, http.StatusConflict, "database_not_active", "the database "+db.Name+" must be working before it can move")
+			return
+		}
+		if _, err := s.store.OpenDatabaseMove(r.Context(), db.ID); err == nil {
+			writeError(w, http.StatusConflict, "move_open", "the database "+db.Name+" is already being moved")
 			return
 		}
 		if slices.ContainsFunc(targetDBs, func(t store.Database) bool {
@@ -251,4 +256,211 @@ func (s *Server) handleAppMoves(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, list)
+}
+
+func (s *Server) handleMoveDatabase(w http.ResponseWriter, r *http.Request) {
+	var req moveRequest
+	if !readJSON(w, r, &req) {
+		return
+	}
+	db, err := s.getDatabase(r, databaseID(r))
+	if err != nil {
+		s.writeDatabaseStoreError(w, r, err)
+		return
+	}
+	if db.State != "active" {
+		writeError(w, http.StatusConflict, "database_not_active", "the database must be working before it can move")
+		return
+	}
+	if req.ServerID == db.ServerID {
+		writeError(w, http.StatusBadRequest, "same_server", "the database is already on this server")
+		return
+	}
+	target, err := s.store.GetServer(r.Context(), req.ServerID)
+	if !isUUID(req.ServerID) || errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusBadRequest, "invalid_server", "choose a server to move the database to")
+		return
+	}
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if !s.moveTargetOK(w, r, db.OwnerID, db.ServerID, target.ID) {
+		return
+	}
+	others, err := s.store.ListDatabases(r.Context(), target.ID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if slices.ContainsFunc(others, func(t store.Database) bool {
+		return t.Engine == db.Engine && (t.Name == db.Name || t.Username == db.Username)
+	}) {
+		writeError(w, http.StatusConflict, "database_name_taken", "the target server already has a database or user named like "+db.Name)
+		return
+	}
+	if _, err := s.store.OpenDatabaseMove(r.Context(), db.ID); err == nil {
+		writeError(w, http.StatusConflict, "move_open", "this database is already being moved, or its old copy has not been removed yet")
+		return
+	}
+	m, err := s.store.CreateMove(r.Context(), store.Move{FromServer: db.ServerID, ToServer: target.ID,
+		DatabaseIDs: []string{db.ID}, Databases: []store.MoveDatabase{{ID: db.ID, Engine: db.Engine, Name: db.Name, Username: db.Username}},
+		CreatedBy: &currentUser(r).ID})
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if _, err := s.opts.Tasks.QueueSiteMove(r.Context(), m.ID, &currentUser(r).ID); err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	s.audit(r, "database.move_started", db.Name, map[string]any{"database_id": db.ID, "move_id": m.ID, "from": db.ServerName, "to": target.Name})
+	writeJSON(w, http.StatusAccepted, m)
+}
+
+func (s *Server) handleDatabaseMoves(w http.ResponseWriter, r *http.Request) {
+	db, err := s.getDatabase(r, databaseID(r))
+	if err != nil {
+		s.writeDatabaseStoreError(w, r, err)
+		return
+	}
+	list, err := s.store.DatabaseMoves(r.Context(), db.ID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	// A site's moves list its databases too; show only this database's own moves here.
+	own := []store.Move{}
+	for _, m := range list {
+		if m.SiteID == nil && m.AppID == nil {
+			own = append(own, m)
+		}
+	}
+	writeJSON(w, http.StatusOK, own)
+}
+
+type customerMoveRequest struct {
+	FromServerID string `json:"from_server_id"`
+	ServerID     string `json:"server_id"`
+}
+
+// handleMoveCustomer moves everything a customer has on one server to another (see
+// tasks.KindCustomerMove). Everything is checked first, so a move does not stop halfway on
+// something that was known before it started.
+func (s *Server) handleMoveCustomer(w http.ResponseWriter, r *http.Request) {
+	var req customerMoveRequest
+	if !readJSON(w, r, &req) {
+		return
+	}
+	c, err := s.store.GetCustomer(r.Context(), urlID(r))
+	if err != nil {
+		s.writeCustomerError(w, r, err)
+		return
+	}
+	if !isUUID(req.FromServerID) || !isUUID(req.ServerID) {
+		writeError(w, http.StatusBadRequest, "invalid_server", "choose the server to move from and the server to move to")
+		return
+	}
+	if req.FromServerID == req.ServerID {
+		writeError(w, http.StatusBadRequest, "same_server", "choose two different servers")
+		return
+	}
+	for _, id := range []string{req.FromServerID, req.ServerID} {
+		if _, err := s.store.GetServer(r.Context(), id); errors.Is(err, store.ErrNotFound) {
+			writeError(w, http.StatusBadRequest, "invalid_server", "choose the server to move from and the server to move to")
+			return
+		} else if err != nil {
+			s.internalError(w, r, err)
+			return
+		}
+	}
+	if !s.moveTargetOK(w, r, &c.ID, req.FromServerID, req.ServerID) {
+		return
+	}
+	ctx := r.Context()
+	sites, err1 := s.store.ListSites(ctx, req.FromServerID)
+	dbs, err2 := s.store.ListDatabases(ctx, req.FromServerID)
+	apps, err3 := s.store.ListApps(ctx, req.FromServerID)
+	targetDBs, err4 := s.store.ListDatabases(ctx, req.ServerID)
+	targetApps, err5 := s.store.ListApps(ctx, req.ServerID)
+	if err := errors.Join(err1, err2, err3, err4, err5); err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	mine := func(o *string) bool { return o != nil && *o == c.ID }
+	count := 0
+	blocked := func(code, msg string) {
+		writeError(w, http.StatusConflict, code, msg)
+	}
+	for _, x := range sites {
+		if !mine(x.OwnerID) {
+			continue
+		}
+		count++
+		if x.State != "active" {
+			blocked("site_not_active", "the website "+x.Domain+" must be working before it can move")
+			return
+		}
+		if _, err := s.store.OpenMove(ctx, x.ID); err == nil {
+			blocked("move_open", "the website "+x.Domain+" is already being moved, or its old copy is still on the other server")
+			return
+		}
+	}
+	for _, d := range dbs {
+		if !mine(d.OwnerID) {
+			continue
+		}
+		count++
+		if d.State != "active" {
+			blocked("database_not_active", "the database "+d.Name+" must be working before it can move")
+			return
+		}
+		if slices.ContainsFunc(targetDBs, func(t store.Database) bool {
+			return t.Engine == d.Engine && (t.Name == d.Name || t.Username == d.Username)
+		}) {
+			blocked("database_name_taken", "the target server already has a database or user named like "+d.Name)
+			return
+		}
+		if _, err := s.store.OpenDatabaseMove(ctx, d.ID); err == nil {
+			blocked("move_open", "the database "+d.Name+" is already being moved")
+			return
+		}
+	}
+	for _, a := range apps {
+		if !mine(a.OwnerID) || a.PreviewOf != nil {
+			continue
+		}
+		count++
+		if a.State != "active" {
+			blocked("app_not_active", "the app "+a.Name+" must be working before it can move")
+			return
+		}
+		if previews, err := s.store.Previews(ctx, a.ID); err != nil {
+			s.internalError(w, r, err)
+			return
+		} else if a.Previews || len(previews) > 0 {
+			blocked("app_has_previews", "the app "+a.Name+" has pull request previews; turn them off and delete them first")
+			return
+		}
+		if slices.ContainsFunc(targetApps, func(t store.App) bool { return t.Name == a.Name }) {
+			blocked("app_name_taken", "the target server already has an app named "+a.Name)
+			return
+		}
+		if _, err := s.store.OpenAppMove(ctx, a.ID); err == nil {
+			blocked("move_open", "the app "+a.Name+" is already being moved")
+			return
+		}
+	}
+	if count == 0 {
+		writeError(w, http.StatusBadRequest, "nothing_to_move", "the customer has nothing on that server")
+		return
+	}
+	t, err := s.opts.Tasks.QueueCustomerMove(ctx, tasks.CustomerMoveParams{Customer: c.ID, From: req.FromServerID, To: req.ServerID}, &currentUser(r).ID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	s.audit(r, "customer.move_started", c.Email, map[string]any{"customer_id": c.ID, "from": req.FromServerID, "to": req.ServerID,
+		"items": count, "task_id": t.ID})
+	writeJSON(w, http.StatusAccepted, t)
 }

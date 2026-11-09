@@ -169,6 +169,13 @@ func (s *Server) handleDeleteDatabase(w http.ResponseWriter, r *http.Request) {
 		s.writeDatabaseStoreError(w, r, err)
 		return
 	}
+	if _, err := s.store.OpenDatabaseMove(r.Context(), d.ID); err == nil {
+		writeError(w, http.StatusConflict, "move_open", "this database is being moved, or its old copy is still on the other server; finish the move first")
+		return
+	} else if !errors.Is(err, store.ErrNotFound) {
+		s.internalError(w, r, err)
+		return
+	}
 	d, err = s.store.MarkDatabaseDeleting(r.Context(), d.ID)
 	if err != nil {
 		s.writeDatabaseStoreError(w, r, err)

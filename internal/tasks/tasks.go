@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -78,6 +79,7 @@ func New(st *store.Store, h *hub.Hub, log *slog.Logger) *Runner {
 	r.handlers[KindServiceRestart] = r.serviceRestart
 	r.handlers[KindSiteMove] = r.moveSite
 	r.handlers[KindMoveCleanup] = r.cleanupMove
+	r.handlers[KindCustomerMove] = r.moveCustomer
 	r.handlers[KindUpdatePanel] = r.updatePanel
 	r.handlers[KindUpdateAgents] = r.updateAgents
 	r.handlers[KindServerReconcile] = r.serverReconcile
@@ -405,9 +407,16 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			PasswordHash: d.PasswordHash, Deleted: d.State == "deleting",
 		})
 	}
-	// The databases of a moved site's copy that is being removed here.
+	// The databases of a moved copy that is being removed here (a site's, or databases moved
+	// on their own).
+	dbMoves, err := r.databaseMovesOn(ctx, serverID)
+	if err != nil {
+		return sum, err
+	}
+	withDBs := slices.Collect(maps.Values(moving))
+	withDBs = append(withDBs, dbMoves...)
 	movingDB := map[string]string{} // database ID → move ID
-	for _, m := range moving {
+	for _, m := range withDBs {
 		if !moveDeletes(m, serverID) {
 			continue
 		}
@@ -578,6 +587,9 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		movesByID[m.ID] = m
 	}
 	for _, m := range movingApps {
+		movesByID[m.ID] = m
+	}
+	for _, m := range dbMoves {
 		movesByID[m.ID] = m
 	}
 	for _, m := range movesByID {

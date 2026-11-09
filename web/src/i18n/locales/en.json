@@ -626,7 +626,8 @@
     "move_not_moved": "There is no old copy to remove.",
     "server_not_in_package": "The customer's package does not include this server. Add it to the package first.",
     "app_not_active": "The app must be working before it can move.",
-    "app_has_previews": "Apps with pull request previews cannot move. Turn previews off and delete the remaining previews first."
+    "app_has_previews": "Apps with pull request previews cannot move. Turn previews off and delete the remaining previews first.",
+    "nothing_to_move": "The customer has nothing on that server."
   },
   "not_found": {
     "title": "Page not found",
@@ -1982,7 +1983,15 @@
     "back_to_admin": "Back to my account",
     "limit_cpu_one": "{{cores}} CPU core",
     "limit_cpu_other": "{{cores}} CPU cores",
-    "bandwidth_month": "Traffic this month: {{size}}"
+    "bandwidth_month": "Traffic this month: {{size}}",
+    "move": {
+      "button": "Move…",
+      "title": "Move {{name}}'s things",
+      "intro": "Move everything this customer has on one server (websites, databases and apps) to another, one after the other. Their first website takes all their databases there along. If something fails, the move stops; what moved stays moved.",
+      "from": "Move from",
+      "warning": "Apps are unavailable while they move, and changes made to websites after their copy starts are not carried over. Each old copy stays until you remove it from the website's, database's or app's page.",
+      "started": "The move has started. Each website, database and app shows its progress on its own page, where you can also remove its old copy once it has moved."
+    }
   },
   "packages": {
     "intro": "What each customer may use: how many websites, databases and apps, disk space, and memory and CPU for all their processes together.",
@@ -2346,6 +2355,12 @@
     "step_copy_app": "The app is stopped, then its data and (for a Git app) its build are copied straight from server to server.",
     "step_cleanup_app": "The old copy stays stopped, with its data, until you remove it.",
     "app_warning": "The app is unavailable from the moment it stops until it runs on the new server and its domain points there.",
-    "cleanup_confirm_app": "Remove the old copy on {{server}}? Its containers and data there are deleted. Only do this once the app works on the new server and its domain points there."
+    "cleanup_confirm_app": "Remove the old copy on {{server}}? Its containers and data there are deleted. Only do this once the app works on the new server and its domain points there.",
+    "intro_database": "Copy this database (its data, users and password) from {{server}} to another server.",
+    "moved_database": "The database now runs on {{to}}. The old copy on {{from}} stays until you remove it.",
+    "step_copy_database": "The database is dumped and loaded straight from server to server.",
+    "step_cleanup_database": "The old copy stays until you remove it.",
+    "cleanup_confirm_database": "Remove the old copy of the database on {{server}}? It is deleted there. Only do this once nothing uses it any more.",
+    "database_warning": "Websites and apps on the old server connect to the database there and keep using the old copy, and changes made to it after the copy starts are not carried over. To move a website with its database, move the website instead."
   }
 }

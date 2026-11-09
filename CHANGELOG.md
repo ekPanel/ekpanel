@@ -22,6 +22,8 @@ All notable changes to ekPanel are listed here. The format follows
 - Move an app to another server, from its page: the app is stopped, its data volumes (and a
   Git app's current build) are copied with their owners, it starts on the new server with a
   free port there, and the old copy stays stopped with its data until you remove it (4c)
+- Move a database on its own, and everything a customer has on one server (their first
+  website takes all their databases along), from the database's page and the customers list (4c)
 
 ## [v0.1.0] - 2026-11-09
 

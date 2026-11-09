@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, LogIn, Package as PackageIcon, Pencil, Plus, Trash2, Users } from "lucide-react";
+import { ArrowRightLeft, KeyRound, LogIn, Package as PackageIcon, Pencil, Plus, Trash2, Users } from "lucide-react";
 import { api, errorMessage, type Customer, type Package, type Server, type Usage, type User } from "../lib/api";
 import { formatBytes, formatNumber } from "../lib/format";
 import { meKey, useMe } from "../lib/session";
@@ -276,6 +276,7 @@ export function CustomersPage() {
   const adding = params.get("add") === "1";
   const [deleting, setDeleting] = useState<Customer | null>(null);
   const [reset, setReset] = useState<{ email: string; password: string } | null>(null);
+  const [moving, setMoving] = useState<Customer | null>(null);
   const [error, setError] = useState("");
 
   const act = async (run: () => Promise<unknown>) => {
@@ -350,6 +351,10 @@ export function CustomersPage() {
                     <KeyRound className="size-4" aria-hidden />
                     {t("customers.reset_password")}
                   </Button>
+                  <Button size="sm" onClick={() => setMoving(c)}>
+                    <ArrowRightLeft className="size-4" aria-hidden />
+                    {t("customers.move.button")}
+                  </Button>
                   <Button size="sm" variant="ghost" onClick={() => setDeleting(c)} aria-label={t("customers.delete")}>
                     <Trash2 className="size-4" aria-hidden />
                   </Button>
@@ -360,6 +365,7 @@ export function CustomersPage() {
         </div>
       </div>
       <CustomerDialog open={adding || editing !== null} customer={editing} onClose={() => (setEditing(null), setParams({}, { replace: true }))} />
+      {moving && <MoveCustomerDialog customer={moving} onClose={() => setMoving(null)} />}
       <Dialog open={reset !== null} onClose={() => setReset(null)} title={t("customers.reset_password")}>
         {reset && <OneTimePassword {...reset} />}
         <div className="flex justify-end">
@@ -746,5 +752,84 @@ export function PackagesPage() {
       </div>
       <PackageDialog open={adding || editing !== null} pkg={editing} onClose={() => (setEditing(null), setParams({}, { replace: true }))} />
     </>
+  );
+}
+
+/** Moves everything a customer has on one server to another. */
+function MoveCustomerDialog({ customer, onClose }: { customer: Customer; onClose: () => void }) {
+  const { t } = useTranslation();
+  const servers = useQuery({ queryKey: ["servers"], queryFn: () => api.get<Server[]>("/servers") });
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [started, setStarted] = useState(false);
+  const list = (servers.data ?? []).filter((s) => s.enrolled_at);
+  const select = "h-10 rounded-lg border border-line bg-surface px-3 text-ink";
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api.post(`/customers/${customer.id}/move`, { from_server_id: from, server_id: to });
+      setStarted(true);
+    } catch (err) {
+      setError(errorMessage(t, err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onClose={onClose} title={t("customers.move.title", { name: customer.name })}>
+      {started ? (
+        <div className="grid gap-4">
+          <p className="text-sm">{t("customers.move.started")}</p>
+          <Button variant="primary" onClick={onClose} className="justify-self-end">
+            {t("common.close", { defaultValue: "OK" })}
+          </Button>
+        </div>
+      ) : (
+        <form onSubmit={submit} className="grid gap-4">
+          {error && <ErrorAlert>{error}</ErrorAlert>}
+          <p className="text-sm text-muted">{t("customers.move.intro")}</p>
+          <label className="grid gap-1.5 text-sm">
+            <span className="font-medium">{t("customers.move.from")}</span>
+            <select className={select} value={from} onChange={(e) => setFrom(e.target.value)} required>
+              <option value="">{t("move.choose_server")}</option>
+              {list.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1.5 text-sm">
+            <span className="font-medium">{t("move.target")}</span>
+            <select className={select} value={to} onChange={(e) => setTo(e.target.value)} required>
+              <option value="">{t("move.choose_server")}</option>
+              {list
+                .filter((s) => s.id !== from)
+                .map((s) => (
+                  <option key={s.id} value={s.id} disabled={!s.online}>
+                    {s.name}
+                    {!s.online ? ` (${t("servers.state.offline")})` : ""}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <p className="rounded-lg bg-warn-soft px-3 py-2 text-sm text-warn">{t("customers.move.warning")}</p>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onClose}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="submit" variant="primary" loading={busy} disabled={!from || !to}>
+              <ArrowRightLeft className="size-4" aria-hidden /> {t("move.confirm")}
+            </Button>
+          </div>
+        </form>
+      )}
+    </Dialog>
   );
 }

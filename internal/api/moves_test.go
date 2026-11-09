@@ -515,3 +515,138 @@ func TestMoveAppStaysStoppedWhileCopying(t *testing.T) {
 		t.Fatalf("app after a failed copy: %+v", a)
 	}
 }
+
+func TestMoveDatabase(t *testing.T) {
+	p := newTestPanel(t)
+	c := newClient(t, p.web.URL)
+	setUp(t, c)
+	fromID, fromCfg, _, _ := enrolled(t, p, c, "old")
+	toID, toCfg, _, _ := enrolled(t, p, c, "new")
+	src, dst := newMoveAgent(t, p, fromCfg), newMoveAgent(t, p, toCfg)
+	var created struct {
+		Database struct {
+			ID string `json:"id"`
+		} `json:"database"`
+	}
+	c.do("POST", "/api/v1/databases", map[string]any{"server_id": fromID, "engine": "postgresql", "name": "reports"}, &created)
+	db := created.Database
+	waitUntil(t, "database active", func() bool {
+		var d struct {
+			State string `json:"state"`
+		}
+		c.do("GET", "/api/v1/databases/"+db.ID, nil, &d)
+		return d.State == "active"
+	})
+	if st := c.do("POST", "/api/v1/databases/"+db.ID+"/move", map[string]any{"server_id": toID}, nil); st != http.StatusAccepted {
+		t.Fatalf("move database: %d", st)
+	}
+	var moves []moveBody
+	waitUntil(t, "the database move", func() bool {
+		c.do("GET", "/api/v1/databases/"+db.ID+"/moves", nil, &moves)
+		return len(moves) == 1 && (moves[0].Phase == "moved" || moves[0].Phase == "failed")
+	})
+	if moves[0].Phase != "moved" {
+		t.Fatalf("database move: %+v (error %v)", moves[0], moves[0].Error)
+	}
+	src.mu.Lock()
+	if len(src.exports) != 1 || len(src.exports[0].Databases) != 1 || src.exports[0].User != "" || src.exports[0].App != "" {
+		t.Fatalf("export %+v", src.exports)
+	}
+	src.mu.Unlock()
+	dst.mu.Lock()
+	if len(dst.finished) != 1 || len(dst.finished[0].Databases) != 1 || dst.finished[0].Databases[0].Name != "reports" {
+		t.Fatalf("finish %+v", dst.finished)
+	}
+	dst.mu.Unlock()
+	var e errBody
+	if st := c.do("DELETE", "/api/v1/databases/"+db.ID, nil, &e); st != http.StatusConflict || e.Code != "move_open" {
+		t.Fatalf("delete during a move: %d %s", st, e.Code)
+	}
+	c.do("POST", "/api/v1/moves/"+moves[0].ID+"/cleanup", nil, nil)
+	waitUntil(t, "the old copy removed", func() bool {
+		c.do("GET", "/api/v1/databases/"+db.ID+"/moves", nil, &moves)
+		return moves[0].Phase == "done"
+	})
+	if d := dbSpec(src.lastApply(), db.ID); d == nil || !d.Deleted {
+		t.Fatalf("source should drop the old copy: %+v", d)
+	}
+	if d := dbSpec(dst.lastApply(), db.ID); d == nil || d.Deleted {
+		t.Fatalf("target database %+v", d)
+	}
+}
+
+func TestMoveCustomer(t *testing.T) {
+	p := newTestPanel(t)
+	c := newClient(t, p.web.URL)
+	setUp(t, c)
+	fromID, fromCfg, _, _ := enrolled(t, p, c, "old")
+	toID, toCfg, _, _ := enrolled(t, p, c, "new")
+	newMoveAgent(t, p, fromCfg)
+	dst := newMoveAgent(t, p, toCfg)
+	var pkg struct {
+		ID string `json:"id"`
+	}
+	if st := c.do("POST", "/api/v1/packages", map[string]any{"name": "Pro", "max_sites": 5, "max_databases": 5, "max_apps": 5,
+		"disk_mb": 1000, "php_versions": []string{"8.4"}, "app_images": []string{"nginx"}, "server_ids": []string{fromID, toID}}, &pkg); st != http.StatusCreated {
+		t.Fatalf("package: %d", st)
+	}
+	var cust struct {
+		Customer struct {
+			ID string `json:"id"`
+		} `json:"customer"`
+	}
+	c.do("POST", "/api/v1/customers", map[string]string{"email": "c@example.com", "name": "C", "package_id": pkg.ID}, &cust)
+	owner := cust.Customer.ID
+	var site, app struct {
+		ID    string `json:"id"`
+		State string `json:"state"`
+	}
+	var db struct {
+		Database struct {
+			ID string `json:"id"`
+		} `json:"database"`
+	}
+	c.do("POST", "/api/v1/sites", map[string]any{"domain": "shop.example.com", "server_id": fromID, "kind": "static", "owner_id": owner}, &site)
+	c.do("POST", "/api/v1/databases", map[string]any{"server_id": fromID, "engine": "mariadb", "name": "shopdb", "owner_id": owner}, &db)
+	c.do("POST", "/api/v1/apps", map[string]any{"server_id": fromID, "name": "web", "kind": "image", "image": "nginx:1", "owner_id": owner}, &app)
+	waitUntil(t, "everything active", func() bool {
+		c.do("GET", "/api/v1/sites/"+site.ID, nil, &site)
+		c.do("GET", "/api/v1/apps/"+app.ID, nil, &app)
+		return site.State == "active" && app.State == "active"
+	})
+	var e errBody
+	if st := c.do("POST", "/api/v1/customers/"+owner+"/move", map[string]any{"from_server_id": fromID, "server_id": fromID}, &e); st != http.StatusBadRequest {
+		t.Fatalf("same servers: %d", st)
+	}
+	if st := c.do("POST", "/api/v1/customers/"+owner+"/move", map[string]any{"from_server_id": fromID, "server_id": toID}, nil); st != http.StatusAccepted {
+		t.Fatalf("move customer: %d", st)
+	}
+	var siteMoves, appMoves []moveBody
+	waitUntil(t, "the customer's things to move", func() bool {
+		c.do("GET", "/api/v1/sites/"+site.ID+"/moves", nil, &siteMoves)
+		c.do("GET", "/api/v1/apps/"+app.ID+"/moves", nil, &appMoves)
+		return len(siteMoves) == 1 && siteMoves[0].Phase == "moved" && len(appMoves) == 1 && appMoves[0].Phase == "moved"
+	})
+	// The website took the customer's database along.
+	dst.mu.Lock()
+	var tookDB bool
+	for _, f := range dst.finished {
+		if f.User != "" && len(f.Databases) == 1 && f.Databases[0].Name == "shopdb" {
+			tookDB = true
+		}
+	}
+	dst.mu.Unlock()
+	if !tookDB {
+		t.Fatalf("the website's move did not take the database: %+v", dst.finished)
+	}
+	var d struct {
+		ServerID string `json:"server_id"`
+	}
+	c.do("GET", "/api/v1/databases/"+db.Database.ID, nil, &d)
+	if d.ServerID != toID {
+		t.Fatalf("database on %s after the customer move", d.ServerID)
+	}
+	if st := c.do("POST", "/api/v1/customers/"+owner+"/move", map[string]any{"from_server_id": fromID, "server_id": toID}, &e); st != http.StatusConflict && st != http.StatusBadRequest {
+		t.Fatalf("second customer move: %d %s", st, e.Code)
+	}
+}
