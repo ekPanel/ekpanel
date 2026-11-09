@@ -72,6 +72,7 @@ type ImportReport struct {
 //	cron_no_main (Count: jobs, as the main website was not imported)
 //	mail (Name: domain not chosen, Count: mailboxes)   mail_mailbox, mail_forwarder, mail_mdbox (Name: address)
 //	mail_unusable (Name: forwarding line, Detail: domain)
+//	mail_catch_all (Name: the address unknown mail went to, not a mailbox here; Detail: domain)
 //	zone_mx_here, zone_old_ip, zone_record, zone_unread, zone_failed (see FilterCPanelZone)
 type ImportNote struct {
 	Code    string `json:"code"`

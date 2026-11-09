@@ -222,8 +222,11 @@ func (s *Server) makeImportMail(ctx context.Context, srv store.Server, place pla
 			}
 			report.Forwarders++
 		}
-		if d.CatchAll != "" && slices.Contains(made, d.CatchAll) {
-			if _, err := s.store.SetMailCatchAll(ctx, md.ID, &d.CatchAll); err != nil {
+		if d.CatchAll != "" {
+			if !slices.Contains(made, d.CatchAll) {
+				// Here the catch-all must be one of the domain's mailboxes.
+				note(tasks.ImportNote{Code: "mail_catch_all", Name: d.CatchAll + "@" + d.Domain, Detail: d.Domain})
+			} else if _, err := s.store.SetMailCatchAll(ctx, md.ID, &d.CatchAll); err != nil {
 				return nil, err
 			}
 		}
