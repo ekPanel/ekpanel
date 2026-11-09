@@ -263,7 +263,13 @@
         "2fa_disabled": "Two-factor turned off",
         "sessions_revoked": "Other devices signed out",
         "password_changed": "Password changed",
-        "confirmed": "Password confirmed"
+        "confirmed": "Password confirmed",
+        "passkey_added": "Passkey added",
+        "passkey_removed": "Passkey removed",
+        "recovery_codes_new": "New recovery codes made",
+        "recovery_code_used": "Signed in with a recovery code",
+        "session_ended": "Device signed out",
+        "2fa_reset": "Two-factor reset on the server"
       },
       "server": {
         "created": "Server added",
@@ -303,12 +309,15 @@
         "ftp_enabled": "FTP turned on",
         "ftp_disabled": "FTP turned off",
         "ftp_password_reset": "FTP password reset",
-        "app_install": "Application install started"
+        "app_install": "Application install started",
+        "move_started": "Website move started",
+        "rebuild_started": "Website rebuild started"
       },
       "database": {
         "created": "Database created",
         "password_reset": "Database password reset",
-        "deleted": "Database deleted"
+        "deleted": "Database deleted",
+        "move_started": "Database move started"
       },
       "files": {
         "write": "File saved",
@@ -344,7 +353,8 @@
         "deploy_started": "Deploy started",
         "rolled_back": "Rolled back",
         "preview_created": "Preview created",
-        "preview_removed": "Preview removed"
+        "preview_removed": "Preview removed",
+        "move_started": "App move started"
       },
       "package": {
         "created": "Package created",
@@ -357,7 +367,9 @@
         "password_reset": "Customer password reset",
         "deleted": "Customer deleted",
         "impersonated": "Signed in as customer",
-        "impersonation_ended": "Left customer account"
+        "impersonation_ended": "Left customer account",
+        "2fa_reset": "Customer's two-factor reset",
+        "move_started": "Customer move started"
       },
       "cron": {
         "created": "Cron job added",
@@ -424,6 +436,22 @@
         "delete": "Suspicious file deleted",
         "restore": "File put back from quarantine",
         "ignore": "File marked safe"
+      },
+      "import": {
+        "coolify": "Imported from Coolify",
+        "cpanel": "cPanel import started",
+        "site": "Website archive import started"
+      },
+      "move": {
+        "cleanup": "Old copy removed after a move"
+      },
+      "system": {
+        "update": "Panel update started",
+        "update_agents": "Agent updates started"
+      },
+      "token": {
+        "created": "API token created",
+        "revoked": "API token revoked"
       }
     },
     "via_token": "with the API token “{{name}}”"

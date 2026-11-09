@@ -49,7 +49,22 @@ func (s *Server) handleConfirm(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusUnauthorized, "totp_required", "enter the code from your authenticator app")
 			return
 		}
-		if u.TOTPSecret == nil || !auth.CheckTOTP(*u.TOTPSecret, strings.TrimSpace(req.TOTPCode)) {
+		code := strings.TrimSpace(req.TOTPCode)
+		ok := u.TOTPSecret != nil && auth.CheckTOTP(*u.TOTPSecret, code)
+		if !ok && looksLikeRecoveryCode(code) {
+			// Without the phone, a recovery code confirms too (and is used up).
+			used, err := s.store.UseRecoveryCode(r.Context(), u.ID, hashRecoveryCode(code))
+			if err != nil {
+				s.internalError(w, r, err)
+				return
+			}
+			if ok = used; ok {
+				left, _ := s.store.RecoveryCodesLeft(r.Context(), u.ID)
+				s.audit(r, "auth.recovery_code_used", u.Email, map[string]any{"left": left, "for": "confirm"})
+				s.notifyRecoveryCodeUsed(r, u, left)
+			}
+		}
+		if !ok {
 			s.limiter.Fail(key)
 			writeError(w, http.StatusUnauthorized, "invalid_totp", "the authentication code is not correct")
 			return

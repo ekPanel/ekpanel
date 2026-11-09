@@ -263,7 +263,13 @@
         "2fa_disabled": "টু-ফ্যাক্টর বন্ধ",
         "sessions_revoked": "অন্য ডিভাইস থেকে সাইন আউট",
         "password_changed": "পাসওয়ার্ড বদলেছে",
-        "confirmed": "পাসওয়ার্ড নিশ্চিত করা হয়েছে"
+        "confirmed": "পাসওয়ার্ড নিশ্চিত করা হয়েছে",
+        "passkey_added": "পাসকি যোগ হয়েছে",
+        "passkey_removed": "পাসকি সরানো হয়েছে",
+        "recovery_codes_new": "নতুন রিকভারি কোড বানানো হয়েছে",
+        "recovery_code_used": "রিকভারি কোড দিয়ে সাইন-ইন",
+        "session_ended": "ডিভাইস সাইন আউট",
+        "2fa_reset": "সার্ভারে টু-ফ্যাক্টর রিসেট"
       },
       "server": {
         "created": "সার্ভার যোগ হয়েছে",
@@ -303,12 +309,15 @@
         "ftp_enabled": "FTP চালু করা হয়েছে",
         "ftp_disabled": "FTP বন্ধ করা হয়েছে",
         "ftp_password_reset": "FTP পাসওয়ার্ড নতুন করা হয়েছে",
-        "app_install": "অ্যাপ্লিকেশন বসানো শুরু"
+        "app_install": "অ্যাপ্লিকেশন বসানো শুরু",
+        "move_started": "ওয়েবসাইট সরানো শুরু",
+        "rebuild_started": "ওয়েবসাইট আবার বানানো শুরু"
       },
       "database": {
         "created": "ডাটাবেস তৈরি",
         "password_reset": "ডাটাবেস পাসওয়ার্ড রিসেট",
-        "deleted": "ডাটাবেস মোছা"
+        "deleted": "ডাটাবেস মোছা",
+        "move_started": "ডেটাবেস সরানো শুরু"
       },
       "files": {
         "write": "ফাইল সেভ",
@@ -344,7 +353,8 @@
         "deploy_started": "ডিপ্লয় শুরু",
         "rolled_back": "আগের রিলিজে ফেরানো",
         "preview_created": "প্রিভিউ তৈরি",
-        "preview_removed": "প্রিভিউ মুছে ফেলা"
+        "preview_removed": "প্রিভিউ মুছে ফেলা",
+        "move_started": "অ্যাপ সরানো শুরু"
       },
       "package": {
         "created": "প্যাকেজ তৈরি হয়েছে",
@@ -357,7 +367,9 @@
         "password_reset": "গ্রাহকের নতুন পাসওয়ার্ড",
         "deleted": "গ্রাহক মুছে ফেলা হয়েছে",
         "impersonated": "গ্রাহকের হয়ে ঢোকা",
-        "impersonation_ended": "গ্রাহকের অ্যাকাউন্ট থেকে বেরোনো"
+        "impersonation_ended": "গ্রাহকের অ্যাকাউন্ট থেকে বেরোনো",
+        "2fa_reset": "গ্রাহকের টু-ফ্যাক্টর রিসেট",
+        "move_started": "গ্রাহককে সরানো শুরু"
       },
       "cron": {
         "created": "ক্রন জব যোগ হয়েছে",
@@ -424,6 +436,22 @@
         "delete": "সন্দেহজনক ফাইল মোছা হয়েছে",
         "restore": "Quarantine থেকে ফাইল ফেরানো হয়েছে",
         "ignore": "ফাইল নিরাপদ চিহ্নিত"
+      },
+      "import": {
+        "coolify": "Coolify থেকে ইমপোর্ট",
+        "cpanel": "cPanel ইমপোর্ট শুরু",
+        "site": "ওয়েবসাইট আর্কাইভ ইমপোর্ট শুরু"
+      },
+      "move": {
+        "cleanup": "সরানোর পরে পুরোনো কপি মোছা"
+      },
+      "system": {
+        "update": "প্যানেল আপডেট শুরু",
+        "update_agents": "এজেন্ট আপডেট শুরু"
+      },
+      "token": {
+        "created": "API টোকেন বানানো হয়েছে",
+        "revoked": "API টোকেন বাতিল"
       }
     },
     "via_token": "API টোকেন “{{name}}” দিয়ে"
