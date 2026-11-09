@@ -250,7 +250,7 @@ func (a *app) apiCmd() *command {
 			"answers with an error; the error's JSON is still printed.",
 		examples: []string{
 			"ekctl api GET sites",
-			"ekctl api PATCH sites/0b6c… --data '{\"kind\":\"php\",\"php_version\":\"8.4\"}'",
+			"ekctl api GET sites/0b6c…/traffic",
 			"ekctl api POST cron --data @job.json",
 			"echo '{\"name\":\"web2\"}' | ekctl api POST servers --data -",
 		},

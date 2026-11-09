@@ -51,8 +51,9 @@ func (s *Server) setSessionCookie(w http.ResponseWriter, token string, maxAge in
 // loadSession attaches the signed-in user (if any) to the request context.
 func (s *Server) loadSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// An API token, when sent, decides alone: no cookie is looked at.
-		if r.Header.Get("Authorization") != "" {
+		// An API token, when sent, decides alone: no cookie is looked at. Git hosts' webhooks
+		// may send an Authorization header of their own; they are checked by signature.
+		if r.Header.Get("Authorization") != "" && !strings.HasPrefix(r.URL.Path, "/api/v1/hooks/") {
 			r, ok := s.tokenAuth(w, r)
 			if ok {
 				next.ServeHTTP(w, r)

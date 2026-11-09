@@ -272,7 +272,12 @@ export function AuditPage() {
               {rows.map((e) => (
                 <tr key={e.id} className="border-b border-line last:border-0">
                   <td className="px-4 py-2.5 whitespace-nowrap text-muted tabular-nums">{formatDateTime(e.at, i18n.language)}</td>
-                  <td className="px-4 py-2.5">{e.actor_name ?? <span className="text-muted">{t("audit.system")}</span>}</td>
+                  <td className="px-4 py-2.5">
+                    {e.actor_name ?? <span className="text-muted">{t("audit.system")}</span>}
+                    {typeof e.details.via_token === "string" && (
+                      <span className="block text-xs text-muted">{t("audit.via_token", { name: e.details.via_token })}</span>
+                    )}
+                  </td>
                   <td className="px-4 py-2.5">
                     <Badge tone={e.action.endsWith("failed") ? "crit" : e.action.includes("deleted") ? "warn" : "neutral"}>
                       {t(`audit.actions.${e.action}`, { defaultValue: e.action })}

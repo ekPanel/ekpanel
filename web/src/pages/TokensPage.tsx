@@ -9,7 +9,7 @@ import { PageHeader } from "../components/AppShell";
 import { Badge, Button, Card, CopyButton, Dialog, ErrorAlert, Field, Spinner } from "../components/ui";
 
 const adminScopes = ["read", "sites", "databases", "apps", "dns", "mail", "backups", "servers", "customers", "settings"];
-const customerScopes = ["read", "sites", "databases", "apps", "dns", "mail"];
+const customerScopes = ["read", "sites", "databases", "apps", "dns", "mail", "settings"];
 const expiries = [30, 90, 365, 0];
 
 /** Account → API tokens: keys for scripts and the ekctl CLI. */

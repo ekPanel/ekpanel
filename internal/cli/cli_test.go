@@ -247,7 +247,7 @@ func TestLoginTokenWithoutReadScope(t *testing.T) {
 	defer srv.Close()
 	te := newEnv(t)
 	expect(t, te, te.run("login", "--url", srv.URL, "--token", goodToken), 0)
-	contains(t, "stderr", te.stderr.String(), `no "read" scope`)
+	contains(t, "stderr", te.stderr.String(), "did not say whose token this is")
 	if te.readConfig(t).Token != goodToken {
 		t.Error("token not saved")
 	}

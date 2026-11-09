@@ -114,7 +114,8 @@ func (a *app) login(fpFlag string) error {
 		case errors.As(err, &ae) && ae.Status == 401:
 			return fmt.Errorf("The panel did not accept this token: %s. Check that you copied all of it.", ae.Message)
 		case errors.As(err, &ae) && ae.Code == "token_scope":
-			// The token is valid (the panel knows it) but may not read /auth/me without "read".
+			// The token is valid, but the panel would not say whose it is (panels before
+			// v0.2 asked for the "read" scope for this).
 			noRead = true
 		default:
 			return err
@@ -137,7 +138,7 @@ func (a *app) login(fpFlag string) error {
 	}
 	if noRead {
 		fmt.Fprintf(a.env.Stdout, "Logged in to %s.\n", base)
-		fmt.Fprintln(a.env.Stderr, "This token has no \"read\" scope, so ekctl cannot show whose it is. 'whoami', 'tasks' and 'backups run --wait' need that scope.")
+		fmt.Fprintln(a.env.Stderr, "The panel did not say whose token this is; it may be an older version. Commands still work within the token's scopes.")
 	} else {
 		fmt.Fprintf(a.env.Stdout, "Logged in to %s as %s <%s> (%s).\n", base, me.Name, me.Email, me.Role)
 	}

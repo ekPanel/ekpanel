@@ -107,11 +107,23 @@ func TestAPITokens(t *testing.T) {
 		{"POST", "/api/v1/auth/password"},
 		{"POST", "/api/v1/auth/logout"},
 		{"GET", "/api/v1/servers/" + serverID + "/terminal"},
+		{"POST", "/api/v1/customers/00000000-0000-0000-0000-000000000000/impersonate"},
 	} {
 		if st := call(rw.Token, c.method, c.path, map[string]any{}, &e); st != http.StatusForbidden || e.Code != "token_not_allowed" {
 			t.Errorf("%s %s: %d %s", c.method, c.path, st, e.Code)
 		}
 	}
+	// A customers-scoped token with a made-up cookie cannot sign in as a customer.
+	var cust tokenBody
+	admin.do("POST", "/api/v1/tokens", map[string]any{"name": "customers", "scopes": []string{"customers"}}, &cust)
+	if st := call(cust.Token, "POST", "/api/v1/customers/00000000-0000-0000-0000-000000000000/impersonate", map[string]any{}, &e); st != http.StatusForbidden || e.Code != "token_not_allowed" {
+		t.Fatalf("impersonate with a token: %d %s", st, e.Code)
+	}
+	// Webhooks are not read as token requests, whatever Authorization header they bring.
+	if st := call("anything", "POST", "/api/v1/hooks/git/00000000-0000-0000-0000-000000000000", map[string]any{}, &e); st == http.StatusUnauthorized && e.Code == "invalid_token" {
+		t.Fatalf("webhook with an Authorization header: %d %s", st, e.Code)
+	}
+
 	// Wrong and malformed tokens.
 	if st := call("ekp_nope", "GET", "/api/v1/servers", nil, &e); st != http.StatusUnauthorized || e.Code != "invalid_token" {
 		t.Fatalf("unknown token: %d %s", st, e.Code)

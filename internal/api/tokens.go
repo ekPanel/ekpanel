@@ -24,7 +24,7 @@ const tokenPrefix = "ekp_"
 // changes (and reads) in one area.
 var (
 	TokenScopes    = []string{"read", "sites", "databases", "apps", "dns", "mail", "backups", "servers", "customers", "settings"}
-	customerScopes = []string{"read", "sites", "databases", "apps", "dns", "mail"}
+	customerScopes = []string{"read", "sites", "databases", "apps", "dns", "mail", "settings"}
 )
 
 // routeScopes maps the first segment of an API path to the scopes that allow it. A segment
@@ -66,7 +66,9 @@ func tokenScopeFor(method, path string) (scopes []string, ok bool) {
 	if parts[0] == "auth" {
 		return nil, method == http.MethodGet && rest == "auth/me"
 	}
-	if slices.Contains(parts, "terminal") {
+	// Nor anything that makes a browser session: signing in as a customer would give a
+	// session without the token's limits.
+	if slices.Contains(parts, "terminal") || slices.Contains(parts, "impersonate") {
 		return nil, false
 	}
 	scopes, ok = routeScopes[parts[0]]

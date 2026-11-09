@@ -389,7 +389,8 @@
         "restore": "File put back from quarantine",
         "ignore": "File marked safe"
       }
-    }
+    },
+    "via_token": "with the API token “{{name}}”"
   },
   "errors": {
     "network": "Could not reach the panel. Check your connection and try again.",
@@ -613,7 +614,8 @@
     "invalid_scope": "Choose at least one scope.",
     "invalid_expiry": "Choose when the token expires.",
     "too_many_tokens": "You have 50 tokens. Revoke one you no longer use first.",
-    "token_not_found": "That token no longer exists."
+    "token_not_found": "That token no longer exists.",
+    "task_not_found": "That task no longer exists."
   },
   "not_found": {
     "title": "Page not found",

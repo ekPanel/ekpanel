@@ -877,6 +877,8 @@ How 4a works (decided 2026-11-09):
       or database with its state, a deployment, a task); a `task_id` on all of them would let
       clients wait the same way. Cloudflare records are only listed with their zone, and a
       hosted zone splits its records into `kept` and `made`
+- [ ] The audit log page shows most actions by their raw key (`site.created`): give every
+      action a text in `audit.actions` (English and Bangla)
 - [ ] Terraform provider: later in phase 4, once the API is stable
 
 How 4b works (decided 2026-11-09):

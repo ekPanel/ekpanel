@@ -2114,11 +2114,16 @@
             "description": "An error"
           }
         },
+        "security": [
+          {
+            "session": []
+          }
+        ],
         "summary": "Sign in as this customer",
         "tags": [
           "customers"
         ],
-        "x-ekpanel-scope": "customers"
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
       }
     },
     "/api/v1/customers/{id}/password": {
