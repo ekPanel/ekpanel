@@ -8,7 +8,7 @@ priority.
 **Do not open a public issue.** Report privately in one of these ways:
 
 - GitHub's private vulnerability reporting ("Security" tab → "Report a vulnerability") on
-  the [project repository](https://github.com/ekPanel/ekpanel), once it is public;
+  the [project repository](https://github.com/ekPanel/ekpanel);
 - email to **ekpanelbd@gmail.com** with "Security" in the subject.
 
 Include:
