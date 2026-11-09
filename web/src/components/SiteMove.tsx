@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRightLeft, CheckCircle2, Loader2, Trash2 } from "lucide-react";
-import { api, errorMessage, type Database, type Server, type Site, type SiteMove } from "../lib/api";
+import { api, ApiError, errorMessage, type Database, type Server, type Site, type SiteMove } from "../lib/api";
 import { formatBytes, formatDateTime } from "../lib/format";
 import { Badge, Button, Card, Dialog, ErrorAlert, type Tone } from "./ui";
 
@@ -64,7 +64,15 @@ export function MoveCard({ thing }: { thing: Movable }) {
     setBusy(true);
     setError("");
     try {
-      await api.post(`/moves/${m.id}/cleanup`);
+      try {
+        await api.post(`/moves/${m.id}/cleanup`);
+      } catch (e) {
+        // The old databases may still be used by things that stayed on the old server.
+        if (!(e instanceof ApiError) || e.code !== "old_copy_in_use") throw e;
+        const users = (e.data.users as string[] | undefined)?.join(", ") ?? "";
+        if (!window.confirm(t("move.in_use_confirm", { users }))) return;
+        await api.post(`/moves/${m.id}/cleanup?force=1`);
+      }
       qc.invalidateQueries({ queryKey: ["moves", base, site.id] });
     } catch (e) {
       setError(errorMessage(t, e));
@@ -107,7 +115,7 @@ export function MoveCard({ thing }: { thing: Movable }) {
                 <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-ok" aria-hidden />
                 {t(`move.${kindKey(thing, "moved")}`, { to: latest.to_server_name, from: latest.from_server_name })}
               </p>
-              <p className="text-muted">{targetIP ? t("move.dns_hint", { ip: targetIP }) : t("move.dns_hint_noip")}</p>
+              {thing.kind !== "database" && <p className="text-muted">{targetIP ? t("move.dns_hint", { ip: targetIP }) : t("move.dns_hint_noip")}</p>}
               <div>
                 <Button variant="danger" size="sm" loading={busy} onClick={() => cleanup(latest)}>
                   <Trash2 className="size-4" aria-hidden /> {t("move.cleanup", { server: latest.from_server_name })}

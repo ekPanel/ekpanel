@@ -627,7 +627,8 @@
     "server_not_in_package": "The customer's package does not include this server. Add it to the package first.",
     "app_not_active": "The app must be working before it can move.",
     "app_has_previews": "Apps with pull request previews cannot move. Turn previews off and delete the remaining previews first.",
-    "nothing_to_move": "The customer has nothing on that server."
+    "nothing_to_move": "The customer has nothing on that server.",
+    "old_copy_in_use": "Websites or apps of the same owner are still on the old server and may use these databases."
   },
   "not_found": {
     "title": "Page not found",
@@ -676,7 +677,12 @@
       "site_wordpress_copy": "Copy staging and live",
       "site_wordpress_scan": "Look for WordPress",
       "site_install_app": "Install {{app}}",
-      "malware_scan": "Malware scan"
+      "malware_scan": "Malware scan",
+      "site_move": "Move to another server",
+      "site_move_cleanup": "Remove the old copy after a move",
+      "customer_move": "Move a customer to another server",
+      "system_update_panel": "Update the panel",
+      "system_update_agents": "Update the agents"
     }
   },
   "sites": {
@@ -2361,6 +2367,7 @@
     "step_copy_database": "The database is dumped and loaded straight from server to server.",
     "step_cleanup_database": "The old copy stays until you remove it.",
     "cleanup_confirm_database": "Remove the old copy of the database on {{server}}? It is deleted there. Only do this once nothing uses it any more.",
-    "database_warning": "Websites and apps on the old server connect to the database there and keep using the old copy, and changes made to it after the copy starts are not carried over. To move a website with its database, move the website instead."
+    "database_warning": "Websites and apps on the old server connect to the database there and keep using the old copy, and changes made to it after the copy starts are not carried over. To move a website with its database, move the website instead.",
+    "in_use_confirm": "These are still on the old server and may use the old copies of the databases: {{users}}. Removing the old copy breaks them if they do. Remove it anyway?"
   }
 }

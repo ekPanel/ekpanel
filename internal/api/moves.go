@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -138,12 +139,29 @@ func (s *Server) handleMoveCleanup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "move_not_moved", "there is no old copy to remove")
 		return
 	}
+	// Databases' old copies may still be in use on the old server: by the same owner's
+	// websites and apps that stayed there (a customer move that stopped part-way, or a
+	// database moved on its own). Removing them needs ?force=1.
+	if len(m.Databases) > 0 && r.URL.Query().Get("force") != "1" {
+		users, err := s.oldCopyUsers(r, m)
+		if err != nil {
+			s.internalError(w, r, err)
+			return
+		}
+		if len(users) > 0 {
+			writeErrorData(w, http.StatusConflict, "old_copy_in_use",
+				"websites or apps of the same owner are still on the old server and may use these databases: "+strings.Join(users, ", "),
+				map[string]any{"users": users})
+			return
+		}
+	}
 	t, err := s.opts.Tasks.QueueMoveCleanup(r.Context(), m.ID, &currentUser(r).ID)
 	if err != nil {
 		s.internalError(w, r, err)
 		return
 	}
-	s.audit(r, "move.cleanup", m.FromName, map[string]any{"move_id": m.ID, "site_id": m.SiteID, "app_id": m.AppID, "task_id": t.ID})
+	s.audit(r, "move.cleanup", m.FromName, map[string]any{"move_id": m.ID, "site_id": m.SiteID, "app_id": m.AppID,
+		"database_ids": m.DatabaseIDs, "task_id": t.ID, "forced": r.URL.Query().Get("force") == "1"})
 	writeJSON(w, http.StatusAccepted, t)
 }
 
@@ -393,7 +411,7 @@ func (s *Server) handleMoveCustomer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, code, msg)
 	}
 	for _, x := range sites {
-		if !mine(x.OwnerID) {
+		if !mine(x.OwnerID) || x.State == "deleting" {
 			continue
 		}
 		count++
@@ -463,4 +481,36 @@ func (s *Server) handleMoveCustomer(w http.ResponseWriter, r *http.Request) {
 	s.audit(r, "customer.move_started", c.Email, map[string]any{"customer_id": c.ID, "from": req.FromServerID, "to": req.ServerID,
 		"items": count, "task_id": t.ID})
 	writeJSON(w, http.StatusAccepted, t)
+}
+
+// oldCopyUsers names the websites and apps on a move's old server that belong to the same
+// owner as the moved databases, and so may still connect to their old copies.
+func (s *Server) oldCopyUsers(r *http.Request, m store.Move) ([]string, error) {
+	db, err := s.store.GetDatabase(r.Context(), m.Databases[0].ID)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	sites, err := s.store.ListSites(r.Context(), m.FromServer)
+	if err != nil {
+		return nil, err
+	}
+	apps, err := s.store.ListApps(r.Context(), m.FromServer)
+	if err != nil {
+		return nil, err
+	}
+	var users []string
+	for _, x := range sites {
+		if x.State != "deleting" && sameOwner(x.OwnerID, db.OwnerID) {
+			users = append(users, x.Domain)
+		}
+	}
+	for _, a := range apps {
+		if a.State != "deleting" && sameOwner(a.OwnerID, db.OwnerID) {
+			users = append(users, a.Name)
+		}
+	}
+	return users, nil
 }

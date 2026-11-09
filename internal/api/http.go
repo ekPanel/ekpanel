@@ -28,6 +28,15 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 	writeJSON(w, status, apiError{Code: code, Message: message})
 }
 
+// writeErrorData is writeError with more fields in the body, for clients that need them.
+func writeErrorData(w http.ResponseWriter, status int, code, message string, data map[string]any) {
+	body := map[string]any{"code": code, "message": message}
+	for k, v := range data {
+		body[k] = v
+	}
+	writeJSON(w, status, body)
+}
+
 func (s *Server) internalError(w http.ResponseWriter, r *http.Request, err error) {
 	s.log.Error("request failed", "method", r.Method, "path", r.URL.Path, "err", err)
 	writeError(w, http.StatusInternalServerError, "internal", "something went wrong; the error has been logged")

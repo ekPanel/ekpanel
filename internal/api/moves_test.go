@@ -562,7 +562,14 @@ func TestMoveDatabase(t *testing.T) {
 	if st := c.do("DELETE", "/api/v1/databases/"+db.ID, nil, &e); st != http.StatusConflict || e.Code != "move_open" {
 		t.Fatalf("delete during a move: %d %s", st, e.Code)
 	}
-	c.do("POST", "/api/v1/moves/"+moves[0].ID+"/cleanup", nil, nil)
+	// A website of the same owner stayed on the old server: it may use the old copy.
+	c.do("POST", "/api/v1/sites", map[string]any{"domain": "stays.example.com", "server_id": fromID, "kind": "static"}, nil)
+	if st := c.do("POST", "/api/v1/moves/"+moves[0].ID+"/cleanup", nil, &e); st != http.StatusConflict || e.Code != "old_copy_in_use" {
+		t.Fatalf("cleanup while a website stays: %d %s", st, e.Code)
+	}
+	if st := c.do("POST", "/api/v1/moves/"+moves[0].ID+"/cleanup?force=1", nil, nil); st != http.StatusAccepted {
+		t.Fatalf("forced cleanup: %d", st)
+	}
 	waitUntil(t, "the old copy removed", func() bool {
 		c.do("GET", "/api/v1/databases/"+db.ID+"/moves", nil, &moves)
 		return moves[0].Phase == "done"
