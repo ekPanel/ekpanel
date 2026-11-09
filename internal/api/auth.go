@@ -25,6 +25,7 @@ type ctxKey int
 const (
 	userKey ctxKey = iota
 	sessionHashKey
+	tokenKey
 )
 
 func (s *Server) cookieName() string {
@@ -50,6 +51,14 @@ func (s *Server) setSessionCookie(w http.ResponseWriter, token string, maxAge in
 // loadSession attaches the signed-in user (if any) to the request context.
 func (s *Server) loadSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// An API token, when sent, decides alone: no cookie is looked at.
+		if r.Header.Get("Authorization") != "" {
+			r, ok := s.tokenAuth(w, r)
+			if ok {
+				next.ServeHTTP(w, r)
+			}
+			return
+		}
 		c, err := r.Cookie(s.cookieName())
 		if err != nil || c.Value == "" {
 			next.ServeHTTP(w, r)
@@ -122,7 +131,7 @@ func (s *Server) audit(r *http.Request, action, target string, details map[strin
 			details["as_customer"] = u.ID
 		}
 	}
-	s.auditAs(r, actor, action, target, details)
+	s.auditAs(r, actor, action, target, withToken(r, details))
 }
 
 func (s *Server) auditAs(r *http.Request, actorID *string, action, target string, details map[string]any) {

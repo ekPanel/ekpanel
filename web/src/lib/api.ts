@@ -638,6 +638,25 @@ export interface AuditEntry {
 }
 
 /** An error response from the panel. `code` is stable; translate it with errorMessage. */
+// ---- API tokens ----
+
+export interface APIToken {
+  id: string;
+  name: string;
+  /** The first characters of the token, to tell tokens apart. */
+  prefix: string;
+  scopes: string[];
+  expires_at: string | null;
+  last_used_at: string | null;
+  last_used_ip: string;
+  created_at: string;
+}
+
+/** Returned once, when a token is made. */
+export interface CreatedAPIToken extends APIToken {
+  token: string;
+}
+
 // ---- Updates ----
 
 export type UpdatePhase = "panel" | "agents" | "done" | "failed";

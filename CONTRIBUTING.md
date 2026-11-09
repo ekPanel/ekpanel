@@ -46,6 +46,7 @@ a pull request from `dev`. Open your pull requests against `dev`.
 | --- | --- |
 | `cmd/ekpanel` | the panel binary |
 | `cmd/ekpanel-agent` | the agent binary that runs on managed servers |
+| `cmd/ekctl` | the command-line tool for the API (logic in `internal/cli`) |
 | `internal/api` | HTTP API, sessions, CSRF protection, agent endpoints |
 | `internal/store` | PostgreSQL queries |
 | `internal/db/migrations` | schema migrations, applied in name order at startup |

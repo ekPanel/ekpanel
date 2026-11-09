@@ -32,7 +32,8 @@
     "dns": "DNS",
     "mail": "Email",
     "security_page": "Server security",
-    "updates": "Updates"
+    "updates": "Updates",
+    "tokens": "API tokens"
   },
   "theme": {
     "label": "Theme",
@@ -543,7 +544,7 @@
     "invalid_certificate": "The certificate cannot be used.",
     "certificate_required": "Upload a certificate to use your own.",
     "invalid_php_extension": "Choose an optional extension of a supported PHP version.",
-    "invalid_token": "Paste the API token Cloudflare showed when you created it.",
+    "invalid_token": "This API token does not exist, was revoked or has expired.",
     "cloudflare_denied": "Cloudflare refused the token. Check that it is active and has the permissions listed.",
     "cloudflare_error": "Cloudflare could not do this.",
     "zone_taken": "This domain is already managed in ekPanel.",
@@ -606,7 +607,13 @@
     "update_running": "An update is already running.",
     "invalid_version": "Update only to the newest release. Check for updates first.",
     "panel_agent_offline": "The agent on the panel's own server is not connected, so it cannot install the update.",
-    "not_a_release": "This panel is built from source, not installed from a release, so it cannot be updated from here."
+    "not_a_release": "This panel is built from source, not installed from a release, so it cannot be updated from here.",
+    "token_scope": "This API token does not have the scope for this.",
+    "token_not_allowed": "This needs a signed-in session; API tokens cannot do it.",
+    "invalid_scope": "Choose at least one scope.",
+    "invalid_expiry": "Choose when the token expires.",
+    "too_many_tokens": "You have 50 tokens. Revoke one you no longer use first.",
+    "token_not_found": "That token no longer exists."
   },
   "not_found": {
     "title": "Page not found",
@@ -2237,6 +2244,57 @@
       "panel_host": "runs the panel",
       "outdated": "Older than the panel",
       "current": "Current"
+    }
+  },
+  "tokens": {
+    "title": "API tokens",
+    "intro": "Tokens let scripts and the ekctl command-line tool use the panel's API as you. Give each one only the scopes it needs.",
+    "add": "New token",
+    "empty": "No tokens yet",
+    "empty_hint": "Make one for each script or computer, so you can revoke it on its own.",
+    "name": "Name",
+    "name_hint": "What uses it, such as \"Laptop\" or \"Deploy script\".",
+    "scopes": "Scopes",
+    "last_used": "Last used",
+    "never_used": "Never",
+    "expires": "Expires",
+    "never": "Never",
+    "expired": "Expired",
+    "days_one": "In {{count}} day",
+    "days_other": "In {{count}} days",
+    "revoke": "Revoke",
+    "revoke_confirm": "Revoke the token \"{{name}}\"? Anything that uses it stops working at once.",
+    "create": "Create token",
+    "created_title": "Your new token",
+    "created_once": "Copy it now and keep it somewhere safe. It is shown only this once; the panel keeps only a fingerprint of it.",
+    "done": "Done",
+    "never_with_token": "A token can never change your password, two-factor sign-in or tokens, and cannot open a terminal.",
+    "how_title": "Using a token",
+    "how_body": "Send it in the Authorization header:",
+    "how_cli": "Or sign in with the ekctl command-line tool: ekctl login --url followed by this panel's address.",
+    "scope": {
+      "read": "Read",
+      "sites": "Websites",
+      "databases": "Databases",
+      "apps": "Apps",
+      "dns": "DNS",
+      "mail": "Email",
+      "backups": "Backups",
+      "servers": "Servers",
+      "customers": "Customers",
+      "settings": "Settings"
+    },
+    "scope_hint": {
+      "read": "See everything you can see in the panel, but change nothing.",
+      "sites": "Websites, WordPress, PHP apps and cron jobs.",
+      "databases": "Databases and their users.",
+      "apps": "Docker apps, deploys and the app catalogue.",
+      "dns": "DNS zones and records.",
+      "mail": "Email domains, mailboxes and forwarders.",
+      "backups": "Backup storage, backups and restores.",
+      "servers": "Servers, their services, firewall and security.",
+      "customers": "Customers and packages.",
+      "settings": "Panel settings, updates, notifications and the audit log."
     }
   }
 }

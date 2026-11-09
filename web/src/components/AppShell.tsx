@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, ArchiveRestore, Bell, Boxes, CircleArrowUp, CloudCog, Database, Gauge, Globe, Languages, LogOut, Mail, Menu, Monitor, Moon, Newspaper, Package, ScrollText, Search, Server, ShieldCheck, ShieldHalf, Sun, Users, X } from "lucide-react";
+import { Activity, ArchiveRestore, Bell, Boxes, CircleArrowUp, CloudCog, Database, Gauge, Globe, KeyRound, Languages, LogOut, Mail, Menu, Monitor, Moon, Newspaper, Package, ScrollText, Search, Server, ShieldCheck, ShieldHalf, Sun, Users, X } from "lucide-react";
 import { api, type User } from "../lib/api";
 import { meKey } from "../lib/session";
 import { useTheme, type Theme } from "../lib/theme";
@@ -60,6 +60,7 @@ function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => void }) 
       <p className="px-3 pt-5 pb-1 text-xs font-semibold tracking-wider text-muted uppercase">{t("nav.account")}</p>
       <NavItem to="/settings/security" icon={<ShieldCheck />}>{t("nav.security")}</NavItem>
       <NavItem to="/settings/notifications" icon={<Bell />}>{t("nav.notifications")}</NavItem>
+      <NavItem to="/settings/tokens" icon={<KeyRound />}>{t("nav.tokens")}</NavItem>
     </nav>
   );
 }

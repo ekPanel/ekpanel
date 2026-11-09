@@ -67,7 +67,9 @@ func New(st *store.Store, h *hub.Hub, log *slog.Logger, opts Options) *Server {
 	}
 }
 
-func (s *Server) Handler() http.Handler {
+func (s *Server) Handler() http.Handler { return s.router() }
+
+func (s *Server) router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(securityHeaders)
 	r.Use(s.recoverer)
@@ -77,6 +79,7 @@ func (s *Server) Handler() http.Handler {
 		r.Use(s.loadSession)
 
 		r.Get("/health", s.handleHealth)
+		r.Get("/openapi.json", s.handleOpenAPI)
 		// Signed by the app's webhook secret instead of a session.
 		r.Post("/hooks/git/{id}", s.handleGitHook)
 		r.Get("/setup/status", s.handleSetupStatus)
@@ -95,6 +98,10 @@ func (s *Server) Handler() http.Handler {
 			r.With(notImpersonating).Post("/auth/2fa/enable", s.handleTOTPEnable)
 			r.With(notImpersonating).Post("/auth/2fa/disable", s.handleTOTPDisable)
 			r.With(notImpersonating).Post("/auth/sessions/revoke-others", s.handleRevokeOtherSessions)
+			// API tokens are managed only in a browser session (a token cannot reach these).
+			r.With(notImpersonating).Get("/tokens", s.handleListTokens)
+			r.With(notImpersonating).Post("/tokens", s.handleCreateToken)
+			r.With(notImpersonating).Delete("/tokens/{id}", s.handleDeleteToken)
 		})
 
 		// Administrators and customers. Handlers show customers only what they own and
@@ -112,6 +119,7 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/auth/password", s.handleChangePassword)
 			r.Get("/servers", s.handleListServers)
 			r.Get("/tasks", s.handleListTasks)
+			r.Get("/tasks/{id}", s.handleGetTask)
 			r.Get("/sites", s.handleListSites)
 			r.Post("/sites", s.handleCreateSite)
 			r.Get("/sites/{id}", s.handleGetSite)

@@ -867,11 +867,39 @@ How 4a works (decided 2026-11-09):
   3 minutes, the timer puts the old binary back. Versions only go up.
 
 **4b. API, CLI, Terraform**
-- [ ] API tokens per user with scopes (read, websites, databases, DNS …) and expiry, shown
+- [x] API tokens per user with scopes (read, websites, databases, DNS …) and expiry, shown
       once, revocable, in the audit log
-- [ ] An OpenAPI description of the API, checked in CI against the handlers, and a docs site
-- [ ] The `ekpanel` CLI for the same API (sites, databases, apps, DNS, backups), with tokens
+- [x] An OpenAPI description of the API, checked in CI against the handlers, and a docs site
+      (paths, summaries and scopes; request and response schemas come with Terraform)
+- [x] The `ekctl` CLI for the same API (sites, databases, apps, DNS, backups), with tokens;
+      `GET /tasks/{id}` added for it
+- [ ] Found while building ekctl: changes that start slow work answer in three ways (a site
+      or database with its state, a deployment, a task); a `task_id` on all of them would let
+      clients wait the same way. Cloudflare records are only listed with their zone, and a
+      hosted zone splits its records into `kept` and `made`
 - [ ] Terraform provider: later in phase 4, once the API is stable
+
+How 4b works (decided 2026-11-09):
+- **Tokens** look like `ekp_<43 characters>`. Only their SHA-256 is stored, with a name, the
+  owner, scopes, an expiry (30, 90 or 365 days, or none) and when and from where it was last
+  used. A token acts as its owner with the owner's role, limited by its scopes. It is sent as
+  `Authorization: Bearer ekp_…`. Tokens are made and revoked only in a signed-in browser
+  session (Account → API tokens), never with another token, and never while signed in as a
+  customer. Everything done with a token is in the audit log with the token's name.
+- **Scopes:** `read` (every GET the owner may see) and, for changes, `sites`, `databases`,
+  `apps`, `dns`, `mail`, `backups`, `servers`, `customers` and `settings`. A route's scope
+  comes from its first path segment, in one table that the docs and the OpenAPI file also
+  use. Terminals, account security (password, two-factor, sessions) and tokens themselves
+  never work with a token.
+- **OpenAPI:** the panel serves `/api/v1/openapi.json`, made from the router and that table:
+  every route with its summary, tag, path parameters and scope. A test fails when a route is
+  added without a description, and `docs/openapi.json` in the repository must match. Request
+  and response schemas come with the Terraform provider.
+- **CLI:** `ekctl`, a separate small binary for Linux, macOS and Windows (amd64 and arm64)
+  in every release. `ekctl login` saves the panel's address and a token (0600); a panel with a
+  self-signed certificate is trusted by its fingerprint once confirmed. Commands for servers,
+  sites, databases, apps, DNS, backups and tasks, `--json` everywhere, and `ekctl api` for any
+  endpoint.
 
 **4c. Moving between servers**
 - [ ] Move a website (files, databases, cron, settings), an app or a database to another
@@ -931,4 +959,5 @@ How 4a works (decided 2026-11-09):
 **Next**
 - [x] 4a. Releases and updates; the signing key is in the `release` environment
 - [x] v0.1.0, the first release, published 2026-11-09 (signature, checksums and attestation checked)
-- [ ] 4b. API, CLI, Terraform
+- [x] 4b. API tokens, OpenAPI and ekctl (Terraform later in phase 4)
+- [ ] 4c. Moving between servers
