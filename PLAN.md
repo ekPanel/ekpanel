@@ -929,6 +929,6 @@ How 4a works (decided 2026-11-09):
       সেটিং/সেটিংস) and mixes Bangla and English script in the name server labels
 
 **Next**
-- [x] 4a. Releases and updates (the first real release waits for the owner: the signing key
-      goes into the `release` environment, then a `v0.1.0` tag on `pub`)
+- [x] 4a. Releases and updates; the signing key is in the `release` environment
+- [ ] v0.1.0, the first release (tag on `pub`)
 - [ ] 4b. API, CLI, Terraform
