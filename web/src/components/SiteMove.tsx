@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRightLeft, CheckCircle2, Loader2, Trash2 } from "lucide-react";
-import { api, ApiError, errorMessage, type Database, type Server, type Site, type SiteMove } from "../lib/api";
+import { api, ApiError, errorMessage, type BackupRepo, type Database, type Server, type Site, type SiteMove } from "../lib/api";
 import { formatBytes, formatDateTime } from "../lib/format";
 import { Badge, Button, Card, Dialog, ErrorAlert, type Tone } from "./ui";
 
@@ -55,7 +55,11 @@ export function MoveCard({ thing }: { thing: Movable }) {
     refetchInterval: (q) => (q.state.data?.some(running) ? 2000 : 30000),
   });
   const latest = moves.data?.[0];
-  const servers = useQuery({ queryKey: ["servers"], queryFn: () => api.get<Server[]>("/servers"), enabled: latest?.phase === "moved" });
+  const [rebuilding, setRebuilding] = useState(false);
+  const servers = useQuery({ queryKey: ["servers"], queryFn: () => api.get<Server[]>("/servers"), refetchInterval: 30000 });
+  const source = servers.data?.find((s) => s.id === thing.server_id);
+  // A website whose server is offline can be rebuilt elsewhere from a backup.
+  const sourceDown = thing.kind === "site" && source !== undefined && !source.online;
   const target = servers.data?.find((s) => s.id === latest?.to_server);
   const targetIP = target?.public_ipv4 ?? target?.addresses?.[0];
 
@@ -90,12 +94,20 @@ export function MoveCard({ thing }: { thing: Movable }) {
           <h2 className="text-lg font-semibold">{t("move.title")}</h2>
           <p className="text-sm text-muted">{t(`move.${kindKey(thing, "intro")}`, { server: site.server_name })}</p>
         </div>
-        {canMove && (
-          <Button onClick={() => setOpen(true)}>
-            <ArrowRightLeft className="size-4" aria-hidden /> {t("move.start")}
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {canMove && !sourceDown && (
+            <Button onClick={() => setOpen(true)}>
+              <ArrowRightLeft className="size-4" aria-hidden /> {t("move.start")}
+            </Button>
+          )}
+          {sourceDown && (!latest || latest.phase === "done" || latest.phase === "failed") && (
+            <Button variant="primary" onClick={() => setRebuilding(true)}>
+              <ArrowRightLeft className="size-4" aria-hidden /> {t("move.rebuild.start")}
+            </Button>
+          )}
+        </div>
       </div>
+      {sourceDown && <p className="rounded-lg bg-warn-soft px-3 py-2 text-sm text-warn">{t("move.rebuild.offline", { server: thing.server_name })}</p>}
       {error && <ErrorAlert>{error}</ErrorAlert>}
       {latest && (
         <div className="grid gap-3 rounded-lg border border-line p-4 text-sm">
@@ -126,6 +138,7 @@ export function MoveCard({ thing }: { thing: Movable }) {
         </div>
       )}
       {open && <MoveDialog thing={thing} onClose={() => setOpen(false)} />}
+      {rebuilding && <RebuildDialog thing={thing} onClose={() => setRebuilding(false)} />}
     </Card>
   );
 }
@@ -204,6 +217,93 @@ function MoveDialog({ thing, onClose }: { thing: Movable; onClose: () => void })
           <Button onClick={onClose}>{t("common.cancel")}</Button>
           <Button variant="primary" loading={busy} disabled={!target} onClick={submit}>
             <ArrowRightLeft className="size-4" aria-hidden /> {t("move.confirm")}
+          </Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+/** Rebuilds a website on another server from a backup, for a server that is gone. */
+function RebuildDialog({ thing, onClose }: { thing: Movable; onClose: () => void }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const servers = useQuery({ queryKey: ["servers"], queryFn: () => api.get<Server[]>("/servers") });
+  const repos = useQuery({ queryKey: ["backups"], queryFn: () => api.get<BackupRepo[]>("/backups") });
+  const dbs = useQuery({ queryKey: ["databases"], queryFn: () => api.get<Database[]>("/databases") });
+  const [target, setTarget] = useState("");
+  const [repo, setRepo] = useState("");
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const candidates = (servers.data ?? []).filter((s) => s.id !== thing.server_id && s.enrolled_at && s.online);
+  const targetRepos = (repos.data ?? []).filter((r) => r.server_id === target && r.kind === "s3");
+  const siteDBs = (dbs.data ?? []).filter((d) => d.server_id === thing.server_id && (d.owner_id ?? null) === (thing.owner_id ?? null));
+  const select = "h-10 rounded-lg border border-line bg-surface px-3 text-ink";
+
+  const submit = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await api.post(`/sites/${thing.id}/rebuild`, { server_id: target, repo_id: repo, database_ids: chosen });
+      qc.invalidateQueries({ queryKey: ["moves", "sites", thing.id] });
+      onClose();
+    } catch (e) {
+      setError(errorMessage(t, e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onClose={onClose} title={t("move.rebuild.title", { domain: thing.name })}>
+      <div className="grid gap-4">
+        {error && <ErrorAlert>{error}</ErrorAlert>}
+        <p className="text-sm text-muted">{t("move.rebuild.intro")}</p>
+        <label className="grid gap-1.5 text-sm">
+          <span className="font-medium">{t("move.target")}</span>
+          <select className={select} value={target} onChange={(e) => (setTarget(e.target.value), setRepo(""))}>
+            <option value="">{t("move.choose_server")}</option>
+            {candidates.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1.5 text-sm">
+          <span className="font-medium">{t("move.rebuild.repo")}</span>
+          <select className={select} value={repo} onChange={(e) => setRepo(e.target.value)} disabled={!target}>
+            <option value="">{t("move.rebuild.choose_repo")}</option>
+            {targetRepos.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name} · {r.location}
+              </option>
+            ))}
+          </select>
+          {target && targetRepos.length === 0 && <span className="text-muted">{t("move.rebuild.no_repo")}</span>}
+        </label>
+        {siteDBs.length > 0 && (
+          <fieldset className="grid gap-2 text-sm">
+            <legend className="mb-1 font-medium">{t("move.databases")}</legend>
+            {siteDBs.map((d) => (
+              <label key={d.id} className="flex items-center gap-2.5">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-[var(--accent)]"
+                  checked={chosen.includes(d.id)}
+                  onChange={(e) => setChosen((c) => (e.target.checked ? [...c, d.id] : c.filter((x) => x !== d.id)))}
+                />
+                <span className="font-mono">{d.name}</span>
+              </label>
+            ))}
+          </fieldset>
+        )}
+        <p className="rounded-lg bg-warn-soft px-3 py-2 text-sm text-warn">{t("move.rebuild.warning")}</p>
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose}>{t("common.cancel")}</Button>
+          <Button variant="primary" loading={busy} disabled={!target || !repo} onClick={submit}>
+            {t("move.rebuild.confirm")}
           </Button>
         </div>
       </div>

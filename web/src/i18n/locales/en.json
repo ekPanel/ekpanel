@@ -531,7 +531,7 @@
     "domain_required": "This service is used through its domain; enter one.",
     "template_not_found": "That service is not in the catalogue.",
     "git_not_allowed": "The package does not include Git apps.",
-    "invalid_repo": "Enter the repository's https:// address, or its SSH address (git@host:owner/repo.git).",
+    "invalid_repo": "Choose a backup storage connected on the new server.",
     "invalid_branch": "Enter a branch name, such as main.",
     "invalid_repo_path": "The Dockerfile and build folder are paths inside the repository.",
     "port_required": "Enter the port the app listens on inside its container.",
@@ -628,7 +628,9 @@
     "app_not_active": "The app must be working before it can move.",
     "app_has_previews": "Apps with pull request previews cannot move. Turn previews off and delete the remaining previews first.",
     "nothing_to_move": "The customer has nothing on that server.",
-    "old_copy_in_use": "Websites or apps of the same owner are still on the old server and may use these databases."
+    "old_copy_in_use": "Websites or apps of the same owner are still on the old server and may use these databases.",
+    "no_snapshot": "This backup storage has no backup of something you chose.",
+    "backup_unreadable": "The new server could not read the backups."
   },
   "not_found": {
     "title": "Page not found",
@@ -682,7 +684,8 @@
       "site_move_cleanup": "Remove the old copy after a move",
       "customer_move": "Move a customer to another server",
       "system_update_panel": "Update the panel",
-      "system_update_agents": "Update the agents"
+      "system_update_agents": "Update the agents",
+      "site_rebuild": "Rebuild a website from a backup"
     }
   },
   "sites": {
@@ -2368,6 +2371,17 @@
     "step_cleanup_database": "The old copy stays until you remove it.",
     "cleanup_confirm_database": "Remove the old copy of the database on {{server}}? It is deleted there. Only do this once nothing uses it any more.",
     "database_warning": "Websites and apps on the old server connect to the database there and keep using the old copy, and changes made to it after the copy starts are not carried over. To move a website with its database, move the website instead.",
-    "in_use_confirm": "These are still on the old server and may use the old copies of the databases: {{users}}. Removing the old copy breaks them if they do. Remove it anyway?"
+    "in_use_confirm": "These are still on the old server and may use the old copies of the databases: {{users}}. Removing the old copy breaks them if they do. Remove it anyway?",
+    "rebuild": {
+      "start": "Rebuild from a backup…",
+      "title": "Rebuild {{domain}} from a backup",
+      "offline": "{{server}} is offline. If it is gone, rebuild this website on another server from its newest backup.",
+      "intro": "The website and the databases you choose are set up on the new server and filled from their newest snapshots in a backup storage connected there. Nothing is copied from the old server.",
+      "repo": "Backup storage on the new server",
+      "choose_repo": "Choose the backup storage",
+      "no_repo": "Connect the same S3 storage on the new server first (Backups → Add, with its recovery key).",
+      "warning": "Everything since the newest backup is lost. If the old server comes back, its copy stays until you remove it from this page.",
+      "confirm": "Rebuild"
+    }
   }
 }

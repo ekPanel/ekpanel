@@ -24,6 +24,9 @@ All notable changes to ekPanel are listed here. The format follows
   free port there, and the old copy stays stopped with its data until you remove it (4c)
 - Move a database on its own, and everything a customer has on one server (their first
   website takes all their databases along), from the database's page and the customers list (4c)
+- Rebuild a website on another server from its newest backup, when its server is gone: connect
+  the same S3 storage there with its recovery key, and the website's page offers the rebuild
+  while the old server is offline (4c)
 
 ## [v0.1.0] - 2026-11-09
 

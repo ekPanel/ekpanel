@@ -932,13 +932,17 @@ How 4b works (decided 2026-11-09):
 - [x] Move a whole customer: everything they have on one server, one thing at a time (the
       first website takes all their databases along), checked before it starts, stopping at
       the first failure
-- [ ] Restore a backup onto another server, for a server that is gone (decided 2026-11-09):
+- [x] Restore a backup onto another server, for a server that is gone. Tried with two VMs and
+      an S3 storage (SeaweedFS): the site and its database backed up from one server, that
+      server stopped, the storage connected on the other with the recovery key, and the site
+      rebuilt there in 10 s with the same files, owners, ACLs and data. As decided (2026-11-09):
       only for S3 storage (a local repository is on the lost server). The panel gives the new
       server the repository (setup with the same password and keys), moves the site's and its
       databases' records there without copying (like a switch), reconciles, restores the
       files (the account name is the same, so the paths in the snapshot match) and each
-      database from its newest snapshot, then the DNS follows. The repository then belongs to
-      the new server, so scheduled backups go on from there
+      database from its newest snapshot, then the DNS follows. Built differently in one way:
+      the storage is connected on the new server as its own repository (Backups → Add with
+      the recovery key), so scheduled backups go on from there
 - [x] Server-to-server copy over the agents' own connection, not public SSH
 
 How 4c works (decided 2026-11-09; websites first, then databases alone, apps, backups and
@@ -1016,5 +1020,6 @@ whole customers):
 - [x] 4a. Releases and updates; the signing key is in the `release` environment
 - [x] v0.1.0, the first release, published 2026-11-09 (signature, checksums and attestation checked)
 - [x] 4b. API tokens, OpenAPI and ekctl (Terraform later in phase 4)
-- [ ] 4c. Moving between servers (websites, apps, databases and whole customers done;
-      restoring a backup onto another server next)
+- [x] 4c. Moving between servers (websites, apps, databases, whole customers, and rebuilding
+      a website from a backup on another server)
+- [ ] 4d. Importers

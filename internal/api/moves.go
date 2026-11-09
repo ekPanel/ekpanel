@@ -1,10 +1,12 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -513,4 +515,135 @@ func (s *Server) oldCopyUsers(r *http.Request, m store.Move) ([]string, error) {
 		}
 	}
 	return users, nil
+}
+
+type rebuildRequest struct {
+	ServerID    string   `json:"server_id"`
+	RepoID      string   `json:"repo_id"`
+	DatabaseIDs []string `json:"database_ids"`
+}
+
+// handleRebuildSite rebuilds a website (and chosen databases) on another server from a
+// backup, for when its server is gone. The repository must be connected on the new server
+// (the same S3 storage, with its recovery key); the newest snapshot of each is restored.
+func (s *Server) handleRebuildSite(w http.ResponseWriter, r *http.Request) {
+	var req rebuildRequest
+	if !readJSON(w, r, &req) {
+		return
+	}
+	ctx := r.Context()
+	site, err := s.getSite(r, siteID(r))
+	if err != nil {
+		s.writeSiteStoreError(w, r, err)
+		return
+	}
+	if req.ServerID == site.ServerID {
+		writeError(w, http.StatusBadRequest, "same_server", "the website is already on this server")
+		return
+	}
+	target, err := s.store.GetServer(ctx, req.ServerID)
+	if !isUUID(req.ServerID) || errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusBadRequest, "invalid_server", "choose a server to rebuild the website on")
+		return
+	}
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if online, _ := s.hub.Latest(target.ID); !online {
+		writeError(w, http.StatusConflict, "agent_offline", "the new server must be connected")
+		return
+	}
+	repo, err := s.store.GetBackupRepo(ctx, req.RepoID)
+	if !isUUID(req.RepoID) || errors.Is(err, store.ErrNotFound) || (err == nil && repo.ServerID != target.ID) {
+		writeError(w, http.StatusBadRequest, "invalid_repo", "choose a backup storage connected on the new server")
+		return
+	}
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if site.OwnerID != nil {
+		c, err := s.store.GetCustomer(ctx, *site.OwnerID)
+		if err != nil {
+			s.internalError(w, r, err)
+			return
+		}
+		if c.PackageID != nil {
+			if pkg, err := s.store.GetPackage(ctx, *c.PackageID); err == nil && len(pkg.ServerIDs) > 0 && !slices.Contains(pkg.ServerIDs, target.ID) {
+				writeError(w, http.StatusConflict, "server_not_in_package", "the customer's package does not include this server; add it to the package first")
+				return
+			}
+		}
+	}
+	if _, err := s.store.OpenMove(ctx, site.ID); err == nil {
+		writeError(w, http.StatusConflict, "move_open", "this website is already being moved, or its old copy is still on the other server")
+		return
+	}
+	targetDBs, err := s.store.ListDatabases(ctx, target.ID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	m := store.Move{SiteID: &site.ID, FromServer: site.ServerID, ToServer: target.ID, LinuxUser: site.LinuxUser,
+		DatabaseIDs: []string{}, Databases: []store.MoveDatabase{}, FromBackup: &repo.ID, CreatedBy: &currentUser(r).ID}
+	for _, id := range req.DatabaseIDs {
+		if slices.Contains(m.DatabaseIDs, id) {
+			continue
+		}
+		db, err := s.store.GetDatabase(ctx, id)
+		if !isUUID(id) || errors.Is(err, store.ErrNotFound) || (err == nil && (db.ServerID != site.ServerID || !sameOwner(db.OwnerID, site.OwnerID))) {
+			writeError(w, http.StatusBadRequest, "invalid_database", "a chosen database is not on the website's server or belongs to someone else")
+			return
+		}
+		if err != nil {
+			s.internalError(w, r, err)
+			return
+		}
+		if slices.ContainsFunc(targetDBs, func(t store.Database) bool {
+			return t.Engine == db.Engine && (t.Name == db.Name || t.Username == db.Username)
+		}) {
+			writeError(w, http.StatusConflict, "database_name_taken", "the target server already has a database or user named like "+db.Name)
+			return
+		}
+		m.DatabaseIDs = append(m.DatabaseIDs, db.ID)
+		m.Databases = append(m.Databases, store.MoveDatabase{ID: db.ID, Engine: db.Engine, Name: db.Name, Username: db.Username})
+	}
+	// Every item needs a snapshot in this repository.
+	callCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	latest, err := s.opts.Tasks.LatestSnapshots(callCtx, repo)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "backup_unreadable", "the new server could not read the backups: "+err.Error())
+		return
+	}
+	snaps := map[string]string{}
+	need := map[string]string{site.ID: site.Domain}
+	for _, d := range m.Databases {
+		need[d.ID] = d.Name
+	}
+	for id, name := range need {
+		sn, ok := latest[id]
+		if !ok {
+			writeErrorData(w, http.StatusConflict, "no_snapshot", "this backup storage has no backup of "+name, map[string]any{"item": name})
+			return
+		}
+		snaps[id] = sn.ID
+	}
+	m, err = s.store.CreateMove(ctx, m)
+	if errors.Is(err, store.ErrMoveOpen) {
+		writeError(w, http.StatusConflict, "move_open", "this website is already being moved")
+		return
+	}
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if _, err := s.opts.Tasks.QueueSiteRebuild(ctx, tasks.RebuildParams{Move: m.ID, Snapshots: snaps}, &currentUser(r).ID); err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	s.audit(r, "site.rebuild_started", site.Domain, map[string]any{"site_id": site.ID, "move_id": m.ID, "to": target.Name,
+		"repo_id": repo.ID, "snapshots": snaps})
+	writeJSON(w, http.StatusAccepted, m)
 }

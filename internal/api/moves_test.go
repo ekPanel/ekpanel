@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/coder/websocket"
 
@@ -17,16 +18,18 @@ import (
 // moveAgent is a fake agent that applies state, and exports or imports a transfer of a
 // fixed size with flow control, like a real one.
 type moveAgent struct {
-	t        *testing.T
-	conn     *websocket.Conn
-	mu       sync.Mutex
-	applies  []agentproto.StateApplyParams
-	received int
-	credit   chan struct{}
-	finish   *agentproto.OpError // what OpTransferFinish answers
-	finished []agentproto.TransferFinishParams
-	exports  []agentproto.TransferExportParams
-	discards int
+	t         *testing.T
+	conn      *websocket.Conn
+	mu        sync.Mutex
+	applies   []agentproto.StateApplyParams
+	received  int
+	credit    chan struct{}
+	finish    *agentproto.OpError // what OpTransferFinish answers
+	finished  []agentproto.TransferFinishParams
+	exports   []agentproto.TransferExportParams
+	discards  int
+	snapshots []agentproto.BackupSnapshot
+	restores  []agentproto.BackupRestoreParams
 }
 
 const transferChunks = 600 // more than the window, so flow control matters
@@ -146,6 +149,16 @@ func (a *moveAgent) loop() {
 		case agentproto.OpTransferDiscard:
 			a.mu.Lock()
 			a.discards++
+			a.mu.Unlock()
+		case agentproto.OpBackupSnapshots:
+			a.mu.Lock()
+			result = agentproto.BackupSnapshotsResult{Snapshots: a.snapshots}
+			a.mu.Unlock()
+		case agentproto.OpBackupRestore:
+			var p agentproto.BackupRestoreParams
+			json.Unmarshal(env.Params, &p)
+			a.mu.Lock()
+			a.restores = append(a.restores, p)
 			a.mu.Unlock()
 		}
 		if result != nil {
@@ -655,5 +668,83 @@ func TestMoveCustomer(t *testing.T) {
 	}
 	if st := c.do("POST", "/api/v1/customers/"+owner+"/move", map[string]any{"from_server_id": fromID, "server_id": toID}, &e); st != http.StatusConflict && st != http.StatusBadRequest {
 		t.Fatalf("second customer move: %d %s", st, e.Code)
+	}
+}
+
+func TestRebuildSiteFromBackup(t *testing.T) {
+	p := newTestPanel(t)
+	c := newClient(t, p.web.URL)
+	setUp(t, c)
+	fromID, fromCfg, _, _ := enrolled(t, p, c, "lost")
+	toID, toCfg, _, _ := enrolled(t, p, c, "new")
+	src := newMoveAgent(t, p, fromCfg)
+	dst := newMoveAgent(t, p, toCfg)
+	var site struct {
+		ID        string `json:"id"`
+		ServerID  string `json:"server_id"`
+		State     string `json:"state"`
+		LinuxUser string `json:"linux_user"`
+	}
+	c.do("POST", "/api/v1/sites", map[string]any{"domain": "shop.example.com", "server_id": fromID, "kind": "static"}, &site)
+	var created struct {
+		Database struct {
+			ID string `json:"id"`
+		} `json:"database"`
+	}
+	c.do("POST", "/api/v1/databases", map[string]any{"server_id": fromID, "engine": "mariadb", "name": "shop"}, &created)
+	db := created.Database
+	waitUntil(t, "site and database active", func() bool {
+		c.do("GET", "/api/v1/sites/"+site.ID, nil, &site)
+		var d struct {
+			State string `json:"state"`
+		}
+		c.do("GET", "/api/v1/databases/"+db.ID, nil, &d)
+		return site.State == "active" && d.State == "active"
+	})
+	// The old server is gone.
+	src.conn.CloseNow()
+	ctx := context.Background()
+	var repoID string
+	if err := p.pool.QueryRow(ctx, `INSERT INTO backup_repos (server_id, name, kind, location) VALUES ($1, 'S3', 's3', 's3:bucket') RETURNING id`,
+		toID).Scan(&repoID); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	dst.snapshots = []agentproto.BackupSnapshot{
+		{ID: "aaaa1111", Time: now.Add(-48 * time.Hour), Kind: "site", ItemID: site.ID},
+		{ID: "bbbb2222", Time: now.Add(-time.Hour), Kind: "site", ItemID: site.ID},
+	}
+	var e errBody
+	body := map[string]any{"server_id": toID, "repo_id": repoID, "database_ids": []string{db.ID}}
+	if st := c.do("POST", "/api/v1/sites/"+site.ID+"/rebuild", body, &e); st != http.StatusConflict || e.Code != "no_snapshot" {
+		t.Fatalf("rebuild without a database backup: %d %s", st, e.Code)
+	}
+	dst.mu.Lock()
+	dst.snapshots = append(dst.snapshots, agentproto.BackupSnapshot{ID: "cccc3333", Time: now.Add(-2 * time.Hour), Kind: "database", ItemID: db.ID})
+	dst.mu.Unlock()
+	if st := c.do("POST", "/api/v1/sites/"+site.ID+"/rebuild", body, nil); st != http.StatusAccepted {
+		t.Fatalf("rebuild: %d", st)
+	}
+	var moves []struct {
+		moveBody
+		FromBackup *string `json:"from_backup"`
+	}
+	waitUntil(t, "the rebuild", func() bool {
+		c.do("GET", "/api/v1/sites/"+site.ID+"/moves", nil, &moves)
+		return len(moves) == 1 && (moves[0].Phase == "moved" || moves[0].Phase == "failed")
+	})
+	if moves[0].Phase != "moved" || moves[0].FromBackup == nil || *moves[0].FromBackup != repoID {
+		t.Fatalf("rebuild: %+v (error %v)", moves[0], moves[0].Error)
+	}
+	c.do("GET", "/api/v1/sites/"+site.ID, nil, &site)
+	if site.ServerID != toID {
+		t.Fatalf("site on %s after the rebuild", site.ServerID)
+	}
+	dst.mu.Lock()
+	defer dst.mu.Unlock()
+	if len(dst.restores) != 2 ||
+		dst.restores[0].Site == nil || dst.restores[0].SnapshotID != "bbbb2222" || dst.restores[0].Mode != "replace" || dst.restores[0].Site.User != site.LinuxUser ||
+		dst.restores[1].Database == nil || dst.restores[1].SnapshotID != "cccc3333" || dst.restores[1].RepoID != repoID {
+		t.Fatalf("restores: %+v", dst.restores)
 	}
 }

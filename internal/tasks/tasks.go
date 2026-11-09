@@ -80,6 +80,7 @@ func New(st *store.Store, h *hub.Hub, log *slog.Logger) *Runner {
 	r.handlers[KindSiteMove] = r.moveSite
 	r.handlers[KindMoveCleanup] = r.cleanupMove
 	r.handlers[KindCustomerMove] = r.moveCustomer
+	r.handlers[KindSiteRebuild] = r.rebuildSite
 	r.handlers[KindUpdatePanel] = r.updatePanel
 	r.handlers[KindUpdateAgents] = r.updateAgents
 	r.handlers[KindServerReconcile] = r.serverReconcile

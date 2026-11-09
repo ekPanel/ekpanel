@@ -680,3 +680,111 @@ func (r *Runner) databaseMovesOn(ctx context.Context, serverID string) ([]store.
 	}
 	return out, nil
 }
+
+// KindSiteRebuild rebuilds a website (and chosen databases) on another server from a
+// backup, for a server that is gone: no copy from the old server, which may be offline.
+const KindSiteRebuild = "site.rebuild"
+
+// RebuildParams: the move, and the snapshots to restore (by site or database ID).
+type RebuildParams struct {
+	Move      string            `json:"move"`
+	Snapshots map[string]string `json:"snapshots"`
+}
+
+func (r *Runner) QueueSiteRebuild(ctx context.Context, p RebuildParams, by *string) (store.Task, error) {
+	return r.Enqueue(ctx, store.NewTask{Kind: KindSiteRebuild, Params: p, CreatedBy: by, MaxAttempts: 1, DedupeKey: "move:" + p.Move})
+}
+
+// LatestSnapshots lists the newest snapshot of each item in a repository, as the agent of
+// its server sees it.
+func (r *Runner) LatestSnapshots(ctx context.Context, repo store.BackupRepo) (map[string]agentproto.BackupSnapshot, error) {
+	raw, err := r.hub.Call(ctx, repo.ServerID, agentproto.OpBackupSnapshots, agentproto.BackupSnapshotsParams{RepoID: repo.ID})
+	if err != nil {
+		return nil, err
+	}
+	var res agentproto.BackupSnapshotsResult
+	if err := json.Unmarshal(raw, &res); err != nil {
+		return nil, err
+	}
+	latest := map[string]agentproto.BackupSnapshot{}
+	for _, sn := range res.Snapshots {
+		if old, ok := latest[sn.ItemID]; !ok || sn.Time.After(old.Time) {
+			latest[sn.ItemID] = sn
+		}
+	}
+	return latest, nil
+}
+
+func (r *Runner) rebuildSite(ctx context.Context, t store.Task) (any, error) {
+	var p RebuildParams
+	if err := json.Unmarshal(t.Params, &p); err != nil {
+		return nil, err
+	}
+	m, err := r.store.GetMove(ctx, p.Move)
+	if err != nil {
+		return nil, err
+	}
+	if m.Phase != "copying" || m.SiteID == nil || m.FromBackup == nil {
+		return m, nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, moveTimeout)
+	defer cancel()
+	site, err := r.store.GetSite(ctx, *m.SiteID)
+	if err != nil {
+		return nil, r.failMove(ctx, m, err)
+	}
+	if err := r.store.SwitchMove(ctx, m); err != nil {
+		return nil, r.failMove(ctx, m, err)
+	}
+	if err := r.finishRebuild(ctx, m, site, p.Snapshots); err != nil {
+		r.rollBackMove(ctx, m)
+		return nil, r.failMove(ctx, m, err)
+	}
+	// The old server, if it is still there, keeps its copy until it is removed.
+	if _, err := r.Reconcile(ctx, m.FromServer); err != nil {
+		r.log.Info("reconcile the old server after a rebuild", "move", m.ID, "err", err)
+	}
+	if err := r.store.SetMovePhase(ctx, m.ID, "moved", nil); err != nil {
+		return nil, err
+	}
+	if has, err := r.store.HasZones(ctx); err == nil && has {
+		r.QueueDNSSync(ctx, "", t.CreatedBy)
+	}
+	r.QueueNameServers(ctx, t.CreatedBy)
+	return r.store.GetMove(ctx, m.ID)
+}
+
+// finishRebuild sets the site up on the target and restores its files and databases from
+// the snapshots.
+func (r *Runner) finishRebuild(ctx context.Context, m store.Move, site store.Site, snapshots map[string]string) error {
+	if _, err := r.Reconcile(ctx, m.ToServer); err != nil {
+		return fmt.Errorf("set up the site on the new server: %w", err)
+	}
+	if s, err := r.store.GetSite(ctx, site.ID); err != nil || s.State != "active" {
+		return fmt.Errorf("the new server could not set up the site")
+	}
+	restore := func(p agentproto.BackupRestoreParams) error {
+		callCtx, cancel := context.WithTimeout(ctx, 6*time.Hour)
+		defer cancel()
+		_, err := r.hub.Call(callCtx, m.ToServer, agentproto.OpBackupRestore, p)
+		return err
+	}
+	if err := restore(agentproto.BackupRestoreParams{RepoID: *m.FromBackup, SnapshotID: snapshots[site.ID], Mode: "replace",
+		Site: &agentproto.BackupSite{ID: site.ID, Name: site.Domain, User: site.LinuxUser}}); err != nil {
+		return fmt.Errorf("restore the files: %w", err)
+	}
+	for _, d := range m.Databases {
+		db, err := r.store.GetDatabase(ctx, d.ID)
+		if err != nil {
+			return err
+		}
+		if db.State != "active" {
+			return fmt.Errorf("the new server could not set up the database %s", d.Name)
+		}
+		if err := restore(agentproto.BackupRestoreParams{RepoID: *m.FromBackup, SnapshotID: snapshots[d.ID],
+			Database: &agentproto.BackupDatabase{ID: d.ID, Name: d.Name, Engine: d.Engine, Owner: d.Username}}); err != nil {
+			return fmt.Errorf("restore the database %s: %w", d.Name, err)
+		}
+	}
+	return nil
+}

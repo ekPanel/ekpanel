@@ -39,6 +39,8 @@ type Move struct {
 	Error       *string        `json:"error"`
 	Bytes       int64          `json:"bytes"`
 	CheckStatus *int           `json:"check_status"`
+	// FromBackup: rebuilt from this backup repository instead of copied.
+	FromBackup *string `json:"from_backup"`
 	// TargetCleanup: the target still has a half-made copy to remove.
 	TargetCleanup bool       `json:"target_cleanup"`
 	CreatedBy     *string    `json:"created_by"`
@@ -48,14 +50,14 @@ type Move struct {
 }
 
 const moveColumns = `m.id, m.site_id, m.app_id, m.from_server, m.to_server, COALESCE(fs.name, ''), COALESCE(ts.name, ''), m.database_ids,
-	m.linux_user, m.databases, m.phase, m.error, m.bytes, m.check_status, m.target_cleanup, m.created_by, m.created_at, m.moved_at, m.finished_at`
+	m.linux_user, m.databases, m.phase, m.error, m.bytes, m.check_status, m.from_backup, m.target_cleanup, m.created_by, m.created_at, m.moved_at, m.finished_at`
 
 const moveFrom = ` FROM moves m LEFT JOIN servers fs ON fs.id = m.from_server LEFT JOIN servers ts ON ts.id = m.to_server`
 
 func scanMove(row pgx.Row) (Move, error) {
 	var m Move
 	err := row.Scan(&m.ID, &m.SiteID, &m.AppID, &m.FromServer, &m.ToServer, &m.FromName, &m.ToName, &m.DatabaseIDs,
-		&m.LinuxUser, &m.Databases, &m.Phase, &m.Error, &m.Bytes, &m.CheckStatus, &m.TargetCleanup, &m.CreatedBy, &m.CreatedAt, &m.MovedAt, &m.FinishedAt)
+		&m.LinuxUser, &m.Databases, &m.Phase, &m.Error, &m.Bytes, &m.CheckStatus, &m.FromBackup, &m.TargetCleanup, &m.CreatedBy, &m.CreatedAt, &m.MovedAt, &m.FinishedAt)
 	if m.Databases == nil {
 		m.Databases = []MoveDatabase{}
 	}
@@ -82,9 +84,9 @@ func (s *Store) collectMoves(rows pgx.Rows, err error) ([]Move, error) {
 func (s *Store) CreateMove(ctx context.Context, m Move) (Move, error) {
 	var id string
 	err := s.pool.QueryRow(ctx, `
-		INSERT INTO moves (site_id, app_id, from_server, to_server, database_ids, linux_user, databases, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-		m.SiteID, m.AppID, m.FromServer, m.ToServer, m.DatabaseIDs, m.LinuxUser, m.Databases, m.CreatedBy).Scan(&id)
+		INSERT INTO moves (site_id, app_id, from_server, to_server, database_ids, linux_user, databases, from_backup, created_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+		m.SiteID, m.AppID, m.FromServer, m.ToServer, m.DatabaseIDs, m.LinuxUser, m.Databases, m.FromBackup, m.CreatedBy).Scan(&id)
 	if isUniqueViolation(err) {
 		return Move{}, ErrMoveOpen
 	}

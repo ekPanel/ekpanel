@@ -230,6 +230,7 @@ func (s *Server) router() chi.Router {
 		r.Group(func(r chi.Router) {
 			r.Use(requireRole("admin"))
 			r.Post("/sites/{id}/move", s.handleMoveSite)
+			r.Post("/sites/{id}/rebuild", s.handleRebuildSite)
 			r.Get("/sites/{id}/moves", s.handleSiteMoves)
 			r.Post("/customers/{id}/move", s.handleMoveCustomer)
 			r.Post("/databases/{id}/move", s.handleMoveDatabase)
