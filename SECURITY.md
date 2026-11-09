@@ -22,7 +22,9 @@ credit reporters in the release notes unless you prefer otherwise.
 
 ## Supported versions
 
-ekPanel is in early development and has no stable release yet. Fixes go into the `dev` branch.
+ekPanel is early software (the first release, v0.1.0, came out on 2026-11-09). Only the newest
+release gets security fixes: they go into `dev` and come out in the next release, which panels
+offer under **Settings → Updates**. Keep your panel and agents on the newest release.
 
 ## Design principles
 
