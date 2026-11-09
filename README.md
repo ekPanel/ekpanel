@@ -174,7 +174,7 @@ and welcome fixes too.
 
 Code, translations, docs, bug reports and ideas are all welcome. Start with
 [CONTRIBUTING.md](CONTRIBUTING.md) and the [contributor guide](https://ekpanel.github.io/ekPanel-docs/development/contributing/).
-All work happens on the `dev` branch; `prod` holds released code and changes only through
+All work happens on the `dev` branch; `pub` holds published code and changes only through
 pull requests. Please follow the [code of conduct](https://github.com/ekPanel/.github/blob/main/CODE_OF_CONDUCT.md).
 
 ## Languages

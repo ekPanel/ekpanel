@@ -242,7 +242,7 @@ Decided (2026-11-07):
   ekPanel as a hosted service must share their changes (the model used by Plausible and
   Grafana); MIT/Apache would allow closed forks. All current dependencies (MIT, BSD, Apache-2.0,
   OFL fonts) are compatible.
-- **Branches**: all work happens on `dev`; `prod` holds production code and changes only
+- **Branches**: all work happens on `dev`; `pub` holds published code and changes only
   through a pull request from `dev`.
 - **Test server**: a local Ubuntu 24.04 VM (QEMU/KVM) on the development machine, stopped
   when not in use.

@@ -37,7 +37,7 @@ scripts/test-vm.sh stop                           # or destroy, to delete its di
 
 ## Branches
 
-All work happens on **`dev`**. **`prod`** holds production-ready code and changes only through
+All work happens on **`dev`**. **`pub`** holds published code and changes only through
 a pull request from `dev`. Open your pull requests against `dev`.
 
 ## Project layout
