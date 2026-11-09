@@ -1,12 +1,16 @@
 # Changelog
 
 All notable changes to ekPanel are listed here. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions will follow
-[Semantic Versioning](https://semver.org/) from the first release on.
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
+[Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Everything so far, grouped by roadmap phase (see [PLAN.md](PLAN.md)). There is no release yet.
+## [v0.1.0] - 2026-11-09
+
+The first release: everything from roadmap phases 0 to 3 and the start of phase 4, grouped
+by phase (see [PLAN.md](PLAN.md)). It is early software. Try it, test it and tell us what
+breaks, but do not host anything important on it yet.
 
 ### Phase 4: releases and updates
 - Signed releases: a version tag on `pub` builds reproducible archives for amd64 and arm64,
@@ -57,3 +61,6 @@ Everything so far, grouped by roadmap phase (see [PLAN.md](PLAN.md)). There is n
 ### Fixed
 - Interrupted tasks were never recovered when another task with the same purpose was
   already queued
+
+[Unreleased]: https://github.com/ekPanel/ekpanel/compare/v0.1.0...HEAD
+[v0.1.0]: https://github.com/ekPanel/ekpanel/releases/tag/v0.1.0

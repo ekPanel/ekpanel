@@ -9,6 +9,7 @@ cd "$(dirname "$0")/.."
 
 section="$(awk -v v="$version" '
   /^## / { if (found) exit; if (index($0, "[" v "]")) { found = 1; next } }
+  /^\[[^]]*\]: / { next }  # link definitions at the end of the file
   found { print }
 ' CHANGELOG.md)"
 if [ -z "${section//[[:space:]]/}" ]; then

@@ -165,9 +165,8 @@ dialog (`install.sh --agent …`); their agents connect to the panel on TCP port
 Updates come from the panel itself: **Settings → Updates** updates the panel, then every
 server's agent, and puts the previous version back if a new one does not start.
 
-There is no release yet (see [PLAN.md](PLAN.md)). Until then, build one yourself:
-`make release VERSION=v0.0.1`, copy an archive to the server, unpack it and run
-`sudo ./install.sh --local-dir .`.
+To install your own build instead: `make release VERSION=v0.0.1`, copy an archive to the
+server, unpack it and run `sudo ./install.sh --local-dir .`.
 
 ## Documentation
 
