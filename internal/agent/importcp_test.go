@@ -189,6 +189,9 @@ func TestImportRefusesOtherFiles(t *testing.T) {
 		}
 	}
 	os.MkdirAll(s.path(agentproto.ImportDir), 0o700)
+	if _, opErr := importInspect(context.Background(), s, agentproto.ImportInspectParams{File: "missing.tar.gz"}); opErr == nil || opErr.Code != agentproto.ErrNoImportFile {
+		t.Fatalf("a missing backup: %v", opErr)
+	}
 	os.WriteFile(filepath.Join(s.path(agentproto.ImportDir), "not-cpanel.tar.gz"), func() []byte {
 		var gz bytes.Buffer
 		zw := gzip.NewWriter(&gz)
@@ -196,7 +199,7 @@ func TestImportRefusesOtherFiles(t *testing.T) {
 		zw.Close()
 		return gz.Bytes()
 	}(), 0o600)
-	if _, opErr := importInspect(context.Background(), s, agentproto.ImportInspectParams{File: "not-cpanel.tar.gz"}); opErr == nil || !strings.Contains(opErr.Message, "cPanel") {
+	if _, opErr := importInspect(context.Background(), s, agentproto.ImportInspectParams{File: "not-cpanel.tar.gz"}); opErr == nil || opErr.Code != agentproto.ErrNotCPanel || !strings.Contains(opErr.Message, "cPanel") {
 		t.Fatalf("not a cPanel backup: %v", opErr)
 	}
 }

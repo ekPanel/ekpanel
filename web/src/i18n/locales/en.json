@@ -636,7 +636,9 @@
     "nothing_to_import": "Choose at least one website or database.",
     "not_in_backup": "The backup has no {{name}}.",
     "import_domains_taken": "Already used by another website or app here: {{names}}.",
-    "import_database_taken": "The server already has a database or user named {{name}}."
+    "import_database_taken": "The server already has a database or user named {{name}}.",
+    "agent_import_not_found": "No backup with that name is in /srv/ekpanel/imports on this server. Check the file name and the server.",
+    "agent_not_cpanel_backup": "This file is not a cPanel full backup, or it is damaged. Make a full account backup in cPanel and copy it again."
   },
   "not_found": {
     "title": "Page not found",

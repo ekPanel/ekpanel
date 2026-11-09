@@ -32,13 +32,26 @@ import (
 var homeSkip = []string{"mail", "etc", ".cpanel", ".trash", "tmp", "logs", "access-logs", "ssl", ".htpasswds",
 	".cagefs", "public_ftp", ".spamassassin", ".cphorde", ".softaculous", ".sqmailattach", ".subaccounts", ".cl.selector"}
 
+var errNoImportFile = errors.New("no such backup in " + agentproto.ImportDir)
+
+// archiveError is the reply for an archive that cannot be opened or read.
+func archiveError(err error) *agentproto.OpError {
+	switch {
+	case errors.Is(err, errNoImportFile):
+		return opError(agentproto.ErrNoImportFile, "%v", err)
+	case errors.Is(err, agentproto.ErrInvalidImportFile):
+		return opError(agentproto.ErrInvalidParams, "%v", err)
+	}
+	return opError(agentproto.ErrNotCPanel, "%v", err)
+}
+
 func openArchive(s *system, file string) (io.ReadCloser, *tar.Reader, error) {
 	if err := agentproto.ValidImportFile(file); err != nil {
 		return nil, nil, err
 	}
 	f, err := os.Open(s.path(filepath.Join(agentproto.ImportDir, file)))
 	if err != nil {
-		return nil, nil, fmt.Errorf("no archive %s in %s", file, agentproto.ImportDir)
+		return nil, nil, errNoImportFile
 	}
 	var r io.Reader = bufio.NewReaderSize(f, 1<<20)
 	if !strings.HasSuffix(file, ".tar") {
@@ -94,7 +107,7 @@ func homeEntries(tr *tar.Reader, h *tar.Header, rel string, fn func(rel string, 
 func importInspect(_ context.Context, s *system, p agentproto.ImportInspectParams) (any, *agentproto.OpError) {
 	f, tr, err := openArchive(s, p.File)
 	if err != nil {
-		return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		return nil, archiveError(err)
 	}
 	defer f.Close()
 	small := map[string]string{} // userdata/*, mysql.sql, cron/*, cp/*
@@ -107,7 +120,7 @@ func importInspect(_ context.Context, s *system, p agentproto.ImportInspectParam
 			break
 		}
 		if err != nil {
-			return nil, opError(agentproto.ErrFailed, "read the archive: %v", err)
+			return nil, opError(agentproto.ErrNotCPanel, "read the archive: %v", err)
 		}
 		rel := inArchive(h.Name)
 		handled, err := homeEntries(tr, h, rel, func(r string, ih *tar.Header, body io.Reader) error {
@@ -142,7 +155,7 @@ func importInspect(_ context.Context, s *system, p agentproto.ImportInspectParam
 		}
 	}
 	if err := planFromFiles(&plan, small, dumps); err != nil {
-		return nil, opError(agentproto.ErrFailed, "%v", err)
+		return nil, opError(agentproto.ErrNotCPanel, "%v", err)
 	}
 	plan.MailDomains = len(mailDomains)
 	sort.Strings(plan.DNSZones)
@@ -428,7 +441,7 @@ func importApply(ctx context.Context, s *system, p agentproto.ImportApplyParams)
 	}
 	f, tr, err := openArchive(s, p.File)
 	if err != nil {
-		return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		return nil, archiveError(err)
 	}
 	defer f.Close()
 	// Longest document root first, so an addon's folder inside public_html goes to the addon.
@@ -572,7 +585,7 @@ func importApply(ctx context.Context, s *system, p agentproto.ImportApplyParams)
 			break
 		}
 		if err != nil {
-			return nil, opError(agentproto.ErrFailed, "read the archive: %v", err)
+			return nil, opError(agentproto.ErrNotCPanel, "read the archive: %v", err)
 		}
 		rel := inArchive(h.Name)
 		handled, err := homeEntries(tr, h, rel, place)

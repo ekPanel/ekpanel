@@ -22,10 +22,12 @@ const (
 func ValidImportFile(name string) error {
 	if name == "" || strings.ContainsAny(name, "/\\") || strings.HasPrefix(name, ".") || len(name) > 200 ||
 		!(strings.HasSuffix(name, ".tar.gz") || strings.HasSuffix(name, ".tgz") || strings.HasSuffix(name, ".tar")) {
-		return errors.New("name a .tar.gz archive in " + ImportDir)
+		return ErrInvalidImportFile
 	}
 	return nil
 }
+
+var ErrInvalidImportFile = errors.New("name a .tar.gz archive in " + ImportDir)
 
 type ImportInspectParams struct {
 	File string `json:"file"`

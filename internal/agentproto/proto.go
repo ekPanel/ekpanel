@@ -92,6 +92,8 @@ const (
 	ErrFailed        = "failed"
 	ErrNoSystemd     = "no_systemd" // the server (or container) does not run systemd
 	ErrWrongKey      = "wrong_recovery_key"
+	ErrNoImportFile  = "import_not_found"  // no such archive in ImportDir
+	ErrNotCPanel     = "not_cpanel_backup" // the archive cannot be read as a cPanel backup
 )
 
 // Hello is the first message on every connection: static facts about the server.

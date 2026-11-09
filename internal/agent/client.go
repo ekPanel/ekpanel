@@ -170,6 +170,10 @@ func renewIfDue(ctx context.Context, log *slog.Logger, cfg *Config, configPath s
 // Run keeps a connection to the panel open, reconnecting with backoff, until ctx ends.
 func Run(ctx context.Context, log *slog.Logger, cfg Config, configPath, version string) error {
 	collector := NewCollector("/proc", "/")
+	// Where administrators put backups to import (only root can read them).
+	if err := os.MkdirAll(agentproto.ImportDir, 0o700); err != nil {
+		log.Warn("make the import folder", "err", err)
+	}
 	backoff := time.Second
 	for {
 		started := time.Now()

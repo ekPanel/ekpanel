@@ -95,7 +95,7 @@ func (a *importAgent) loop() {
 			a.inspects++
 			a.mu.Unlock()
 			if p.File != "cpmove-olduser.tar.gz" {
-				resp.Error, result = &agentproto.OpError{Code: agentproto.ErrInvalidParams, Message: "no archive missing.tar.gz"}, nil
+				resp.Error, result = &agentproto.OpError{Code: agentproto.ErrNoImportFile, Message: "no such backup"}, nil
 			} else {
 				result = importPlan
 			}
@@ -138,7 +138,7 @@ func TestImportCPanel(t *testing.T) {
 	if st := c.do("POST", "/api/v1/imports/inspect", map[string]any{"server_id": srvID, "file": "../etc/passwd"}, &e); st != http.StatusBadRequest || e.Code != "invalid_import_file" {
 		t.Fatalf("inspect a path: %d %s", st, e.Code)
 	}
-	if st := c.do("POST", "/api/v1/imports/inspect", map[string]any{"server_id": srvID, "file": "missing.tar.gz"}, &e); st != http.StatusBadGateway || e.Code != "agent_invalid_params" {
+	if st := c.do("POST", "/api/v1/imports/inspect", map[string]any{"server_id": srvID, "file": "missing.tar.gz"}, &e); st != http.StatusBadGateway || e.Code != "agent_import_not_found" {
 		t.Fatalf("inspect a missing file: %d %s", st, e.Code)
 	}
 
