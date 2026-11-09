@@ -887,5 +887,18 @@ Agreed (2026-11-09):
 - [ ] Not yet tried for real: the Cloudflare API, outside mail delivery (need an account,
       a domain and a server with port 25)
 
+**Found while writing the documentation** (2026-11-09)
+- [ ] A second server needs Caddy, `acl`, the Caddyfile import, a systemd unit and a
+      readable /etc/ekpanel; the agent sets up none of these (4a: agent-only installer)
+- [ ] Two-factor sign-in has no recovery codes, and administrators cannot reset someone's
+      two-factor (4e)
+- [ ] The email page asks to add DNS records by hand for domains on ekPanel's own name
+      servers, although ekPanel adds them there itself
+- [ ] Backups taken before a staging push or pull are never cleaned up; a failed WordPress
+      install is not cleaned up like the PHP app installer's
+- [ ] Backups leave out app volumes and mailboxes; a restore puts back `public_html` only
+- [ ] The Bangla UI spells some words two ways (ডাটাবেস/ডেটাবেস, মেমরি/মেমোরি,
+      সেটিং/সেটিংস) and mixes Bangla and English script in the name server labels
+
 **Next**
 - [ ] 4a. Releases and updates
