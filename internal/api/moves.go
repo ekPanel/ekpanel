@@ -44,30 +44,8 @@ func (s *Server) handleMoveSite(w http.ResponseWriter, r *http.Request) {
 		s.internalError(w, r, err)
 		return
 	}
-	// A customer's website may only go to a server their package allows.
-	if site.OwnerID != nil {
-		c, err := s.store.GetCustomer(r.Context(), *site.OwnerID)
-		if err != nil {
-			s.internalError(w, r, err)
-			return
-		}
-		if c.PackageID != nil {
-			pkg, err := s.store.GetPackage(r.Context(), *c.PackageID)
-			if err != nil {
-				s.internalError(w, r, err)
-				return
-			}
-			if len(pkg.ServerIDs) > 0 && !slices.Contains(pkg.ServerIDs, target.ID) {
-				writeError(w, http.StatusConflict, "server_not_in_package", "the customer's package does not include this server; add it to the package first")
-				return
-			}
-		}
-	}
-	for _, id := range []string{site.ServerID, target.ID} {
-		if online, _ := s.hub.Latest(id); !online {
-			writeError(w, http.StatusConflict, "agent_offline", "both servers must be connected to move a website")
-			return
-		}
+	if !s.moveTargetOK(w, r, site.OwnerID, site.ServerID, target.ID) {
+		return
 	}
 	// The databases must be on the website's server, belong to its owner, and have names
 	// the target does not use yet.
@@ -160,6 +138,110 @@ func (s *Server) handleMoveCleanup(w http.ResponseWriter, r *http.Request) {
 		s.internalError(w, r, err)
 		return
 	}
-	s.audit(r, "site.move_cleanup", m.FromName, map[string]any{"move_id": m.ID, "site_id": m.SiteID, "task_id": t.ID})
+	s.audit(r, "move.cleanup", m.FromName, map[string]any{"move_id": m.ID, "site_id": m.SiteID, "app_id": m.AppID, "task_id": t.ID})
 	writeJSON(w, http.StatusAccepted, t)
+}
+
+// moveTargetOK checks that both servers are connected and that a customer's thing only goes
+// to a server their package allows; it writes the error otherwise.
+func (s *Server) moveTargetOK(w http.ResponseWriter, r *http.Request, owner *string, from, to string) bool {
+	if owner != nil {
+		c, err := s.store.GetCustomer(r.Context(), *owner)
+		if err != nil {
+			s.internalError(w, r, err)
+			return false
+		}
+		if c.PackageID != nil {
+			pkg, err := s.store.GetPackage(r.Context(), *c.PackageID)
+			if err != nil {
+				s.internalError(w, r, err)
+				return false
+			}
+			if len(pkg.ServerIDs) > 0 && !slices.Contains(pkg.ServerIDs, to) {
+				writeError(w, http.StatusConflict, "server_not_in_package", "the customer's package does not include this server; add it to the package first")
+				return false
+			}
+		}
+	}
+	for _, id := range []string{from, to} {
+		if online, _ := s.hub.Latest(id); !online {
+			writeError(w, http.StatusConflict, "agent_offline", "both servers must be connected to move")
+			return false
+		}
+	}
+	return true
+}
+
+func (s *Server) handleMoveApp(w http.ResponseWriter, r *http.Request) {
+	var req moveRequest
+	if !readJSON(w, r, &req) {
+		return
+	}
+	app, err := s.getApp(r, appID(r))
+	if err != nil {
+		s.writeAppStoreError(w, r, err)
+		return
+	}
+	switch {
+	case app.State != "active":
+		writeError(w, http.StatusConflict, "app_not_active", "the app must be working before it can move; see its status first")
+		return
+	case app.PreviewOf != nil || app.Previews:
+		writeError(w, http.StatusConflict, "app_has_previews", "apps with pull request previews (and previews) cannot move; turn previews off first")
+		return
+	case req.ServerID == app.ServerID:
+		writeError(w, http.StatusBadRequest, "same_server", "the app is already on this server")
+		return
+	}
+	target, err := s.store.GetServer(r.Context(), req.ServerID)
+	if !isUUID(req.ServerID) || errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusBadRequest, "invalid_server", "choose a server to move the app to")
+		return
+	}
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if !s.moveTargetOK(w, r, app.OwnerID, app.ServerID, target.ID) {
+		return
+	}
+	others, err := s.store.ListApps(r.Context(), target.ID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if slices.ContainsFunc(others, func(a store.App) bool { return a.Name == app.Name }) {
+		writeError(w, http.StatusConflict, "app_name_taken", "the target server already has an app named "+app.Name)
+		return
+	}
+	m, err := s.store.CreateMove(r.Context(), store.Move{AppID: &app.ID, FromServer: app.ServerID, ToServer: target.ID,
+		DatabaseIDs: []string{}, Databases: []store.MoveDatabase{}, CreatedBy: &currentUser(r).ID})
+	if errors.Is(err, store.ErrMoveOpen) {
+		writeError(w, http.StatusConflict, "move_open", "this app is already being moved, or its old copy has not been removed yet")
+		return
+	}
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if _, err := s.opts.Tasks.QueueSiteMove(r.Context(), m.ID, &currentUser(r).ID); err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	s.audit(r, "app.move_started", app.Name, map[string]any{"app_id": app.ID, "move_id": m.ID, "from": app.ServerName, "to": target.Name})
+	writeJSON(w, http.StatusAccepted, m)
+}
+
+func (s *Server) handleAppMoves(w http.ResponseWriter, r *http.Request) {
+	app, err := s.getApp(r, appID(r))
+	if err != nil {
+		s.writeAppStoreError(w, r, err)
+		return
+	}
+	list, err := s.store.AppMoves(r.Context(), app.ID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
 }

@@ -425,15 +425,32 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 	if err != nil {
 		return sum, err
 	}
+	// An app moving away stays here stopped (its data untouched) until its old copy is
+	// removed; a failed move's half-made copy is removed with its data.
+	movingApps, err := r.appMovesOn(ctx, serverID, &apps)
+	if err != nil {
+		return sum, err
+	}
 	params.Apps = make([]agentproto.AppSpec, 0, len(apps))
 	for _, a := range apps {
-		id, _, err := owner(a.OwnerID, a.State)
+		appState := a.State
+		m, isMoving := movingApps[a.ID]
+		if isMoving && moveDeletes(m, serverID) {
+			appState = "deleting"
+		}
+		id, _, err := owner(a.OwnerID, appState)
 		if err != nil {
 			return sum, err
 		}
 		spec := AppSpec(a)
 		spec.Owner = id
-		if a.Kind == "git" && a.State != "deleting" {
+		if isMoving {
+			spec.Stopped = true
+			if appState == "deleting" {
+				spec.Deleted, spec.DeleteData = true, true
+			}
+		}
+		if a.Kind == "git" && appState != "deleting" {
 			if spec.KeepImages, err = r.store.KeptImages(ctx, a.ID); err != nil {
 				return sum, err
 			}
@@ -554,7 +571,14 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 	}
 	// What moves left here is not the site's (or database's) own: record it on the move.
 	cleaned := map[string]string{} // move ID → error ("" when it worked)
+	movesByID := map[string]store.Move{}
 	for _, m := range moving {
+		movesByID[m.ID] = m
+	}
+	for _, m := range movingApps {
+		movesByID[m.ID] = m
+	}
+	for _, m := range movesByID {
 		if moveDeletes(m, serverID) {
 			cleaned[m.ID] = ""
 		}
@@ -606,6 +630,12 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		}
 	}
 	for _, ar := range res.Apps {
+		if m, ok := movingApps[ar.ID]; ok {
+			if _, del := cleaned[m.ID]; del && !ar.OK {
+				cleaned[m.ID] = ar.Error
+			}
+			continue
+		}
 		if !ar.OK && !wasError[ar.ID] {
 			for _, a := range apps {
 				if a.ID == ar.ID && a.State != "deleting" {
@@ -663,7 +693,7 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		}
 	}
 	for id, msg := range cleaned {
-		r.recordMoveCleanup(ctx, moving, id, serverID, msg)
+		r.recordMoveCleanup(ctx, movesByID[id], serverID, msg)
 	}
 	if res.Firewall != nil {
 		st := store.FirewallStatus{Active: res.Firewall.Active, SSHPorts: res.Firewall.SSHPorts, Error: res.Firewall.Error, At: time.Now()}

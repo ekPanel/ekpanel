@@ -53,11 +53,14 @@ func (r *Runner) moveSite(ctx context.Context, t store.Task) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if m.Phase != "copying" || m.SiteID == nil {
+	if m.Phase != "copying" {
 		return m, nil // already past this point (a repeated task)
 	}
 	ctx, cancel := context.WithTimeout(ctx, moveTimeout)
 	defer cancel()
+	if m.AppID != nil {
+		return r.moveApp(ctx, t, m)
+	}
 	site, err := r.store.GetSite(ctx, *m.SiteID)
 	if err != nil {
 		return nil, r.failMove(ctx, m, err)
@@ -83,11 +86,13 @@ func (r *Runner) moveSite(ctx context.Context, t store.Task) (any, error) {
 
 	// 3. Moved: the source keeps serving the old copy (without its cron jobs), and the DNS
 	// records the panel manages follow the site.
-	if err := r.store.SetMovePhase(ctx, m.ID, "moved", nil); err != nil {
-		return nil, err
-	}
+	// The source first (it still counts the move as switching), so "moved" means both
+	// servers are in their new state.
 	if _, err := r.Reconcile(ctx, m.FromServer); err != nil {
 		r.log.Warn("reconcile the source after a move", "move", m.ID, "err", err)
+	}
+	if err := r.store.SetMovePhase(ctx, m.ID, "moved", nil); err != nil {
+		return nil, err
 	}
 	if has, err := r.store.HasZones(ctx); err == nil && has {
 		r.QueueDNSSync(ctx, "", t.CreatedBy)
@@ -143,11 +148,16 @@ func (r *Runner) finishSwitch(ctx context.Context, m store.Move, site store.Site
 
 // copySite streams the site from the source to the target.
 func (r *Runner) copySite(ctx context.Context, m store.Move, site store.Site) (agentproto.TransferResult, error) {
-	var res agentproto.TransferResult
 	exp := agentproto.TransferExportParams{User: site.LinuxUser, Domains: append([]string{site.Domain}, site.Aliases...)}
 	for _, d := range m.Databases {
 		exp.Databases = append(exp.Databases, agentproto.TransferDatabase{Engine: d.Engine, Name: d.Name})
 	}
+	return r.copyData(ctx, m, exp)
+}
+
+// copyData streams what exp names from the source to the target.
+func (r *Runner) copyData(ctx context.Context, m store.Move, exp agentproto.TransferExportParams) (agentproto.TransferResult, error) {
+	var res agentproto.TransferResult
 	dst, err := r.hub.OpenStream(ctx, m.ToServer, agentproto.OpTransferImport, func(id string) any {
 		return agentproto.TransferImportParams{Stream: id, Move: m.ID}
 	})
@@ -353,16 +363,7 @@ func moveDeletes(m store.Move, serverID string) bool {
 }
 
 // recordMoveCleanup notes on the move that its copy on serverID was removed (or why not).
-func (r *Runner) recordMoveCleanup(ctx context.Context, moving map[string]store.Move, moveID, serverID, failure string) {
-	var m store.Move
-	for _, x := range moving {
-		if x.ID == moveID {
-			m = x
-		}
-	}
-	if m.ID == "" {
-		return
-	}
+func (r *Runner) recordMoveCleanup(ctx context.Context, m store.Move, serverID, failure string) {
 	switch {
 	case m.FromServer == serverID && failure == "":
 		r.store.SetMovePhase(ctx, m.ID, "done", nil)
@@ -396,4 +397,113 @@ func (r *Runner) RecoverMoves(ctx context.Context) {
 		}
 		r.failMove(ctx, m, errors.New("the panel restarted during the move; the website stays where it was"))
 	}
+}
+
+// moveApp moves an app: stop it and copy its volumes (and a Git app's image), switch, set
+// it up on the target, put the data in, start it there.
+func (r *Runner) moveApp(ctx context.Context, t store.Task, m store.Move) (any, error) {
+	app, err := r.store.GetApp(ctx, *m.AppID)
+	if err != nil {
+		return nil, r.failMove(ctx, m, err)
+	}
+	exp := agentproto.TransferExportParams{App: app.Name}
+	if app.Domain != nil {
+		exp.Domains = []string{*app.Domain}
+	}
+	if app.Kind == "git" && app.Image != nil {
+		exp.Image = *app.Image
+	}
+	res, err := r.copyData(ctx, m, exp)
+	if err != nil {
+		r.discardCopy(m)
+		// The export stopped the app: start it again where it is.
+		r.Reconcile(context.WithoutCancel(ctx), m.FromServer)
+		return nil, r.failMove(ctx, m, fmt.Errorf("copy: %w", err))
+	}
+	r.store.SetMoveCopied(ctx, m.ID, res.Bytes)
+	if err := r.store.SwitchMove(ctx, m); err != nil {
+		r.discardCopy(m)
+		r.Reconcile(context.WithoutCancel(ctx), m.FromServer)
+		return nil, r.failMove(ctx, m, err)
+	}
+	if err := r.finishAppSwitch(ctx, m, app); err != nil {
+		r.rollBackMove(ctx, m)
+		return nil, r.failMove(ctx, m, err)
+	}
+	// The source first (it still counts the move as switching), so "moved" means both
+	// servers are in their new state.
+	if _, err := r.Reconcile(ctx, m.FromServer); err != nil {
+		r.log.Warn("reconcile the source after a move", "move", m.ID, "err", err)
+	}
+	if err := r.store.SetMovePhase(ctx, m.ID, "moved", nil); err != nil {
+		return nil, err
+	}
+	if has, err := r.store.HasZones(ctx); err == nil && has {
+		r.QueueDNSSync(ctx, "", t.CreatedBy)
+	}
+	r.QueueNameServers(ctx, t.CreatedBy)
+	return r.store.GetMove(ctx, m.ID)
+}
+
+func (r *Runner) appActive(ctx context.Context, id string) error {
+	a, err := r.store.GetApp(ctx, id)
+	if err != nil {
+		return err
+	}
+	if a.State != "active" {
+		msg := ""
+		if a.Message != nil {
+			msg = *a.Message
+		}
+		return fmt.Errorf("the new server could not run the app: %s", msg)
+	}
+	return nil
+}
+
+func (r *Runner) finishAppSwitch(ctx context.Context, m store.Move, app store.App) error {
+	// Set up (and start) on empty volumes, then stop, fill them, and start again.
+	if _, err := r.Reconcile(ctx, m.ToServer); err != nil {
+		return fmt.Errorf("set up the app on the new server: %w", err)
+	}
+	if err := r.appActive(ctx, app.ID); err != nil {
+		return err
+	}
+	callCtx, cancel := context.WithTimeout(ctx, 2*time.Hour)
+	defer cancel()
+	if _, err := r.hub.Call(callCtx, m.ToServer, agentproto.OpTransferFinish, agentproto.TransferFinishParams{
+		Move: m.ID, App: app.Name, Stopped: app.Stopped,
+	}); err != nil {
+		return fmt.Errorf("put the data in place: %w", err)
+	}
+	if _, err := r.Reconcile(ctx, m.ToServer); err != nil {
+		return fmt.Errorf("start the app on the new server: %w", err)
+	}
+	return r.appActive(ctx, app.ID)
+}
+
+// appMovesOn is movesOn for apps.
+func (r *Runner) appMovesOn(ctx context.Context, serverID string, apps *[]store.App) (map[string]store.Move, error) {
+	moves, err := r.store.MovesOn(ctx, serverID)
+	if err != nil {
+		return nil, err
+	}
+	extra := map[string]store.Move{}
+	for _, m := range moves {
+		if m.AppID == nil {
+			continue
+		}
+		a, err := r.store.GetApp(ctx, *m.AppID)
+		if errors.Is(err, store.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if a.ServerID == serverID {
+			continue
+		}
+		extra[a.ID] = m
+		*apps = append(*apps, a)
+	}
+	return extra, nil
 }

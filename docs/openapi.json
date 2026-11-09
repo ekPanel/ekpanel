@@ -536,6 +536,86 @@
         "x-ekpanel-scope": "read or apps"
       }
     },
+    "/api/v1/apps/{id}/move": {
+      "post": {
+        "operationId": "postAppsIdMove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Move app",
+        "tags": [
+          "apps"
+        ],
+        "x-ekpanel-scope": "apps"
+      }
+    },
+    "/api/v1/apps/{id}/moves": {
+      "get": {
+        "operationId": "getAppsIdMoves",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "App moves",
+        "tags": [
+          "apps"
+        ],
+        "x-ekpanel-scope": "read or apps"
+      }
+    },
     "/api/v1/apps/{id}/previews": {
       "get": {
         "operationId": "getAppsIdPreviews",
@@ -4082,7 +4162,7 @@
         "tags": [
           "moves"
         ],
-        "x-ekpanel-scope": "sites"
+        "x-ekpanel-scope": "sites or apps"
       }
     },
     "/api/v1/notifications": {

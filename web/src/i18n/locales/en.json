@@ -488,7 +488,7 @@
     "invalid_env": "Each variable is NAME=value on its own line; names use letters, digits and _, and appear once.",
     "invalid_volume": "A kept folder is a path inside the container, such as /data.",
     "invalid_limits": "Memory must be at least 16 MB and CPUs more than 0.",
-    "app_name_taken": "This server already has an app with that name.",
+    "app_name_taken": "The target server already has an app with this name.",
     "app_not_found": "That app does not exist.",
     "app_not_ready": "The app has not been set up on its server yet.",
     "limit_reached_site": "Your package allows no more websites.",
@@ -624,7 +624,9 @@
     "move_open": "This website is being moved, or its old copy is still on the other server. Finish the move first.",
     "move_not_found": "That move no longer exists.",
     "move_not_moved": "There is no old copy to remove.",
-    "server_not_in_package": "The customer's package does not include this server. Add it to the package first."
+    "server_not_in_package": "The customer's package does not include this server. Add it to the package first.",
+    "app_not_active": "The app must be working before it can move.",
+    "app_has_previews": "Apps with pull request previews (and previews) cannot move. Turn previews off first."
   },
   "not_found": {
     "title": "Page not found",
@@ -2338,6 +2340,11 @@
       "cleaning": "Removing the old copy",
       "done": "Done",
       "failed": "Failed"
-    }
+    },
+    "intro_app": "Copy this app (its data volumes and, for a Git app, its current build) from {{server}} to another server.",
+    "moved_app": "The app now runs on {{to}}. The old copy on {{from}} is stopped and keeps its data until you remove it.",
+    "step_copy_app": "The app is stopped, then its data and (for a Git app) its build are copied straight from server to server.",
+    "step_cleanup_app": "The old copy stays stopped, with its data, until you remove it.",
+    "app_warning": "The app is unavailable from the moment it stops until it runs on the new server and its domain points there."
   }
 }

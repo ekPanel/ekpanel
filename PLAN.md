@@ -909,7 +909,18 @@ How 4b works (decided 2026-11-09):
       check. Tried with two VMs: a PHP site with a MariaDB database (Bangla text) and a 20 MB
       file moved in about 90 s (most of it installing PHP and MariaDB on the new server), same
       certificate, files, owners and ACLs; the old copy served until it was removed
-- [ ] Move an app, or a database on its own
+- [x] Move an app. Tried with two VMs: an nginx app with a data volume (a page and a 5 MB
+      file owned by uid 101) moved in 45 s with Docker installed on the way; same data and
+      owners, the old copy stopped until removed
+- [ ] Move a database on its own
+      Apps (decided 2026-11-09): the app is stopped on the source while its Docker volumes are
+      copied (tars with numeric owners, which mean the same inside containers everywhere); a
+      Git app's current image goes along (`docker save` into `docker load`), so nothing is
+      rebuilt. The target gets the app with a free port of its own, starts it on empty volumes,
+      stops it, puts the copied data in and starts it again; its domain is checked through
+      the local web server. The old copy stays stopped (its data untouched) until it is
+      removed; a failed move starts it again. Apps with pull request previews, and previews
+      themselves, do not move.
 - [ ] Moves: check the target's free disk space first (it needs about twice the home folder
       plus the databases), and suggest the databases a site really uses (WordPress's
       wp-config.php, the PHP app installer's records) instead of all of the owner's
@@ -991,5 +1002,5 @@ whole customers):
 - [x] 4a. Releases and updates; the signing key is in the `release` environment
 - [x] v0.1.0, the first release, published 2026-11-09 (signature, checksums and attestation checked)
 - [x] 4b. API tokens, OpenAPI and ekctl (Terraform later in phase 4)
-- [ ] 4c. Moving between servers (websites done; apps, databases alone, backups onto
+- [ ] 4c. Moving between servers (websites and apps done; databases alone, backups onto
       another server and whole customers next)

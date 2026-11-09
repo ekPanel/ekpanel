@@ -36,7 +36,45 @@ const (
 	transferTimeout = 24 * time.Hour
 )
 
-var issuerRE = regexp.MustCompile(`^[A-Za-z0-9._-]{1,200}$`)
+var (
+	issuerRE     = regexp.MustCompile(`^[A-Za-z0-9._-]{1,200}$`)
+	volumeNameRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$`)
+	gitImageRE   = regexp.MustCompile(`^ekpanel/[a-z][a-z0-9-]{0,30}[a-z0-9]:[a-z0-9]{1,32}$`)
+)
+
+type countingReader struct {
+	r io.Reader
+	n int64
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.n += int64(n)
+	return n, err
+}
+
+type appVolume struct{ name, suffix, mountpoint string }
+
+// appVolumes lists an app's Docker volumes (Compose labels them with the project).
+func (s *system) appVolumes(ctx context.Context, app string) ([]appVolume, error) {
+	out, err := s.run(ctx, "docker", "volume", "ls", "--quiet", "--filter", "label=com.docker.compose.project="+appProject(app))
+	if err != nil {
+		return nil, fmt.Errorf("list the app's volumes: %w", err)
+	}
+	var vols []appVolume
+	for _, name := range strings.Fields(string(out)) {
+		suffix, ok := strings.CutPrefix(name, appProject(app)+"_")
+		if !ok || !volumeNameRE.MatchString(suffix) {
+			continue
+		}
+		mp, err := s.run(ctx, "docker", "volume", "inspect", "--format", "{{.Mountpoint}}", name)
+		if err != nil {
+			return nil, fmt.Errorf("find the volume %s: %w", name, err)
+		}
+		vols = append(vols, appVolume{name: name, suffix: suffix, mountpoint: strings.TrimSpace(string(mp))})
+	}
+	return vols, nil
+}
 
 type sectionHeader struct {
 	Kind   string `json:"kind"`
@@ -399,6 +437,50 @@ func (s *system) export(ctx context.Context, w io.Writer, p agentproto.TransferE
 		res.Files = true
 	}
 
+	if p.App != "" {
+		vols, err := s.appVolumes(ctx, p.App)
+		if err != nil {
+			return res, err
+		}
+		// Stopped, so databases inside the app have their files complete and still.
+		st, err := readAppState(s, p.App)
+		if err != nil {
+			return res, fmt.Errorf("the app %s is not on this server: %w", p.App, err)
+		}
+		if _, err := compose(ctx, s, p.App, st.Env, "stop"); err != nil {
+			return res, fmt.Errorf("stop the app: %w", err)
+		}
+		for _, v := range vols {
+			err := section(sectionHeader{Kind: "volume", Name: v.suffix}, func(w io.Writer) error {
+				var stderr strings.Builder
+				// Numeric owners: they mean the same inside the containers on every server.
+				_, err := s.exec(ctx, command{name: "tar", args: []string{"--numeric-owner", "--acls", "--xattrs", "-C", s.path(v.mountpoint), "-cf", "-", "."},
+					stdout: w, stderr: &stderr})
+				if err != nil {
+					return fmt.Errorf("pack the volume %s: %w: %s", v.suffix, err, strings.TrimSpace(stderr.String()))
+				}
+				return nil
+			})
+			if err != nil {
+				return res, err
+			}
+			res.Volumes++
+		}
+		if p.Image != "" {
+			err := section(sectionHeader{Kind: "image", Name: p.Image}, func(w io.Writer) error {
+				var stderr strings.Builder
+				if _, err := s.exec(ctx, command{name: "docker", args: []string{"save", p.Image}, stdout: w, stderr: &stderr}); err != nil {
+					return fmt.Errorf("save the app's image: %w: %s", err, strings.TrimSpace(stderr.String()))
+				}
+				return nil
+			})
+			if err != nil {
+				return res, err
+			}
+			res.Image = true
+		}
+	}
+
 	res.Bytes = fw.bytes
 	if err := fw.section(sectionHeader{Kind: "end", Bytes: fw.bytes}); err != nil {
 		return res, err
@@ -539,6 +621,27 @@ func (s *system) receive(r io.Reader, dir string) (agentproto.TransferResult, er
 			}
 			os.WriteFile(filepath.Join(dir, "user"), []byte(h.User), 0o600)
 			res.Files = true
+		case "volume":
+			if !volumeNameRE.MatchString(h.Name) {
+				return res, errors.New("bad volume section")
+			}
+			if err := toFile(filepath.Join(dir, "vol-"+h.Name+".tar"), 0o600); err != nil {
+				return res, err
+			}
+			res.Volumes++
+		case "image":
+			if !gitImageRE.MatchString(h.Name) {
+				return res, errors.New("bad image section")
+			}
+			cr := &countingReader{r: fr}
+			var stderr strings.Builder
+			_, err := s.exec(context.Background(), command{name: "docker", args: []string{"load", "--quiet"}, stdin: cr, stderr: &stderr})
+			io.Copy(io.Discard, cr)
+			counted += cr.n
+			if err != nil {
+				return res, fmt.Errorf("load the app's image: %w: %s", err, strings.TrimSpace(stderr.String()))
+			}
+			res.Image = true
 		case "end":
 			if h.Bytes != counted {
 				return res, fmt.Errorf("received %d bytes, the source sent %d", counted, h.Bytes)
@@ -585,6 +688,11 @@ func transferFinish(ctx context.Context, s *system, p agentproto.TransferFinishP
 			return nil, opError(agentproto.ErrFailed, "%v", err)
 		}
 	}
+	if p.App != "" {
+		if err := s.restoreAppVolumes(ctx, dir, p.App); err != nil {
+			return nil, opError(agentproto.ErrFailed, "%v", err)
+		}
+	}
 	os.RemoveAll(dir)
 	if p.Domain != "" && s.probe != nil {
 		if status, _, err := s.probe(ctx, p.Domain); err == nil {
@@ -613,6 +721,46 @@ func (s *system) unpackHome(ctx context.Context, archive, user string) error {
 	os.RemoveAll(filepath.Join(home, "public_html"))
 	if _, err := s.run(ctx, "tar", "--acls", "--xattrs", "--same-owner", "--same-permissions", "-C", s.path("/home"), "-xf", archive); err != nil {
 		return fmt.Errorf("unpack the files: %w", err)
+	}
+	return nil
+}
+
+// restoreAppVolumes puts the copied volumes into the app here: the panel set the app up
+// first (on new, empty volumes); it is stopped, each volume is emptied and filled from the
+// copy. The panel's next apply starts it again.
+func (s *system) restoreAppVolumes(ctx context.Context, dir, app string) error {
+	st, err := readAppState(s, app)
+	if err != nil {
+		return fmt.Errorf("the app %s was not set up here: %w", app, err)
+	}
+	if _, err := compose(ctx, s, app, st.Env, "stop"); err != nil {
+		return fmt.Errorf("stop the app: %w", err)
+	}
+	tars, _ := filepath.Glob(filepath.Join(dir, "vol-*.tar"))
+	for _, tarPath := range tars {
+		suffix := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(tarPath), "vol-"), ".tar")
+		if !volumeNameRE.MatchString(suffix) {
+			continue
+		}
+		name := appProject(app) + "_" + suffix
+		if _, err := s.run(ctx, "docker", "volume", "inspect", name); err != nil {
+			if _, err := s.run(ctx, "docker", "volume", "create", "--label", "com.docker.compose.project="+appProject(app),
+				"--label", "com.docker.compose.volume="+suffix, name); err != nil {
+				return fmt.Errorf("make the volume %s: %w", suffix, err)
+			}
+		}
+		mp, err := s.run(ctx, "docker", "volume", "inspect", "--format", "{{.Mountpoint}}", name)
+		if err != nil {
+			return fmt.Errorf("find the volume %s: %w", suffix, err)
+		}
+		mount := s.path(strings.TrimSpace(string(mp)))
+		entries, _ := os.ReadDir(mount)
+		for _, e := range entries {
+			os.RemoveAll(filepath.Join(mount, e.Name()))
+		}
+		if _, err := s.run(ctx, "tar", "--numeric-owner", "--same-owner", "--same-permissions", "--acls", "--xattrs", "-C", mount, "-xf", tarPath); err != nil {
+			return fmt.Errorf("fill the volume %s: %w", suffix, err)
+		}
 	}
 	return nil
 }

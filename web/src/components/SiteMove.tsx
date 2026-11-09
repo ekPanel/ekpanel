@@ -17,16 +17,38 @@ const phaseTone: Record<SiteMove["phase"], Tone> = {
 
 const running = (m: SiteMove) => m.phase === "copying" || m.phase === "switching" || m.phase === "cleaning";
 
+/** What can move: a website or an app. */
+export interface Movable {
+  kind: "site" | "app";
+  id: string;
+  name: string;
+  server_id: string;
+  server_name: string;
+  state: string;
+  owner_id: string | null;
+}
+
 /** Moving a website to another server (administrators). */
 export function SiteMoveCard({ site }: { site: Site }) {
+  return (
+    <MoveCard
+      thing={{ kind: "site", id: site.id, name: site.domain_display, server_id: site.server_id, server_name: site.server_name, state: site.state, owner_id: site.owner_id }}
+    />
+  );
+}
+
+/** Moving a website or an app to another server (administrators). */
+export function MoveCard({ thing }: { thing: Movable }) {
+  const site = thing;
+  const base = thing.kind === "site" ? "sites" : "apps";
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const moves = useQuery({
-    queryKey: ["site-moves", site.id],
-    queryFn: () => api.get<SiteMove[]>(`/sites/${site.id}/moves`),
+    queryKey: ["moves", base, site.id],
+    queryFn: () => api.get<SiteMove[]>(`/${base}/${site.id}/moves`),
     refetchInterval: (q) => (q.state.data?.some(running) ? 2000 : 30000),
   });
   const latest = moves.data?.[0];
@@ -40,7 +62,7 @@ export function SiteMoveCard({ site }: { site: Site }) {
     setError("");
     try {
       await api.post(`/moves/${m.id}/cleanup`);
-      qc.invalidateQueries({ queryKey: ["site-moves", site.id] });
+      qc.invalidateQueries({ queryKey: ["moves", base, site.id] });
     } catch (e) {
       setError(errorMessage(t, e));
     } finally {
@@ -55,7 +77,7 @@ export function SiteMoveCard({ site }: { site: Site }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">{t("move.title")}</h2>
-          <p className="text-sm text-muted">{t("move.intro", { server: site.server_name })}</p>
+          <p className="text-sm text-muted">{t(thing.kind === "site" ? "move.intro" : "move.intro_app", { server: site.server_name })}</p>
         </div>
         {canMove && (
           <Button onClick={() => setOpen(true)}>
@@ -80,7 +102,7 @@ export function SiteMoveCard({ site }: { site: Site }) {
             <>
               <p className="flex items-start gap-2">
                 <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-ok" aria-hidden />
-                {t("move.moved", { to: latest.to_server_name, from: latest.from_server_name })}
+                {t(thing.kind === "site" ? "move.moved" : "move.moved_app", { to: latest.to_server_name, from: latest.from_server_name })}
               </p>
               <p className="text-muted">{targetIP ? t("move.dns_hint", { ip: targetIP }) : t("move.dns_hint_noip")}</p>
               <div>
@@ -92,16 +114,18 @@ export function SiteMoveCard({ site }: { site: Site }) {
           )}
         </div>
       )}
-      {open && <MoveDialog site={site} onClose={() => setOpen(false)} />}
+      {open && <MoveDialog thing={thing} onClose={() => setOpen(false)} />}
     </Card>
   );
 }
 
-function MoveDialog({ site, onClose }: { site: Site; onClose: () => void }) {
+function MoveDialog({ thing, onClose }: { thing: Movable; onClose: () => void }) {
+  const site = thing;
+  const base = thing.kind === "site" ? "sites" : "apps";
   const { t } = useTranslation();
   const qc = useQueryClient();
   const servers = useQuery({ queryKey: ["servers"], queryFn: () => api.get<Server[]>("/servers") });
-  const dbs = useQuery({ queryKey: ["databases"], queryFn: () => api.get<Database[]>("/databases") });
+  const dbs = useQuery({ queryKey: ["databases"], queryFn: () => api.get<Database[]>("/databases"), enabled: thing.kind === "site" });
   const [target, setTarget] = useState("");
   const [chosen, setChosen] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -113,8 +137,8 @@ function MoveDialog({ site, onClose }: { site: Site; onClose: () => void }) {
     setBusy(true);
     setError("");
     try {
-      await api.post(`/sites/${site.id}/move`, { server_id: target, database_ids: chosen });
-      qc.invalidateQueries({ queryKey: ["site-moves", site.id] });
+      await api.post(`/${base}/${site.id}/move`, thing.kind === "site" ? { server_id: target, database_ids: chosen } : { server_id: target });
+      qc.invalidateQueries({ queryKey: ["moves", base, site.id] });
       onClose();
     } catch (e) {
       setError(errorMessage(t, e));
@@ -124,7 +148,7 @@ function MoveDialog({ site, onClose }: { site: Site; onClose: () => void }) {
   };
 
   return (
-    <Dialog open onClose={onClose} title={t("move.dialog_title", { domain: site.domain_display })}>
+    <Dialog open onClose={onClose} title={t("move.dialog_title", { domain: site.name })}>
       <div className="grid gap-4">
         {error && <ErrorAlert>{error}</ErrorAlert>}
         <label className="grid gap-1.5 text-sm">
@@ -139,6 +163,7 @@ function MoveDialog({ site, onClose }: { site: Site; onClose: () => void }) {
             ))}
           </select>
         </label>
+        {thing.kind === "site" && (
         <fieldset className="grid gap-2 text-sm">
           <legend className="mb-1 font-medium">{t("move.databases")}</legend>
           {siteDBs.length === 0 && <p className="text-muted">{t("move.no_databases")}</p>}
@@ -156,13 +181,14 @@ function MoveDialog({ site, onClose }: { site: Site; onClose: () => void }) {
           ))}
           {siteDBs.length > 0 && <p className="text-muted">{t("move.databases_hint")}</p>}
         </fieldset>
+        )}
         <ol className="grid list-decimal gap-1 ps-5 text-sm text-muted">
-          <li>{t("move.step_copy")}</li>
+          <li>{t(thing.kind === "site" ? "move.step_copy" : "move.step_copy_app")}</li>
           <li>{t("move.step_switch")}</li>
           <li>{t("move.step_dns")}</li>
-          <li>{t("move.step_cleanup")}</li>
+          <li>{t(thing.kind === "site" ? "move.step_cleanup" : "move.step_cleanup_app")}</li>
         </ol>
-        <p className="rounded-lg bg-warn-soft px-3 py-2 text-sm text-warn">{t("move.writes_warning")}</p>
+        <p className="rounded-lg bg-warn-soft px-3 py-2 text-sm text-warn">{t(thing.kind === "site" ? "move.writes_warning" : "move.app_warning")}</p>
         <div className="flex justify-end gap-2">
           <Button onClick={onClose}>{t("common.cancel")}</Button>
           <Button variant="primary" loading={busy} disabled={!target} onClick={submit}>

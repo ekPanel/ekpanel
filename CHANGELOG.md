@@ -19,6 +19,9 @@ All notable changes to ekPanel are listed here. The format follows
   databases and certificate are copied straight between the servers' agents, the new server
   is checked before anything switches, DNS the panel manages follows, and the old copy keeps
   serving until you remove it. A failed move leaves the website where it was (4c)
+- Move an app to another server, from its page: the app is stopped, its data volumes (and a
+  Git app's current build) are copied with their owners, it starts on the new server with a
+  free port there, and the old copy stays stopped with its data until you remove it (4c)
 
 ## [v0.1.0] - 2026-11-09
 

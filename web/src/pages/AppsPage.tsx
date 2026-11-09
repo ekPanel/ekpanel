@@ -26,6 +26,7 @@ import { EmptyState } from "./ServerParts";
 import { SiteStateBadge } from "./SitesPage";
 import { useTasks } from "../components/Tasks";
 import { useMe } from "../lib/session";
+import { MoveCard } from "../components/SiteMove";
 import { CronCard } from "../components/CronCard";
 import { LogsCard, TrafficCard } from "../components/WebInsights";
 import { OwnerField } from "./CustomersPage";
@@ -689,6 +690,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 export function AppDetailPage() {
   const { id = "" } = useParams();
   const { t } = useTranslation();
+  const me = useMe();
   const qc = useQueryClient();
   const q = useQuery({
     queryKey: ["apps", id],
@@ -849,6 +851,11 @@ export function AppDetailPage() {
           <Containers app={app} />
           <Logs app={app} />
         </div>
+        {app.state !== "deleting" && me.data?.role === "admin" && !app.preview_of && (
+          <MoveCard
+            thing={{ kind: "app", id: app.id, name: app.name, server_id: app.server_id, server_name: app.server_name, state: app.state, owner_id: app.owner_id }}
+          />
+        )}
         {app.state !== "deleting" && <CronCard appId={app.id} />}
         {app.state !== "deleting" && app.domain && (
           <div className="grid gap-6 xl:grid-cols-[2fr_3fr]">

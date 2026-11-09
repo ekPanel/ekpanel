@@ -436,6 +436,13 @@ func (s *Server) handleDeleteApp(w http.ResponseWriter, r *http.Request) {
 		s.writeAppStoreError(w, r, err)
 		return
 	}
+	if _, err := s.store.OpenAppMove(r.Context(), app.ID); err == nil {
+		writeError(w, http.StatusConflict, "move_open", "this app is being moved, or its old copy is still on the other server; finish the move first")
+		return
+	} else if !errors.Is(err, store.ErrNotFound) {
+		s.internalError(w, r, err)
+		return
+	}
 	deleteData := r.URL.Query().Get("data") == "delete"
 	app, err = s.store.MarkAppDeleting(r.Context(), app.ID, deleteData)
 	if err != nil {

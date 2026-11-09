@@ -289,3 +289,107 @@ func TestTransferFlowControl(t *testing.T) {
 	}
 	t.Fatal("the export never finished")
 }
+
+// appSystem fakes Docker on top of transferSystem: volumes are folders under the root, and
+// an image is "saved" as its name and "loaded" into a list.
+func appSystem(t *testing.T, calls *[]string, images *[]string) *system {
+	var loaded []string
+	s := transferSystem(t, &loaded)
+	realExec, realRun := s.exec, s.run
+	volRoot := "/var/lib/docker/volumes"
+	s.run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		if name == "docker" {
+			*calls = append(*calls, strings.Join(args, " "))
+			switch {
+			case args[0] == "volume" && args[1] == "ls":
+				entries, _ := os.ReadDir(s.path(volRoot))
+				var names []string
+				for _, e := range entries {
+					names = append(names, e.Name())
+				}
+				return []byte(strings.Join(names, "\n")), nil
+			case args[0] == "volume" && args[1] == "inspect" && args[2] == "--format":
+				return []byte(volRoot + "/" + args[len(args)-1] + "/_data\n"), nil
+			case args[0] == "volume" && args[1] == "inspect":
+				if _, err := os.Stat(s.path(volRoot + "/" + args[2])); err != nil {
+					return nil, err
+				}
+				return nil, nil
+			case args[0] == "volume" && args[1] == "create":
+				os.MkdirAll(s.path(volRoot+"/"+args[len(args)-1]+"/_data"), 0o755)
+				return nil, nil
+			}
+			return nil, nil
+		}
+		return realRun(ctx, name, args...)
+	}
+	s.exec = func(ctx context.Context, c command) ([]byte, error) {
+		if c.name == "docker" {
+			*calls = append(*calls, strings.Join(c.args, " "))
+			switch {
+			case c.args[0] == "save":
+				io.WriteString(c.stdout, "IMAGE "+c.args[1])
+			case c.args[0] == "load":
+				b, _ := io.ReadAll(c.stdin)
+				*images = append(*images, string(b))
+			}
+			return nil, nil
+		}
+		return realExec(ctx, c)
+	}
+	return s
+}
+
+func TestTransferApp(t *testing.T) {
+	var srcCalls, dstCalls, images []string
+	src, dst := appSystem(t, &srcCalls, &images), appSystem(t, &dstCalls, &images)
+	writeFile(t, src.path(appDir("shop")+"/"+appStateFile), `{"id":"x"}`)
+	writeFile(t, src.path("/var/lib/docker/volumes/ekpanel-shop_data0/_data/pg/base.dat"), "rows")
+	writeFile(t, src.path("/var/lib/docker/volumes/ekpanel-other_data0/_data/x"), "another app's")
+
+	var buf bytes.Buffer
+	res, err := src.export(context.Background(), &buf, agentproto.TransferExportParams{Stream: "s", App: "shop", Image: "ekpanel/shop:abc123"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Volumes != 1 || !res.Image {
+		t.Fatalf("export %+v", res)
+	}
+	if !slices.ContainsFunc(srcCalls, func(c string) bool { return strings.HasSuffix(c, " stop") }) {
+		t.Fatalf("the app was not stopped before its volumes were packed: %q", srcCalls)
+	}
+
+	move := "11111111-2222-3333-4444-555555555558"
+	dir := dst.path(filepath.Join(agentproto.IncomingDir, move))
+	os.MkdirAll(dir, 0o700)
+	got, err := dst.receive(bytes.NewReader(buf.Bytes()), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Volumes != 1 || !got.Image || got.Bytes != res.Bytes || len(images) != 1 || images[0] != "IMAGE ekpanel/shop:abc123" {
+		t.Fatalf("receive %+v, images %q", got, images)
+	}
+
+	// The panel set the app up on the target (a fresh, empty volume with something in it).
+	writeFile(t, dst.path(appDir("shop")+"/"+appStateFile), `{"id":"x"}`)
+	writeFile(t, dst.path("/var/lib/docker/volumes/ekpanel-shop_data0/_data/fresh-init"), "empty database")
+	if _, opErr := transferFinish(context.Background(), dst, agentproto.TransferFinishParams{Move: move, App: "shop"}); opErr != nil {
+		t.Fatal(opErr)
+	}
+	if b, _ := os.ReadFile(dst.path("/var/lib/docker/volumes/ekpanel-shop_data0/_data/pg/base.dat")); string(b) != "rows" {
+		t.Fatalf("volume data not restored: %q", b)
+	}
+	if _, err := os.Stat(dst.path("/var/lib/docker/volumes/ekpanel-shop_data0/_data/fresh-init")); err == nil {
+		t.Fatal("the fresh volume's own files were not replaced")
+	}
+	if _, err := os.Stat(dst.path("/var/lib/docker/volumes/ekpanel-other_data0")); err == nil {
+		t.Fatal("another app's volume was copied")
+	}
+
+	// Only the app's own build can go along.
+	for _, img := range []string{"postgres:17", "ekpanel/other:abc123"} {
+		if err := (agentproto.TransferExportParams{Stream: "s", App: "shop", Image: img}).Validate(); err == nil {
+			t.Fatalf("image %s accepted for the app shop", img)
+		}
+	}
+}

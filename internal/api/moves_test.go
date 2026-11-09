@@ -25,6 +25,7 @@ type moveAgent struct {
 	credit   chan struct{}
 	finish   *agentproto.OpError // what OpTransferFinish answers
 	finished []agentproto.TransferFinishParams
+	exports  []agentproto.TransferExportParams
 	discards int
 }
 
@@ -107,10 +108,16 @@ func (a *moveAgent) loop() {
 			for _, d := range p.Databases {
 				res.Databases = append(res.Databases, agentproto.DatabaseResult{ID: d.ID, Generation: d.Generation, OK: true})
 			}
+			for _, ap := range p.Apps {
+				res.Apps = append(res.Apps, agentproto.AppResult{ID: ap.ID, Generation: ap.Generation, OK: true})
+			}
 			result = res
 		case agentproto.OpTransferExport:
 			var p agentproto.TransferExportParams
 			json.Unmarshal(env.Params, &p)
+			a.mu.Lock()
+			a.exports = append(a.exports, p)
+			a.mu.Unlock()
 			go func() {
 				for i := range transferChunks {
 					<-a.credit
@@ -377,5 +384,100 @@ func TestMoveRecoveredAfterRestart(t *testing.T) {
 	// The website can be moved (or deleted) again.
 	if st := c.do("POST", "/api/v1/sites/"+site.ID+"/move", map[string]any{"server_id": toID}, nil); st != http.StatusAccepted {
 		t.Fatalf("move again: %d", st)
+	}
+}
+
+func appSpec(p agentproto.StateApplyParams, id string) *agentproto.AppSpec {
+	for i := range p.Apps {
+		if p.Apps[i].ID == id {
+			return &p.Apps[i]
+		}
+	}
+	return nil
+}
+
+func TestMoveApp(t *testing.T) {
+	p := newTestPanel(t)
+	c := newClient(t, p.web.URL)
+	setUp(t, c)
+	fromID, fromCfg, _, _ := enrolled(t, p, c, "old")
+	toID, toCfg, _, _ := enrolled(t, p, c, "new")
+	src, dst := newMoveAgent(t, p, fromCfg), newMoveAgent(t, p, toCfg)
+
+	type appBody struct {
+		ID       string `json:"id"`
+		ServerID string `json:"server_id"`
+		State    string `json:"state"`
+		HostPort *int   `json:"host_port"`
+	}
+	port := 80
+	var other, app appBody
+	// The target already uses the first app port, so the moved app must get another.
+	c.do("POST", "/api/v1/apps", map[string]any{"server_id": toID, "name": "blog", "kind": "image", "image": "nginx:1", "container_port": port}, &other)
+	if st := c.do("POST", "/api/v1/apps", map[string]any{"server_id": fromID, "name": "shop", "kind": "image", "image": "nginx:1",
+		"container_port": port, "volumes": []string{"/data"}}, &app); st != http.StatusCreated {
+		t.Fatalf("create app: %d", st)
+	}
+	waitUntil(t, "apps active", func() bool {
+		c.do("GET", "/api/v1/apps/"+app.ID, nil, &app)
+		c.do("GET", "/api/v1/apps/"+other.ID, nil, &other)
+		return app.State == "active" && other.State == "active"
+	})
+	if *app.HostPort != *other.HostPort {
+		t.Fatalf("test setup: both apps should start on the same port number (%d, %d)", *app.HostPort, *other.HostPort)
+	}
+	var m moveBody
+	if st := c.do("POST", "/api/v1/apps/"+app.ID+"/move", map[string]any{"server_id": toID}, &m); st != http.StatusAccepted {
+		t.Fatalf("move app: %d", st)
+	}
+	var moves []moveBody
+	waitUntil(t, "the app move", func() bool {
+		c.do("GET", "/api/v1/apps/"+app.ID+"/moves", nil, &moves)
+		return len(moves) == 1 && (moves[0].Phase == "moved" || moves[0].Phase == "failed")
+	})
+	if moves[0].Phase != "moved" {
+		t.Fatalf("app move: %+v (error %v)", moves[0], moves[0].Error)
+	}
+	c.do("GET", "/api/v1/apps/"+app.ID, nil, &app)
+	if app.ServerID != toID || *app.HostPort == *other.HostPort {
+		t.Fatalf("app after the move: server %s, port %d (the other app has %d)", app.ServerID, *app.HostPort, *other.HostPort)
+	}
+	src.mu.Lock()
+	if len(src.exports) != 1 || src.exports[0].App != "shop" {
+		t.Fatalf("export %+v", src.exports)
+	}
+	src.mu.Unlock()
+	dst.mu.Lock()
+	if len(dst.finished) != 1 || dst.finished[0].App != "shop" {
+		t.Fatalf("finish %+v", dst.finished)
+	}
+	dst.mu.Unlock()
+	if a := appSpec(dst.lastApply(), app.ID); a == nil || a.Stopped || a.Deleted {
+		t.Fatalf("target app spec %+v", a)
+	}
+	if a := appSpec(src.lastApply(), app.ID); a == nil || !a.Stopped || a.Deleted {
+		t.Fatalf("source should keep the old copy stopped: %+v", a)
+	}
+	var e errBody
+	if st := c.do("DELETE", "/api/v1/apps/"+app.ID, nil, &e); st != http.StatusConflict || e.Code != "move_open" {
+		t.Fatalf("delete during a move: %d %s", st, e.Code)
+	}
+	c.do("POST", "/api/v1/moves/"+moves[0].ID+"/cleanup", nil, nil)
+	waitUntil(t, "the old copy removed", func() bool {
+		c.do("GET", "/api/v1/apps/"+app.ID+"/moves", nil, &moves)
+		return moves[0].Phase == "done"
+	})
+	if a := appSpec(src.lastApply(), app.ID); a == nil || !a.Deleted || !a.DeleteData {
+		t.Fatalf("source should delete the old copy with its data: %+v", a)
+	}
+	// A name the target already uses cannot move there.
+	var dup appBody
+	c.do("POST", "/api/v1/apps", map[string]any{"server_id": fromID, "name": "blog", "kind": "image", "image": "nginx:1"}, &dup)
+	waitUntil(t, "app active", func() bool {
+		c.do("GET", "/api/v1/apps/"+dup.ID, nil, &dup)
+		return dup.State == "active"
+	})
+	if st := c.do("POST", "/api/v1/apps/"+dup.ID+"/move", map[string]any{"server_id": toID}, &e); st != http.StatusConflict || e.Code != "app_name_taken" {
+		t.Fatalf("move onto a taken name: %d %s", st, e.Code)
 	}
 }

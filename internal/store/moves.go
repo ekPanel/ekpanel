@@ -27,6 +27,7 @@ type MoveDatabase struct {
 type Move struct {
 	ID          string         `json:"id"`
 	SiteID      *string        `json:"site_id"`
+	AppID       *string        `json:"app_id"`
 	FromServer  string         `json:"from_server"`
 	ToServer    string         `json:"to_server"`
 	FromName    string         `json:"from_server_name"`
@@ -46,14 +47,14 @@ type Move struct {
 	FinishedAt    *time.Time `json:"finished_at"`
 }
 
-const moveColumns = `m.id, m.site_id, m.from_server, m.to_server, COALESCE(fs.name, ''), COALESCE(ts.name, ''), m.database_ids,
+const moveColumns = `m.id, m.site_id, m.app_id, m.from_server, m.to_server, COALESCE(fs.name, ''), COALESCE(ts.name, ''), m.database_ids,
 	m.linux_user, m.databases, m.phase, m.error, m.bytes, m.check_status, m.target_cleanup, m.created_by, m.created_at, m.moved_at, m.finished_at`
 
 const moveFrom = ` FROM moves m LEFT JOIN servers fs ON fs.id = m.from_server LEFT JOIN servers ts ON ts.id = m.to_server`
 
 func scanMove(row pgx.Row) (Move, error) {
 	var m Move
-	err := row.Scan(&m.ID, &m.SiteID, &m.FromServer, &m.ToServer, &m.FromName, &m.ToName, &m.DatabaseIDs,
+	err := row.Scan(&m.ID, &m.SiteID, &m.AppID, &m.FromServer, &m.ToServer, &m.FromName, &m.ToName, &m.DatabaseIDs,
 		&m.LinuxUser, &m.Databases, &m.Phase, &m.Error, &m.Bytes, &m.CheckStatus, &m.TargetCleanup, &m.CreatedBy, &m.CreatedAt, &m.MovedAt, &m.FinishedAt)
 	if m.Databases == nil {
 		m.Databases = []MoveDatabase{}
@@ -81,9 +82,9 @@ func (s *Store) collectMoves(rows pgx.Rows, err error) ([]Move, error) {
 func (s *Store) CreateMove(ctx context.Context, m Move) (Move, error) {
 	var id string
 	err := s.pool.QueryRow(ctx, `
-		INSERT INTO moves (site_id, from_server, to_server, database_ids, linux_user, databases, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-		m.SiteID, m.FromServer, m.ToServer, m.DatabaseIDs, m.LinuxUser, m.Databases, m.CreatedBy).Scan(&id)
+		INSERT INTO moves (site_id, app_id, from_server, to_server, database_ids, linux_user, databases, created_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+		m.SiteID, m.AppID, m.FromServer, m.ToServer, m.DatabaseIDs, m.LinuxUser, m.Databases, m.CreatedBy).Scan(&id)
 	if isUniqueViolation(err) {
 		return Move{}, ErrMoveOpen
 	}
@@ -95,6 +96,18 @@ func (s *Store) CreateMove(ctx context.Context, m Move) (Move, error) {
 
 func (s *Store) GetMove(ctx context.Context, id string) (Move, error) {
 	return scanMove(s.pool.QueryRow(ctx, `SELECT `+moveColumns+moveFrom+` WHERE m.id = $1`, id))
+}
+
+// AppMoves lists an app's moves, newest first.
+func (s *Store) AppMoves(ctx context.Context, appID string) ([]Move, error) {
+	rows, err := s.pool.Query(ctx, `SELECT `+moveColumns+moveFrom+` WHERE m.app_id = $1 ORDER BY m.created_at DESC LIMIT 20`, appID)
+	return s.collectMoves(rows, err)
+}
+
+// OpenAppMove is the app's move that is not finished, if any.
+func (s *Store) OpenAppMove(ctx context.Context, appID string) (Move, error) {
+	return scanMove(s.pool.QueryRow(ctx, `SELECT `+moveColumns+moveFrom+`
+		WHERE m.app_id = $1 AND m.phase IN ('copying', 'switching', 'moved', 'cleaning')`, appID))
 }
 
 // SiteMoves lists a site's moves, newest first.
@@ -144,48 +157,60 @@ func (s *Store) SetMoveCheck(ctx context.Context, id string, status int) error {
 	return err
 }
 
-// SwitchMove gives the site and its databases to the target server, in one transaction,
-// and bumps their generations so the target applies them. ErrMoveNameTaken: the target
-// already has a database with one of the names.
+// SwitchMove gives the site (or app) and its databases to the target server, in one
+// transaction, and bumps their generations so the target applies them. An app gets a free
+// port there. ErrMoveNameTaken: the target already has a database or app with the name.
 func (s *Store) SwitchMove(ctx context.Context, m Move) error {
+	return s.moveTo(ctx, m, m.ToServer, true)
+}
+
+// UnswitchMove gives the site (or app) and its databases back to the source.
+func (s *Store) UnswitchMove(ctx context.Context, m Move) error {
+	return s.moveTo(ctx, m, m.FromServer, false)
+}
+
+// freePortSQL is the lowest free app port on server $2 for app $1 (two in a row for Git apps).
+const freePortSQL = `(SELECT p FROM generate_series(20000, 29998) p
+	 WHERE p NOT IN (SELECT u FROM apps a, LATERAL (VALUES (a.host_port), (CASE WHEN a.kind = 'git' THEN a.host_port + 1 END)) v(u)
+	                 WHERE a.server_id = $2 AND a.id <> $1 AND u IS NOT NULL)
+	   AND (x.kind <> 'git' OR p + 1 NOT IN (SELECT u FROM apps a, LATERAL (VALUES (a.host_port), (CASE WHEN a.kind = 'git' THEN a.host_port + 1 END)) v(u)
+	                 WHERE a.server_id = $2 AND a.id <> $1 AND u IS NOT NULL))
+	 ORDER BY p LIMIT 1)`
+
+func (s *Store) moveTo(ctx context.Context, m Move, server string, switching bool) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx, `UPDATE sites SET server_id = $2, generation = generation + 1, state = 'pending', updated_at = now()
-		WHERE id = $1`, m.SiteID, m.ToServer); err != nil {
-		return err
+	if m.SiteID != nil {
+		if _, err := tx.Exec(ctx, `UPDATE sites SET server_id = $2, generation = generation + 1, state = 'pending', updated_at = now()
+			WHERE id = $1`, m.SiteID, server); err != nil {
+			return err
+		}
+	}
+	if m.AppID != nil {
+		_, err := tx.Exec(ctx, `UPDATE apps x SET server_id = $2, generation = generation + 1, state = 'pending', updated_at = now(),
+			host_port = CASE WHEN x.host_port IS NULL THEN NULL ELSE `+freePortSQL+` END
+			WHERE x.id = $1`, m.AppID, server)
+		if isUniqueViolation(err) {
+			return ErrMoveNameTaken
+		}
+		if err != nil {
+			return err
+		}
 	}
 	if len(m.DatabaseIDs) > 0 {
 		if _, err := tx.Exec(ctx, `UPDATE databases SET server_id = $2, generation = generation + 1, state = 'pending', updated_at = now()
-			WHERE id = ANY($1)`, m.DatabaseIDs, m.ToServer); err != nil {
+			WHERE id = ANY($1)`, m.DatabaseIDs, server); err != nil {
 			if isUniqueViolation(err) {
 				return ErrMoveNameTaken
 			}
 			return err
 		}
 	}
-	if _, err := tx.Exec(ctx, `UPDATE moves SET phase = 'switching' WHERE id = $1`, m.ID); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
-}
-
-// UnswitchMove gives the site and its databases back to the source (a failed switch).
-func (s *Store) UnswitchMove(ctx context.Context, m Move) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx, `UPDATE sites SET server_id = $2, generation = generation + 1, state = 'pending', updated_at = now()
-		WHERE id = $1`, m.SiteID, m.FromServer); err != nil {
-		return err
-	}
-	if len(m.DatabaseIDs) > 0 {
-		if _, err := tx.Exec(ctx, `UPDATE databases SET server_id = $2, generation = generation + 1, state = 'pending', updated_at = now()
-			WHERE id = ANY($1)`, m.DatabaseIDs, m.FromServer); err != nil {
+	if switching {
+		if _, err := tx.Exec(ctx, `UPDATE moves SET phase = 'switching' WHERE id = $1`, m.ID); err != nil {
 			return err
 		}
 	}
