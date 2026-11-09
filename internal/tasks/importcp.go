@@ -135,14 +135,7 @@ func (r *Runner) importCPanel(ctx context.Context, t store.Task) (any, error) {
 	rep.Files, rep.Bytes, rep.Databases = res.Files, res.Bytes, res.Databases
 	rep.PathsChanged, rep.PathsChangedCount = res.PathsChanged, res.PathsChangedCount
 	rep.MailMessages, rep.MailFailed = res.MailMessages, res.MailFailed
-	for _, sk := range res.Skipped {
-		switch sk.Name {
-		case "links_outside", "special_files":
-			rep.NotImported = append(rep.NotImported, ImportNote{Code: sk.Name, Count: sk.Count})
-		default:
-			rep.NotImported = append(rep.NotImported, ImportNote{Code: "folder", Name: sk.Name, Count: sk.Count})
-		}
-	}
+	rep.NotImported = append(rep.NotImported, skippedNotes(res.Skipped)...)
 
 	// Cron jobs go to the main website, with the old home folder's path changed.
 	if main == nil && len(p.Cron) > 0 {

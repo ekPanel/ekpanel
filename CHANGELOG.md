@@ -35,6 +35,10 @@ All notable changes to ekPanel are listed here. The format follows
   forwarders, the catch-all and all the mail with its folders and read and flagged marks;
   and DNS zones, onto ekPanel's name servers, keeping the records ekPanel does not make
   itself (4d)
+- Import one website from an archive of its files (Import → Website archive): a .zip,
+  .tar.gz or .tar from any host, aaPanel's site backups included, with its database dump.
+  WordPress is recognised and keeps its database password; wp-config.php is pointed at the
+  database here (4d)
 
 ### Changed
 - PHP websites serve a folder's `index.html` when it has no `index.php`, as Apache does (4d)

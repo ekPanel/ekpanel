@@ -3763,11 +3763,36 @@
             "description": "An error"
           }
         },
-        "summary": "Import websites, databases and cron jobs from a cPanel backup",
+        "summary": "Import websites, databases, email, cron jobs and DNS zones from a cPanel backup",
         "tags": [
           "imports"
         ],
         "x-ekpanel-scope": "sites"
+      }
+    },
+    "/api/v1/imports/files": {
+      "get": {
+        "operationId": "getImportsFiles",
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "The backups and archives in a server's import folder",
+        "tags": [
+          "imports"
+        ],
+        "x-ekpanel-scope": "read or sites"
       }
     },
     "/api/v1/imports/inspect": {
@@ -3799,6 +3824,76 @@
           }
         },
         "summary": "Read a cPanel backup on a server: its websites, databases and cron jobs",
+        "tags": [
+          "imports"
+        ],
+        "x-ekpanel-scope": "sites"
+      }
+    },
+    "/api/v1/imports/site": {
+      "post": {
+        "operationId": "postImportsSite",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Import a website, and its database, from an archive",
+        "tags": [
+          "imports"
+        ],
+        "x-ekpanel-scope": "sites"
+      }
+    },
+    "/api/v1/imports/site/inspect": {
+      "post": {
+        "operationId": "postImportsSiteInspect",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Read a website archive (any host, aaPanel) on a server",
         "tags": [
           "imports"
         ],

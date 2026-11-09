@@ -981,7 +981,11 @@ whole customers):
       verification TXT, CAA and outside CNAME and got ekPanel's MX, SPF and DKIM
 - [x] SSL certificates: not imported, on purpose; new ones are issued once a domain points
       here, and an imported one would not renew
-- [ ] aaPanel sites and databases; plain WordPress from another host (files and database)
+- [x] aaPanel sites and databases; plain WordPress from another host (files and database):
+      one importer for a website archive from anywhere. Tried in the VM: a WordPress zip with
+      its dump inside and a remote DB_HOST came up on its old password with DB_HOST
+      localhost, the dump not published; an aaPanel site and database backup pair was found
+      by its names and imported with a new database password shown once
 - [ ] Coolify applications and services (Compose and environment)
 - [x] A report of what was imported and what was not (cPanel; the others will add to it)
 
@@ -1021,6 +1025,16 @@ DNS zones and certificates next):
 - Found while trying it: enabling email failed once on a fresh server, because Roundcube's
   SQLite driver makes its tables when it opens the file and initdb then finds them; that
   now counts as done.
+- **A website archive** (decided 2026-11-09: aaPanel and "WordPress from another host" are
+  both a website's files plus a dump, so one importer covers them and any other host): a
+  .zip, .tar.gz or .tar in the import folder, with a .sql(.gz) next to it or inside. The
+  agent finds the website folder (the shallowest with wp-config.php, else with an index
+  page), tells WordPress, PHP or static, and guesses the domain (aaPanel's
+  web_<domain>_<date>.tar.gz, the folder, or example.com.zip). WordPress keeps its database
+  password: the agent sends only the MySQL native hash of DB_PASSWORD, the database is made
+  with it, and wp-config.php gets the name, user and DB_HOST localhost. Other databases get
+  a new password, shown once in the answer (never stored in the task). A dump inside the
+  website folder is loaded, never published; aaPanel's open_basedir in .user.ini goes.
 - **Links in the archive** are kept only when they stay inside the website, and every file
   is written through the home folder's `os.Root`, so a chain of links (each harmless alone)
   cannot lead the agent's root-owned writes into another account.

@@ -438,29 +438,9 @@ func importApply(ctx context.Context, s *system, p agentproto.ImportApplyParams)
 	sites := slices.Clone(p.Sites)
 	sort.Slice(sites, func(i, j int) bool { return len(sites[i].DocRoot) > len(sites[j].DocRoot) })
 	var res agentproto.ImportApplyResult
-	touched := map[string]bool{} // homes to give to their accounts afterwards
-	skipped := map[string]int{}
 	paths := newHomeRewriter(p.OldUser, sites, p.MainUser)
-	// Every write goes through the home folder's os.Root: links in the archive (each checked
-	// alone, but chained) cannot lead a root-owned write out of the website's home.
-	roots := map[string]*os.Root{}
-	defer func() {
-		for _, r := range roots {
-			r.Close()
-		}
-	}()
-	rootOf := func(user string) (*os.Root, error) {
-		if r, ok := roots[user]; ok {
-			return r, nil
-		}
-		r, err := os.OpenRoot(s.path("/home/" + user))
-		if err != nil {
-			return nil, err
-		}
-		roots[user] = r
-		return r, nil
-	}
-
+	w := newHomeWriter(s, &res, paths)
+	defer w.close()
 	var mail *mailImporter
 	wantMail := map[string]bool{}
 	if len(p.Mail) > 0 {
@@ -491,93 +471,13 @@ func importApply(ctx context.Context, s *system, p agentproto.ImportApplyParams)
 			top := strings.SplitN(rel, "/", 2)[0]
 			if p.MainUser == "" || slices.Contains(homeSkip, top) || top == "public_html" || strings.HasPrefix(top, ".") && top != ".well-known" {
 				if !slices.Contains(quietSkip, top) {
-					skipped[top]++
+					w.skipped[top]++
 				}
 				return nil
 			}
 			user, dest = p.MainUser, path.Join("/home", p.MainUser, rel)
 		}
-		home := "/home/" + user
-		name, ok := strings.CutPrefix(dest, home+"/")
-		if !ok {
-			return nil
-		}
-		root, err := rootOf(user)
-		if err != nil {
-			return err
-		}
-		// A path that leads out of the home (through links) is left out, not an error.
-		escapes := func(err error) bool { return err != nil && strings.Contains(err.Error(), "escapes from parent") }
-		switch h.Typeflag {
-		case tar.TypeDir:
-			if err := root.MkdirAll(name, 0o750); escapes(err) {
-				skipped["links_outside"]++
-				return nil
-			} else if err != nil {
-				return err
-			}
-		case tar.TypeReg:
-			if err := root.MkdirAll(path.Dir(name), 0o750); escapes(err) {
-				skipped["links_outside"]++
-				return nil
-			} else if err != nil {
-				return err
-			}
-			out, err := root.OpenFile(name, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.FileMode(h.Mode)&0o777)
-			if escapes(err) {
-				skipped["links_outside"]++
-				return nil
-			} else if err != nil {
-				return err
-			}
-			if paths != nil && h.Size <= rewriteMaxSize && rewritable(rel) {
-				b, err := io.ReadAll(r)
-				if err != nil {
-					out.Close()
-					return err
-				}
-				if nb, changed := paths.rewrite(b); changed {
-					b = nb
-					res.PathsChangedCount++
-					if len(res.PathsChanged) < 50 {
-						res.PathsChanged = append(res.PathsChanged, strings.TrimPrefix(dest, "/home/"))
-					}
-				}
-				r = bytes.NewReader(b)
-			}
-			n, err := io.Copy(out, r)
-			out.Close()
-			if err != nil {
-				return err
-			}
-			res.Files++
-			res.Bytes += n
-		case tar.TypeSymlink:
-			// Only links that stay inside the website.
-			target := path.Clean(path.Join(path.Dir(dest), h.Linkname))
-			if path.IsAbs(h.Linkname) || (target != home && !strings.HasPrefix(target, home+"/")) {
-				skipped["links_outside"]++
-				return nil
-			}
-			if err := root.MkdirAll(path.Dir(name), 0o750); escapes(err) {
-				skipped["links_outside"]++
-				return nil
-			} else if err != nil {
-				return err
-			}
-			root.Remove(name)
-			if err := root.Symlink(h.Linkname, name); escapes(err) {
-				skipped["links_outside"]++
-				return nil
-			} else if err != nil {
-				return err
-			}
-		default:
-			skipped["special_files"]++
-			return nil
-		}
-		touched[user] = true
-		return nil
+		return w.put(user, dest, rel, h.Typeflag, h.Mode, h.Size, h.Linkname, r)
 	}
 
 	// A site's fresh public_html (the panel's placeholder page) gives way to the copy.
@@ -620,23 +520,9 @@ func importApply(ctx context.Context, s *system, p agentproto.ImportApplyParams)
 			return nil, opError(agentproto.ErrFailed, "%v", err)
 		}
 	}
-	for user := range touched {
-		home := s.path("/home/" + user)
-		entries, _ := os.ReadDir(home)
-		for _, e := range entries {
-			// The home folder itself stays root's (SFTP); everything in it is the account's.
-			if _, err := s.run(ctx, "chown", "-R", user+":"+user, filepath.Join(home, e.Name())); err != nil {
-				return nil, opError(agentproto.ErrFailed, "%v", err)
-			}
-		}
-		if _, err := s.run(ctx, "setfacl", "-R", "-m", "u:caddy:rX,d:u:caddy:rX", filepath.Join(home, "public_html")); err != nil {
-			return nil, opError(agentproto.ErrFailed, "%v", err)
-		}
+	if err := w.finish(ctx); err != nil {
+		return nil, opError(agentproto.ErrFailed, "%v", err)
 	}
-	for what, n := range skipped {
-		res.Skipped = append(res.Skipped, agentproto.ImportSkip{Name: what, Count: n})
-	}
-	sort.Slice(res.Skipped, func(i, j int) bool { return res.Skipped[i].Name < res.Skipped[j].Name })
 	return res, nil
 }
 

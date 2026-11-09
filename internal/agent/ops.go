@@ -61,6 +61,20 @@ func Dispatch(ctx context.Context, op string, params json.RawMessage) (any, *age
 			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
 		}
 		return importApply(ctx, realSystem, p)
+	case agentproto.OpImportList:
+		return importList(ctx, realSystem, struct{}{})
+	case agentproto.OpImportSiteInspect:
+		var p agentproto.ImportSiteInspectParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return importSiteInspect(ctx, realSystem, p)
+	case agentproto.OpImportSiteApply:
+		var p agentproto.ImportSiteApplyParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return importSiteApply(ctx, realSystem, p)
 	case agentproto.OpTransferFinish:
 		var p agentproto.TransferFinishParams
 		if err := json.Unmarshal(params, &p); err != nil {

@@ -14,6 +14,7 @@ import (
 
 	"ekpanel/internal/agent"
 	"ekpanel/internal/agentproto"
+	"ekpanel/internal/auth"
 )
 
 // importAgent is a fake agent with one cPanel backup: it applies state and records the import.
@@ -23,7 +24,12 @@ type importAgent struct {
 	applies  []agentproto.StateApplyParams
 	inspects int
 	imports  []agentproto.ImportApplyParams
+	sites    []agentproto.ImportSiteApplyParams
 }
+
+var wpPlan = agentproto.SitePlan{Root: "public_html", Files: 3, Bytes: 300, Kind: "wordpress",
+	WordPress: &agentproto.WordPressSettings{DBName: "olddb", DBUser: "olduser", DBHost: "remote.example", PasswordHash: "*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19"},
+	Dumps:     []agentproto.ArchivedDump{{Name: "public_html/db.sql", Bytes: 50}}}
 
 var importPlan = agentproto.CPanelPlan{
 	User:       "olduser",
@@ -126,6 +132,28 @@ func (a *importAgent) loop() {
 			} else {
 				result = importPlan
 			}
+		case agentproto.OpImportList:
+			result = agentproto.ImportListResult{Files: []agentproto.ImportListedFile{{Name: "site.zip", Kind: agentproto.ImportKindZip, Bytes: 300},
+				{Name: "db.sql.gz", Kind: agentproto.ImportKindDump, Bytes: 40}}}
+		case agentproto.OpImportSiteInspect:
+			var p agentproto.ImportSiteInspectParams
+			json.Unmarshal(env.Params, &p)
+			if p.Archive == "site.zip" {
+				result = wpPlan
+			} else {
+				result = agentproto.SitePlan{Root: "shop.example", Files: 1, Kind: "static", Domain: "shop.example", Dumps: []agentproto.ArchivedDump{}}
+			}
+		case agentproto.OpImportSiteApply:
+			var p agentproto.ImportSiteApplyParams
+			json.Unmarshal(env.Params, &p)
+			a.mu.Lock()
+			a.sites = append(a.sites, p)
+			a.mu.Unlock()
+			res := agentproto.ImportApplyResult{Files: 3, Bytes: 300, Skipped: []agentproto.ImportSkip{{Name: "outside_website", Count: 1}}}
+			if p.Database != nil {
+				res.Databases = []string{p.Database.Name}
+			}
+			result = res
 		case agentproto.OpImportApply:
 			var p agentproto.ImportApplyParams
 			json.Unmarshal(env.Params, &p)
@@ -467,5 +495,112 @@ func TestImportCPanelMailAndZones(t *testing.T) {
 	slices.Sort(kept)
 	if !slices.Equal(kept, []string{"ftp.old.example A 203.0.113.5", "old.example TXT google-site-verification=abc"}) {
 		t.Fatalf("kept %q", kept)
+	}
+}
+
+func TestImportSiteArchive(t *testing.T) {
+	p := newTestPanel(t)
+	c := newClient(t, p.web.URL)
+	setUp(t, c)
+	srvID, cfg, _, _ := enrolled(t, p, c, "web")
+	ag := newImportAgent(t, p, cfg)
+
+	var files []struct {
+		Name string `json:"name"`
+		Kind string `json:"kind"`
+	}
+	if st := c.do("GET", "/api/v1/imports/files?server_id="+srvID, nil, &files); st != http.StatusOK || len(files) != 2 || files[0].Kind != "zip" {
+		t.Fatalf("files: %d %+v", st, files)
+	}
+	var whole json.RawMessage
+	if st := c.do("POST", "/api/v1/imports/site/inspect", map[string]any{"server_id": srvID, "archive": "site.zip"}, &whole); st != http.StatusOK {
+		t.Fatalf("inspect: %d", st)
+	}
+	if strings.Contains(string(whole), "2470C0C0") {
+		t.Fatal("the inspection sends the password hash to the browser")
+	}
+	var ins struct {
+		Kind          string `json:"kind"`
+		KeepsPassword bool   `json:"keeps_password"`
+		DatabaseTaken bool   `json:"database_taken"`
+	}
+	json.Unmarshal(whole, &ins)
+	if ins.Kind != "wordpress" || !ins.KeepsPassword || ins.DatabaseTaken {
+		t.Fatalf("inspection %s", whole)
+	}
+	var e errBody
+	if st := c.do("POST", "/api/v1/imports/site", map[string]any{"server_id": srvID, "archive": "db.sql.gz", "domain": "blog.example"}, &e); st != http.StatusBadRequest || e.Code != "invalid_site_archive" {
+		t.Fatalf("a dump as the archive: %d %s", st, e.Code)
+	}
+
+	// WordPress keeps its database's name, user and password (its hash).
+	var out struct {
+		Task struct {
+			ID string `json:"id"`
+		} `json:"task"`
+		DatabasePassword string `json:"database_password"`
+	}
+	if st := c.do("POST", "/api/v1/imports/site", map[string]any{"server_id": srvID, "archive": "site.zip", "domain": "blog.example",
+		"php_version": "8.3", "dump_in_archive": "public_html/db.sql"}, &out); st != http.StatusAccepted || out.DatabasePassword != "" {
+		t.Fatalf("import: %d %+v", st, out)
+	}
+	var done struct {
+		Status string `json:"status"`
+		Error  string `json:"error"`
+		Result struct {
+			Sites       []string `json:"sites"`
+			Databases   []string `json:"databases"`
+			NotImported []struct {
+				Code string `json:"code"`
+			} `json:"not_imported"`
+		} `json:"result"`
+	}
+	waitUntil(t, "the import", func() bool {
+		c.do("GET", "/api/v1/tasks/"+out.Task.ID, nil, &done)
+		return done.Status == "succeeded" || done.Status == "failed"
+	})
+	if done.Status != "succeeded" || !slices.Equal(done.Result.Databases, []string{"olddb"}) || len(done.Result.NotImported) != 1 || done.Result.NotImported[0].Code != "outside_website" {
+		t.Fatalf("task %+v", done)
+	}
+	ag.mu.Lock()
+	sp := ag.sites[0]
+	ag.mu.Unlock()
+	if sp.Root != "public_html" || !sp.WordPress || sp.DumpInArchive != "public_html/db.sql" || sp.Database == nil || sp.Database.Name != "olddb" || sp.Database.User != "olduser" {
+		t.Fatalf("apply %+v", sp)
+	}
+	var hash string
+	if err := p.pool.QueryRow(context.Background(), `SELECT password_hash FROM databases WHERE name = 'olddb'`).Scan(&hash); err != nil || hash != wpPlan.WordPress.PasswordHash {
+		t.Fatalf("hash %q %v", hash, err)
+	}
+	var site struct {
+		Kind       string  `json:"kind"`
+		PHPVersion *string `json:"php_version"`
+	}
+	var sites []struct {
+		ID     string `json:"id"`
+		Domain string `json:"domain"`
+	}
+	c.do("GET", "/api/v1/sites", nil, &sites)
+	c.do("GET", "/api/v1/sites/"+sites[0].ID, nil, &site)
+	if site.Kind != "php" || site.PHPVersion == nil || *site.PHPVersion != "8.3" {
+		t.Fatalf("site %+v", site)
+	}
+
+	// The same domain again is refused; another website with a dump next to the archive gets
+	// a database with a new password, shown once.
+	if st := c.do("POST", "/api/v1/imports/site", map[string]any{"server_id": srvID, "archive": "site.zip", "domain": "blog.example", "php_version": "8.3"}, &e); st != http.StatusConflict || e.Code != "import_domains_taken" {
+		t.Fatalf("same domain: %d %s", st, e.Code)
+	}
+	if st := c.do("POST", "/api/v1/imports/site", map[string]any{"server_id": srvID, "archive": "web_shop.example_20250101_120000.tar.gz", "domain": "shop.example",
+		"kind": "static", "dump": "db.sql.gz", "database": map[string]string{"name": "olddb", "user": "shop"}}, &e); st != http.StatusConflict || e.Code != "import_database_taken" {
+		t.Fatalf("taken database: %d %s", st, e.Code)
+	}
+	out.DatabasePassword = ""
+	if st := c.do("POST", "/api/v1/imports/site", map[string]any{"server_id": srvID, "archive": "web_shop.example_20250101_120000.tar.gz", "domain": "shop.example",
+		"kind": "static", "dump": "db.sql.gz"}, &out); st != http.StatusAccepted || len(out.DatabasePassword) < 16 {
+		t.Fatalf("static import: %d %+v", st, out)
+	}
+	if err := p.pool.QueryRow(context.Background(), `SELECT password_hash FROM databases WHERE name LIKE 'shop%'`).Scan(&hash); err != nil || hash != auth.MariaDBNativeHash(out.DatabasePassword) {
+		t.Fatalf("shop's hash %q %v", hash, err)
 	}
 }

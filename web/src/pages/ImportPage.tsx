@@ -75,6 +75,26 @@ interface ImportReport {
   not_imported: ImportNote[] | null;
 }
 
+interface ImportFile {
+  name: string;
+  kind: "archive" | "zip" | "dump";
+  bytes: number;
+}
+
+interface SiteInspection {
+  root: string;
+  files: number;
+  bytes: number;
+  kind: "wordpress" | "php" | "static";
+  domain?: string;
+  wordpress?: { db_name: string; db_user: string; db_host: string; table_prefix?: string };
+  dumps: { name: string; bytes: number }[] | null;
+  keeps_password: boolean;
+  domain_taken: boolean;
+  database_taken: boolean;
+  php_versions: string[];
+}
+
 /** One thing not imported; code picks the sentence (imports.note.*), the rest fills it in. */
 interface ImportNote {
   code: string;
@@ -86,15 +106,27 @@ interface ImportNote {
 
 /** Import → cPanel: read a cpmove backup on a server, choose what to bring over, and import it. */
 export function ImportPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const servers = useQuery({ queryKey: ["servers"], queryFn: () => api.get<Server[]>("/servers") });
   const ready = (servers.data ?? []).filter((s) => s.enrolled_at).sort((a, b) => Number(b.online) - Number(a.online));
   const [server, setServer] = useState("");
   const [file, setFile] = useState("");
+  // The file that was read: what the choices below belong to, whatever the field says now.
+  const [readFile, setReadFile] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [plan, setPlan] = useState<Inspection | null>(null);
+  const [sitePlan, setSitePlan] = useState<SiteInspection | null>(null);
+  const [mode, setMode] = useState<"cpanel" | "archive">("cpanel");
   const [taskId, setTaskId] = useState("");
+  const [dbPassword, setDBPassword] = useState("");
+  const files = useQuery({
+    queryKey: ["import-files", server],
+    queryFn: () => api.get<ImportFile[]>(`/imports/files?server_id=${server}`),
+    enabled: !!server,
+    retry: false,
+  });
+  const choices = (files.data ?? []).filter((f) => (mode === "cpanel" ? f.kind === "archive" : f.kind !== "dump"));
 
   useEffect(() => {
     if (!server && ready.length > 0) setServer(ready[0].id);
@@ -105,8 +137,11 @@ export function ImportPage() {
     setBusy(true);
     setError("");
     setPlan(null);
+    setSitePlan(null);
+    setReadFile(file.trim());
     try {
-      setPlan(await api.post<Inspection>("/imports/inspect", { server_id: server, file: file.trim() }));
+      if (mode === "cpanel") setPlan(await api.post<Inspection>("/imports/inspect", { server_id: server, file: file.trim() }));
+      else setSitePlan(await api.post<SiteInspection>("/imports/site/inspect", { server_id: server, archive: file.trim() }));
     } catch (err) {
       setError(errorMessage(t, err));
     } finally {
@@ -116,7 +151,12 @@ export function ImportPage() {
 
   const chosen = ready.find((s) => s.id === server);
   const host = chosen?.public_ipv4 || chosen?.hostname || "SERVER";
-  const scp = `scp cpmove-USER.tar.gz root@${host}:${importDir}/`;
+  const example = mode === "cpanel" ? "cpmove-USER.tar.gz" : "example.com.zip";
+  const scp = `scp ${example} root@${host}:${importDir}/`;
+  const started = (id: string) => {
+    setTaskId(id);
+    window.scrollTo({ top: 0 });
+  };
   return (
     // Room at the bottom: the running-tasks box must not cover the import button.
     <div className="grid gap-6 pb-28">
@@ -124,16 +164,40 @@ export function ImportPage() {
       {taskId ? (
         <ImportProgress
           taskId={taskId}
+          dbPassword={dbPassword}
           onAgain={() => {
             setTaskId("");
             setPlan(null);
+            setSitePlan(null);
+            setDBPassword("");
+            files.refetch();
           }}
         />
       ) : (
         <>
+          <div role="tablist" aria-label={t("imports.kinds")} className="flex flex-wrap gap-2">
+            {(["cpanel", "archive"] as const).map((m) => (
+              <button
+                key={m}
+                role="tab"
+                aria-selected={mode === m}
+                onClick={() => {
+                  setMode(m);
+                  setPlan(null);
+                  setSitePlan(null);
+                  setFile("");
+                  setError("");
+                }}
+                className={cx("rounded-lg border px-4 py-2 text-start", mode === m ? "border-accent bg-accent-soft" : "border-line hover:bg-sunk")}
+              >
+                <span className="block font-medium">{t(`imports.mode.${m}`)}</span>
+                <span className="block text-xs text-muted">{t(`imports.mode.${m}_hint`)}</span>
+              </button>
+            ))}
+          </div>
           <Card className="grid gap-4 p-5">
             <h2 className="text-lg font-semibold">{t("imports.step_upload")}</h2>
-            <p className="max-w-2xl text-sm text-muted">{t("imports.upload_body", { dir: importDir })}</p>
+            <p className="max-w-2xl text-sm text-muted">{t(mode === "cpanel" ? "imports.upload_body" : "imports.archive_body", { dir: importDir })}</p>
             <div className="flex min-w-0 items-center gap-2 rounded-lg border border-line bg-sunk px-3 py-2 font-mono text-sm">
               <span className="min-w-0 flex-1 truncate">{scp}</span>
               <CopyButton text={scp} />
@@ -141,7 +205,15 @@ export function ImportPage() {
             <form onSubmit={inspect} className="grid gap-4 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_auto] sm:items-end">
               <label className="grid min-w-0 gap-1.5">
                 <span className="text-sm font-medium">{t("sites.server")}</span>
-                <select value={server} onChange={(e) => setServer(e.target.value)} className="h-10 rounded-lg border border-line bg-surface px-3 text-ink">
+                <select
+                  value={server}
+                  onChange={(e) => {
+                    setServer(e.target.value);
+                    setPlan(null);
+                    setSitePlan(null);
+                  }}
+                  className="h-10 rounded-lg border border-line bg-surface px-3 text-ink"
+                >
                   {ready.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}
@@ -152,7 +224,8 @@ export function ImportPage() {
               </label>
               <Field
                 label={t("imports.file")}
-                placeholder="cpmove-USER.tar.gz"
+                placeholder={example}
+                list="import-files"
                 value={file}
                 onChange={(e) => setFile(e.target.value)}
                 className="[&_input]:font-mono"
@@ -164,18 +237,36 @@ export function ImportPage() {
                 <FileArchive className="size-4" aria-hidden /> {t("imports.read")}
               </Button>
             </form>
+            <datalist id="import-files">
+              {choices.map((f) => (
+                <option key={f.name} value={f.name}>
+                  {formatBytes(f.bytes, i18n.language)}
+                </option>
+              ))}
+            </datalist>
+            {choices.length > 0 && <p className="text-sm text-muted">{t("imports.files_here", { names: choices.slice(0, 5).map((f) => f.name).join(", ") })}</p>}
             {busy && <p className="text-sm text-muted">{t("imports.reading")}</p>}
             <ErrorAlert>{error}</ErrorAlert>
           </Card>
           {plan && (
             <ImportChoices
-              key={server + file}
+              key={server + readFile}
               plan={plan}
               server={server}
-              file={file.trim()}
-              onStarted={(id) => {
-                setTaskId(id);
-                window.scrollTo({ top: 0 });
+              file={readFile}
+              onStarted={started}
+            />
+          )}
+          {sitePlan && (
+            <ArchiveChoices
+              key={server + readFile}
+              plan={sitePlan}
+              server={server}
+              archive={readFile}
+              dumps={(files.data ?? []).filter((f) => f.kind === "dump")}
+              onStarted={(id, password) => {
+                setDBPassword(password ?? "");
+                started(id);
               }}
             />
           )}
@@ -422,7 +513,7 @@ function ImportChoices({ plan, server, file, onStarted }: { plan: Inspection; se
   );
 }
 
-function ImportProgress({ taskId, onAgain }: { taskId: string; onAgain: () => void }) {
+function ImportProgress({ taskId, dbPassword, onAgain }: { taskId: string; dbPassword: string; onAgain: () => void }) {
   const { t, i18n } = useTranslation();
   const task = useQuery({
     queryKey: ["tasks", taskId],
@@ -446,6 +537,15 @@ function ImportProgress({ taskId, onAgain }: { taskId: string; onAgain: () => vo
         <h2 className="text-lg font-semibold">{done ? t("imports.done") : failed ? t("imports.failed") : t("imports.running")}</h2>
       </div>
       {!done && !failed && <p className="text-sm text-muted">{t("imports.running_body")}</p>}
+      {dbPassword && (
+        <div className="grid gap-2 rounded-lg bg-warn-soft px-4 py-3 text-sm text-warn">
+          <p>{t("imports.db_password_once")}</p>
+          <div className="flex min-w-0 items-center gap-2 font-mono text-ink">
+            <span className="min-w-0 truncate">{dbPassword}</span>
+            <CopyButton text={dbPassword} />
+          </div>
+        </div>
+      )}
       {failed && d?.error && <ErrorAlert>{d.error}</ErrorAlert>}
       {failed && <p className="text-sm text-muted">{t("imports.failed_body")}</p>}
       {done && report && (
@@ -517,6 +617,149 @@ function ImportProgress({ taskId, onAgain }: { taskId: string; onAgain: () => vo
           <Button onClick={onAgain}>{t("imports.another")}</Button>
         </div>
       )}
+    </Card>
+  );
+}
+
+/** Website archive → choices: the domain, PHP, and the database with its dump. */
+function ArchiveChoices({ plan, server, archive, dumps, onStarted }: {
+  plan: SiteInspection;
+  server: string;
+  archive: string;
+  dumps: ImportFile[];
+  onStarted: (taskId: string, dbPassword?: string) => void;
+}) {
+  const { t, i18n } = useTranslation();
+  const qc = useQueryClient();
+  const lng = i18n.language;
+  const inArchive = plan.dumps ?? [];
+  const wp = plan.kind === "wordpress" ? plan.wordpress : undefined;
+  const [domain, setDomain] = useState(plan.domain ?? "");
+  const [kind, setKind] = useState<"php" | "static">(plan.kind === "static" ? "static" : "php");
+  const [php, setPHP] = useState(plan.php_versions.includes("8.4") ? "8.4" : plan.php_versions[0]);
+  // The dump: "a:<name>" inside the archive, "f:<name>" next to it, "" none.
+  const [dump, setDump] = useState(inArchive.length ? "a:" + inArchive[0].name : dumps.length ? "f:" + dumps[0].name : "");
+  const [withDB, setWithDB] = useState(!!wp || inArchive.length + dumps.length > 0);
+  const [dbName, setDBName] = useState(wp?.db_name ?? "");
+  const [dbUser, setDBUser] = useState(wp?.db_user ?? "");
+  const [owner, setOwner] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const clean = (v: string) => v.toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 32);
+
+  const start = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await api.post<{ task: Task; database_password?: string }>("/imports/site", {
+        server_id: server,
+        archive,
+        domain,
+        kind,
+        php_version: kind === "php" ? php : undefined,
+        owner_id: owner,
+        dump: withDB && dump.startsWith("f:") ? dump.slice(2) : "",
+        dump_in_archive: withDB && dump.startsWith("a:") ? dump.slice(2) : "",
+        database: withDB ? { name: dbName, user: dbUser } : undefined,
+      });
+      qc.invalidateQueries({ queryKey: ["sites"] });
+      qc.invalidateQueries({ queryKey: ["databases"] });
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      onStarted(res.task.id, res.database_password);
+    } catch (err) {
+      setError(errorMessage(t, err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card className="grid gap-6 p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-lg font-semibold">
+          {t("imports.archive_choose")} <Badge tone="accent">{t(`imports.site_kind.${plan.kind}`)}</Badge>
+        </h2>
+        <p className="text-sm text-muted">{t("imports.files_value", { count: plan.files, size: formatBytes(plan.bytes, lng) })}</p>
+      </div>
+      <p className="text-sm text-muted">
+        {t("imports.archive_root")} <span className="font-mono">{plan.root ? plan.root + "/" : t("imports.archive_top")}</span>
+      </p>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          label={t("imports.domain")}
+          value={domain}
+          onChange={(e) => setDomain(e.target.value.trim().toLowerCase())}
+          placeholder="example.com"
+          error={plan.domain_taken && domain === plan.domain ? t("imports.domain_taken") : undefined}
+          className="[&_input]:font-mono"
+          autoComplete="off"
+          spellCheck={false}
+          required
+        />
+        <div className="grid gap-1.5">
+          <span className="text-sm font-medium">{t("imports.site_type")}</span>
+          <div className="flex flex-wrap items-center gap-3">
+            {(["php", "static"] as const).map((k) => (
+              <label key={k} className="flex items-center gap-2 text-sm">
+                <input type="radio" name="site-kind" checked={kind === k} onChange={() => setKind(k)} className="accent-[var(--accent)]" />
+                {t(`imports.site_kind.${k}`)}
+              </label>
+            ))}
+            {kind === "php" && (
+              <select value={php} onChange={(e) => setPHP(e.target.value)} className={select} aria-label="PHP">
+                {plan.php_versions.map((v) => (
+                  <option key={v} value={v}>
+                    PHP {v}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <section className="grid gap-3">
+        <label className="flex cursor-pointer items-start gap-3">
+          <input type="checkbox" checked={withDB} onChange={(e) => setWithDB(e.target.checked)} className="mt-1 accent-[var(--accent)]" />
+          <span className="grid gap-0.5">
+            <span className="font-semibold">{t("imports.with_database")}</span>
+            <span className="text-sm text-muted">{wp ? (plan.keeps_password ? t("imports.wp_keeps") : t("imports.wp_new_password")) : t("imports.db_hint")}</span>
+          </span>
+        </label>
+        {withDB && (
+          <div className="grid gap-4 ps-7 sm:grid-cols-3">
+            <label className="grid min-w-0 gap-1.5 sm:col-span-3">
+              <span className="text-sm font-medium">{t("imports.dump")}</span>
+              <select value={dump} onChange={(e) => setDump(e.target.value)} className="h-10 rounded-lg border border-line bg-surface px-3 text-ink">
+                <option value="">{t("imports.dump_none")}</option>
+                {inArchive.map((d) => (
+                  <option key={d.name} value={"a:" + d.name}>
+                    {t("imports.dump_inside", { name: d.name, size: formatBytes(d.bytes, lng) })}
+                  </option>
+                ))}
+                {dumps.map((d) => (
+                  <option key={d.name} value={"f:" + d.name}>
+                    {t("imports.dump_beside", { name: d.name, size: formatBytes(d.bytes, lng) })}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Field label={t("databases.name")} value={dbName} onChange={(e) => setDBName(clean(e.target.value))} placeholder={t("imports.automatic")} className="[&_input]:font-mono" autoComplete="off" />
+            <Field label={t("databases.username")} value={dbUser} onChange={(e) => setDBUser(clean(e.target.value))} placeholder={t("imports.automatic")} className="[&_input]:font-mono" autoComplete="off" />
+            {plan.database_taken && wp && dbName === wp.db_name && <p className="text-sm text-warn sm:col-span-3">{t("imports.db_taken_rename")}</p>}
+          </div>
+        )}
+      </section>
+
+      <OwnerField value={owner} onChange={setOwner} />
+      {wp && <p className="text-sm text-muted">{t("imports.wp_address")}</p>}
+      <ErrorAlert>{error}</ErrorAlert>
+      <div className="flex justify-end">
+        <Button variant="primary" loading={busy} disabled={!domain} onClick={start}>
+          {t("imports.start")}
+        </Button>
+      </div>
     </Card>
   );
 }

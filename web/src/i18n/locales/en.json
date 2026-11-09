@@ -439,7 +439,7 @@
     "site_not_found": "That website does not exist. It may have been deleted.",
     "site_deleting": "This website is being deleted.",
     "invalid_engine": "Choose MariaDB or PostgreSQL.",
-    "invalid_database_name": "Use up to 32 lowercase letters, digits and _ , starting with a letter. System names are not allowed.",
+    "invalid_database_name": "Use lowercase letters, digits and _ for the database name and user.",
     "invalid_database_user": "Use up to 32 lowercase letters, digits and _ , starting with a letter. System names are not allowed.",
     "database_name_taken": "The target server already has a database or user with the same name.",
     "database_user_taken": "This server already has a database user with that name.",
@@ -642,7 +642,9 @@
     "import_mail_not_owned": "Email for {{name}} needs a website with that domain for this customer. Import the website too.",
     "import_mail_taken": "Email is set up here already for {{names}}.",
     "import_zone_taken": "ekPanel already has the zone {{name}}.",
-    "import_zone_not_owned": "The zone {{name}} needs a website on that domain for this customer. Import the website too."
+    "import_zone_not_owned": "The zone {{name}} needs a website on that domain for this customer. Import the website too.",
+    "invalid_site_archive": "Choose a .zip, .tar.gz or .tar archive in /srv/ekpanel/imports on the server.",
+    "invalid_dump": "Choose one .sql or .sql.gz database dump."
   },
   "not_found": {
     "title": "Page not found",
@@ -698,7 +700,8 @@
       "system_update_panel": "Update the panel",
       "system_update_agents": "Update the agents",
       "site_rebuild": "Rebuild a website from a backup",
-      "import_cpanel": "Import cPanel account {{cp_user}}"
+      "import_cpanel": "Import cPanel account {{cp_user}}",
+      "import_site": "Import a website archive"
     }
   },
   "sites": {
@@ -2398,8 +2401,8 @@
     }
   },
   "imports": {
-    "title": "Import from cPanel",
-    "description": "Bring a cPanel account over from its full backup (cpmove file): websites with their files, MySQL databases and email with their passwords, mail, cron jobs and DNS zones.",
+    "title": "Import",
+    "description": "Bring websites over from another host: a whole cPanel account from its backup, or one website from an archive of its files (aaPanel, any host, plain WordPress).",
     "step_upload": "1. Put the backup on a server",
     "upload_body": "In cPanel, make a full account backup (or ask the host for the cpmove file). Copy it to {{dir}} on the server that will host the websites, then enter its file name here.",
     "offline": "offline",
@@ -2473,7 +2476,11 @@
       "zone_failed": "Zone {{name}}: {{detail}}",
       "dns_zone": "DNS zone {{name}}",
       "mail_unusable": "Forwarding line of {{detail}}: {{name}} (to a program or a refusal, which ekPanel does not have)",
-      "mail_catch_all": "Catch-all of {{detail}}: unknown addresses went to {{name}}, which is not a mailbox here; choose a mailbox on the domain's Email page"
+      "mail_catch_all": "Catch-all of {{detail}}: unknown addresses went to {{name}}, which is not a mailbox here; choose a mailbox on the domain's Email page",
+      "outside_website_one": "{{count}} file outside the website's folder in the archive",
+      "outside_website_other": "{{count}} files outside the website's folder in the archive",
+      "dump_unused": "Database dump {{name}}: no database was made for it",
+      "open_basedir": "open_basedir in .user.ini (it named the old server's folder; PHP here limits the website itself)"
     },
     "email": "Email",
     "mail_off": "This server has no email. Turn on email for it (Email → Servers) to import mailboxes.",
@@ -2488,6 +2495,38 @@
     "mail_done": "{{mailboxes}} mailboxes, {{forwarders}} forwarders, {{messages}} messages",
     "mail_failed_one": "{{count}} message could not be copied",
     "mail_failed_other": "{{count}} messages could not be copied",
-    "new_mail_passwords": "These mailboxes have new passwords: {{names}}. Set a password on each one's page and tell its user."
+    "new_mail_passwords": "These mailboxes have new passwords: {{names}}. Set a password on each one's page and tell its user.",
+    "kinds": "What to import",
+    "mode": {
+      "cpanel": "cPanel backup",
+      "cpanel_hint": "A whole account: websites, databases, email, cron jobs, DNS",
+      "archive": "Website archive",
+      "archive_hint": "One website from a .zip or .tar.gz, with its database dump"
+    },
+    "archive_body": "Copy the website's files as one .zip, .tar.gz or .tar to {{dir}} on the server, and its database dump (.sql or .sql.gz) next to it if it has one. aaPanel's site and database backups work as they are.",
+    "files_here": "In the folder now: {{names}}",
+    "archive_choose": "2. Choose how to set it up",
+    "archive_root": "Website folder in the archive:",
+    "archive_top": "the top",
+    "site_kind": {
+      "wordpress": "WordPress",
+      "php": "PHP",
+      "static": "Static"
+    },
+    "domain": "Domain",
+    "domain_taken": "Another website or app here uses this domain.",
+    "site_type": "Website type",
+    "with_database": "Make a database for it",
+    "wp_keeps": "WordPress keeps its database password: the database is made with it, and wp-config.php gets the name and user below and localhost.",
+    "wp_new_password": "wp-config.php has no database password, so the database gets a new one: put it in wp-config.php.",
+    "db_hint": "The database gets a new password, shown once when the import starts: put it in the website's settings.",
+    "dump": "Database dump",
+    "dump_none": "None (an empty database)",
+    "dump_inside": "{{name}} in the archive ({{size}})",
+    "dump_beside": "{{name}} next to it ({{size}})",
+    "automatic": "Automatic",
+    "db_taken_rename": "This server already has a database or user with this name: choose another; wp-config.php will get it.",
+    "wp_address": "WordPress keeps its address from its database: import it under the same domain, or change the address afterwards (Settings → General).",
+    "db_password_once": "The database's password, shown only now:"
   }
 }
