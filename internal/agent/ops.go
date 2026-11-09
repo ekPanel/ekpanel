@@ -49,6 +49,12 @@ func opError(code, format string, a ...any) *agentproto.OpError {
 // Dispatch runs one operation requested by the panel.
 func Dispatch(ctx context.Context, op string, params json.RawMessage) (any, *agentproto.OpError) {
 	switch op {
+	case agentproto.OpSystemUpdate:
+		var p agentproto.SystemUpdateParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return realUpdater.update(ctx, p)
 	case agentproto.OpServicesStatus:
 		return servicesStatus(ctx)
 	case agentproto.OpStateApply:

@@ -183,6 +183,7 @@ func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
 			err = s.store.UpdateServerFacts(ctx, srv.ID, store.ServerFacts{
 				Hostname: trim(h.Hostname, 255), OS: trim(h.OS, 255), Kernel: trim(h.Kernel, 255),
 				Arch: trim(h.Arch, 32), CPUCount: h.CPUCount, AgentVersion: trim(h.AgentVersion, 64), Addresses: validAddresses(h.Addresses),
+				PanelHost: h.PanelHost,
 			})
 			lastTouch = time.Now()
 			// The agent may have missed changes while it was offline.

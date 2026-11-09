@@ -51,6 +51,13 @@ type Runner struct {
 	vault    *vault
 	notify   *notify.Notifier
 	secrets  *secretbox.Box
+	// The panel's own version and where releases come from (SetRelease).
+	version     string
+	releasesURL string
+	// agentWait is how long an updated agent has to come back (agentReturnWait).
+	agentWait time.Duration
+	// stopping closes when the panel shuts down (set by Run).
+	stopping <-chan struct{}
 }
 
 // SetSecrets lets the runner open sealed secrets, such as Git apps' deploy keys.
@@ -67,8 +74,10 @@ func (r *Runner) alert(ctx context.Context, owner *string, event, severity strin
 }
 
 func New(st *store.Store, h *hub.Hub, log *slog.Logger) *Runner {
-	r := &Runner{store: st, hub: h, log: log, wake: make(chan struct{}, 1), handlers: map[string]Handler{}, vault: newVault()}
+	r := &Runner{store: st, hub: h, log: log, wake: make(chan struct{}, 1), handlers: map[string]Handler{}, vault: newVault(), agentWait: agentReturnWait}
 	r.handlers[KindServiceRestart] = r.serviceRestart
+	r.handlers[KindUpdatePanel] = r.updatePanel
+	r.handlers[KindUpdateAgents] = r.updateAgents
 	r.handlers[KindServerReconcile] = r.serverReconcile
 	r.handlers[KindWordPressInstall] = r.installWordPress
 	r.handlers[KindBackupRun] = r.runBackup
@@ -104,6 +113,7 @@ func (r *Runner) Enqueue(ctx context.Context, n store.NewTask) (store.Task, erro
 // Run starts the workers and housekeeping, and blocks until ctx ends and every running
 // task has returned.
 func (r *Runner) Run(ctx context.Context, workers int) {
+	r.stopping = ctx.Done()
 	// Nothing is deploying yet, so a deploy still marked as running was cut off.
 	if err := r.store.FailInterruptedDeployments(ctx); err != nil {
 		r.log.Error("end interrupted deployments", "err", err)
@@ -224,8 +234,8 @@ func (r *Runner) execute(ctx context.Context, t store.Task) {
 		if err := r.store.FailTask(runCtx, t.ID, err.Error(), backoff); err != nil {
 			log.Error("record task failure", "err", err)
 		}
-		// Applies and backups report their own, more specific alerts.
-		if t.Attempts >= t.MaxAttempts && t.Kind != KindServerReconcile && t.Kind != KindBackupRun {
+		// Applies, backups and updates report their own, more specific alerts.
+		if t.Attempts >= t.MaxAttempts && !slices.Contains([]string{KindServerReconcile, KindBackupRun, KindUpdatePanel, KindUpdateAgents}, t.Kind) {
 			var owner *string
 			if t.CreatedBy != nil {
 				if u, err := r.store.UserByID(runCtx, *t.CreatedBy); err == nil && u.Role == "customer" {

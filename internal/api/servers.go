@@ -15,6 +15,7 @@ import (
 
 	"ekpanel/internal/agentproto"
 	"ekpanel/internal/auth"
+	"ekpanel/internal/release"
 	"ekpanel/internal/store"
 )
 
@@ -59,10 +60,17 @@ type enrollResponse struct {
 	EnrollToken string     `json:"enroll_token"`
 	CAPin       string     `json:"ca_pin"`
 	AgentPort   int        `json:"agent_port"`
+	// InstallURL is the installer of the panel's own release, which sets up the server
+	// and its agent in one command. Empty when the panel is not a release build.
+	InstallURL string `json:"install_url,omitempty"`
 }
 
 func (s *Server) enrollResponse(srv store.Server, token string) enrollResponse {
-	return enrollResponse{Server: s.view(srv), EnrollToken: token, CAPin: s.opts.CA.Pin(), AgentPort: s.opts.AgentPort}
+	resp := enrollResponse{Server: s.view(srv), EnrollToken: token, CAPin: s.opts.CA.Pin(), AgentPort: s.opts.AgentPort}
+	if release.Valid(s.opts.Version) && s.opts.ReleasesURL != "" {
+		resp.InstallURL = strings.TrimRight(s.opts.ReleasesURL, "/") + "/download/" + s.opts.Version + "/install.sh"
+	}
+	return resp
 }
 
 func (s *Server) handleCreateServer(w http.ResponseWriter, r *http.Request) {

@@ -59,13 +59,15 @@ const setupToken = "test-setup-token"
 type testPanel struct {
 	web       *httptest.Server
 	agentAddr string
+	store     *store.Store
+	runner    *tasks.Runner
 }
 
 func newPanel(t *testing.T) *httptest.Server { return newTestPanel(t).web }
 
 // newTestPanel starts the web API and the mutual-TLS agent listener against a clean
-// database, with task workers running.
-func newTestPanel(t *testing.T) *testPanel {
+// database, with task workers running. configure may change the API options first.
+func newTestPanel(t *testing.T, configure ...func(*api.Options, *store.Store)) *testPanel {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	pool, err := db.Open(ctx, databaseURL)
@@ -99,11 +101,16 @@ func newTestPanel(t *testing.T) *testPanel {
 	notifier.AllowPrivate = true // test receivers listen on 127.0.0.1
 	runner.SetNotifier(notifier)
 	runner.SetSecrets(box)
+	opts := api.Options{SetupToken: setupToken, CA: ca, AgentPort: 7443, Tasks: runner, Notify: notifier, Secrets: box}
+	for _, f := range configure {
+		f(&opts, st)
+	}
+	runner.SetRelease(opts.Version, opts.ReleasesURL)
 	done := make(chan struct{}, 2)
 	go func() { runner.Run(ctx, 2); done <- struct{}{} }()
 	go func() { notifier.Run(ctx); done <- struct{}{} }()
 
-	s := api.New(st, h, log, api.Options{SetupToken: setupToken, CA: ca, AgentPort: 7443, Tasks: runner, Notify: notifier, Secrets: box})
+	s := api.New(st, h, log, opts)
 	web := httptest.NewServer(s.Handler())
 	agents := httptest.NewUnstartedServer(s.AgentHandler())
 	agents.TLS, err = ca.ServerTLSConfig()
@@ -119,7 +126,7 @@ func newTestPanel(t *testing.T) *testPanel {
 		<-done
 		pool.Close()
 	})
-	return &testPanel{web: web, agentAddr: agents.Listener.Addr().String()}
+	return &testPanel{web: web, agentAddr: agents.Listener.Addr().String(), store: st, runner: runner}
 }
 
 type client struct {

@@ -2,24 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import {
-  ArchiveRestore,
-  Bell,
-  Boxes,
-  CloudCog,
-  CornerDownLeft,
-  Database as DatabaseIcon,
-  Gauge,
-  Globe,
-  LayoutGrid,
-  Package as PackageIcon,
-  Plus,
-  ScrollText,
-  Search,
-  Server as ServerIcon,
-  ShieldCheck,
-  Users,
-} from "lucide-react";
+import { ArchiveRestore, Bell, Boxes, CircleArrowUp, CloudCog, CornerDownLeft, Database as DatabaseIcon, Gauge, Globe, LayoutGrid, Package as PackageIcon, Plus, ScrollText, Search, Server as ServerIcon, ShieldCheck, Users } from "lucide-react";
 import { api, type Database, type Server, type Site, type User } from "../lib/api";
 import { cx } from "./ui";
 
@@ -99,6 +82,7 @@ export function CommandPalette({ open, onClose, user }: { open: boolean; onClose
         { id: "backups", group: pages, label: t("nav.backups"), icon: <ArchiveRestore />, run: go("/backups") },
         { id: "servers", group: pages, label: t("nav.servers"), icon: <ServerIcon />, run: go("/servers") },
         { id: "audit", group: pages, label: t("nav.audit"), icon: <ScrollText />, run: go("/audit") },
+        { id: "updates", group: pages, label: t("nav.updates"), icon: <CircleArrowUp />, run: go("/settings/updates") },
         { id: "add-backup", group: t("palette.actions"), label: t("backups.add"), icon: <Plus />, run: go("/backups?add=1") },
         { id: "add-server", group: t("palette.actions"), label: t("servers.add"), icon: <Plus />, run: go("/servers?add=1") },
       );

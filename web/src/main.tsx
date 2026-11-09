@@ -28,6 +28,7 @@ import { WordPressPage } from "./pages/WordPressPage";
 import { ServerSecurityPage } from "./pages/SecurityPage";
 import { CustomersPage, PackagesPage } from "./pages/CustomersPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
+import { UpdatesPage } from "./pages/UpdatesPage";
 import { AppTerminalPage, ServerTerminalPage } from "./pages/TerminalPage";
 
 const queryClient = new QueryClient({
@@ -111,6 +112,7 @@ const router = createBrowserRouter([
           { path: "/servers/:id", element: <ServerDetailPage /> },
           { path: "/servers/:id/terminal", element: <ServerTerminalPage /> },
           { path: "/audit", element: <AuditPage /> },
+          { path: "/settings/updates", element: <UpdatesPage /> },
         ],
       },
       { path: "*", element: <NotFound /> },

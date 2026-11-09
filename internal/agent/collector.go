@@ -257,6 +257,7 @@ func Facts(version string) agentproto.Hello {
 		f.Close()
 	}
 	h.Addresses = globalAddresses()
+	h.PanelHost = realUpdater.panelHost()
 	return h
 }
 

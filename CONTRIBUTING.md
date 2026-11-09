@@ -101,6 +101,32 @@ Pin a major version of the image where the project publishes one, describe the s
 `catalog.apps.<id>` in `en.json` (and `bn.json` if you can), and test it on a real server.
 Raise `Version` whenever you change a template.
 
+## Making a release
+
+Only the project's owners can publish a release; this is how it works.
+
+1. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [v1.2.3] - YYYY-MM-DD` and add a new
+   empty `## [Unreleased]` above it. Versions follow [Semantic Versioning](https://semver.org/).
+2. Open a pull request from `dev` to `pub`; an owner merges it.
+3. An owner tags the merge on `pub` and pushes the tag:
+   `git tag -s v1.2.3 origin/pub && git push origin v1.2.3`.
+4. The **Release** workflow checks that the tag is on `pub` and that the changelog has the
+   version, builds the archives (`make release`), signs `SHA256SUMS` with the key in the
+   `release` environment (`make sign`), adds build attestations and publishes the release.
+   Tags with a pre-release part (`v1.2.3-rc.1`) become pre-releases, which panels do not offer
+   as updates.
+
+Panels find the new release within 6 hours and offer it under **Settings → Updates**.
+
+To build and sign a release on your own machine (with your own key; the panel and installer
+only trust it if you build them with `RELEASE_EXTRA_KEY`):
+
+```bash
+openssl genpkey -algorithm ed25519 -out my.key && openssl pkey -in my.key -pubout -out my.pub
+make release VERSION=v0.0.1-test RELEASE_EXTRA_KEY="$(base64 -w0 my.pub)"
+make sign KEY=my.key PUBKEY=my.pub
+```
+
 ## License of contributions
 
 ekPanel is licensed under [AGPL-3.0-only](LICENSE). By opening a pull request you agree
