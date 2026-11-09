@@ -913,12 +913,15 @@ How 4b works (decided 2026-11-09):
       file owned by uid 101) moved in 45 s with Docker installed on the way; same data and
       owners, the old copy stopped until removed
 - [ ] Move a database on its own
+- [ ] App moves, later: fetch the app's page after the move; carry a Git app's kept builds
+      too (rollbacks to earlier releases need them; until then, deploy again); remove an image
+      already loaded on the target when the copy fails; a token scope per kind of move
       Apps (decided 2026-11-09): the app is stopped on the source while its Docker volumes are
       copied (tars with numeric owners, which mean the same inside containers everywhere); a
       Git app's current image goes along (`docker save` into `docker load`), so nothing is
       rebuilt. The target gets the app with a free port of its own, starts it on empty volumes,
-      stops it, puts the copied data in and starts it again; its domain is checked through
-      the local web server. The old copy stays stopped (its data untouched) until it is
+      stops it, puts the copied data in and starts it again; the check is that it starts
+      (its page is not fetched yet). The old copy stays stopped (its data untouched) until it is
       removed; a failed move starts it again. Apps with pull request previews, and previews
       themselves, do not move.
 - [ ] Moves: check the target's free disk space first (it needs about twice the home folder

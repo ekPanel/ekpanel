@@ -633,6 +633,10 @@ func (s *system) receive(r io.Reader, dir string) (agentproto.TransferResult, er
 			if !gitImageRE.MatchString(h.Name) {
 				return res, errors.New("bad image section")
 			}
+			// A server without apps yet has no Docker: install it now (the panel would anyway).
+			if err := ensureDocker(context.Background(), s); err != nil {
+				return res, fmt.Errorf("install Docker: %w", err)
+			}
 			cr := &countingReader{r: fr}
 			var stderr strings.Builder
 			_, err := s.exec(context.Background(), command{name: "docker", args: []string{"load", "--quiet"}, stdin: cr, stderr: &stderr})

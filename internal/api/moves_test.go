@@ -481,3 +481,37 @@ func TestMoveApp(t *testing.T) {
 		t.Fatalf("move onto a taken name: %d %s", st, e.Code)
 	}
 }
+
+func TestMoveAppStaysStoppedWhileCopying(t *testing.T) {
+	p := newTestPanel(t)
+	c := newClient(t, p.web.URL)
+	setUp(t, c)
+	fromID, fromCfg, _, _ := enrolled(t, p, c, "old")
+	toID, _, _, _ := enrolled(t, p, c, "new")
+	src := newMoveAgent(t, p, fromCfg)
+	var app struct {
+		ID    string `json:"id"`
+		State string `json:"state"`
+	}
+	c.do("POST", "/api/v1/apps", map[string]any{"server_id": fromID, "name": "shop", "kind": "image", "image": "nginx:1"}, &app)
+	waitUntil(t, "app active", func() bool {
+		c.do("GET", "/api/v1/apps/"+app.ID, nil, &app)
+		return app.State == "active"
+	})
+	ctx := context.Background()
+	var moveID string
+	if err := p.pool.QueryRow(ctx, `INSERT INTO moves (app_id, from_server, to_server, phase) VALUES ($1, $2, $3, 'copying') RETURNING id`,
+		app.ID, fromID, toID).Scan(&moveID); err != nil {
+		t.Fatal(err)
+	}
+	// Any apply of the source while the copy runs (the drift check, another change) keeps it stopped.
+	p.runner.Reconcile(ctx, fromID)
+	if a := appSpec(src.lastApply(), app.ID); a == nil || !a.Stopped || a.Deleted {
+		t.Fatalf("app during the copy: %+v", a)
+	}
+	p.pool.Exec(ctx, `UPDATE moves SET phase = 'failed' WHERE id = $1`, moveID)
+	p.runner.Reconcile(ctx, fromID)
+	if a := appSpec(src.lastApply(), app.ID); a == nil || a.Stopped {
+		t.Fatalf("app after a failed copy: %+v", a)
+	}
+}

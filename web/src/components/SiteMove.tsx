@@ -57,7 +57,7 @@ export function MoveCard({ thing }: { thing: Movable }) {
   const targetIP = target?.public_ipv4 ?? target?.addresses?.[0];
 
   const cleanup = async (m: SiteMove) => {
-    if (!window.confirm(t("move.cleanup_confirm", { server: m.from_server_name }))) return;
+    if (!window.confirm(t(thing.kind === "site" ? "move.cleanup_confirm" : "move.cleanup_confirm_app", { server: m.from_server_name }))) return;
     setBusy(true);
     setError("");
     try {

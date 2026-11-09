@@ -116,11 +116,12 @@ func (s *Store) SiteMoves(ctx context.Context, siteID string) ([]Move, error) {
 	return s.collectMoves(rows, err)
 }
 
-// MovesOn are the moves that leave something on serverID: an old copy on the source
-// (until it is removed), or a half-made copy on the target of a failed switch.
+// MovesOn are the moves that concern what is on serverID: the source of a move (while it
+// copies, and its old copy until removed), or a half-made copy on the target of a failed
+// switch.
 func (s *Store) MovesOn(ctx context.Context, serverID string) ([]Move, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+moveColumns+moveFrom+`
-		WHERE (m.from_server = $1 AND m.phase IN ('switching', 'moved', 'cleaning'))
+		WHERE (m.from_server = $1 AND m.phase IN ('copying', 'switching', 'moved', 'cleaning'))
 		   OR (m.to_server = $1 AND m.target_cleanup)`, serverID)
 	return s.collectMoves(rows, err)
 }

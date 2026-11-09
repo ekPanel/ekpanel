@@ -394,8 +394,11 @@ func (r *Runner) RecoverMoves(ctx context.Context) {
 			r.rollBackMove(ctx, m)
 		} else {
 			r.discardCopy(m)
+			// An app stopped for the copy starts again where it is.
+			r.store.SetMovePhase(ctx, m.ID, "failed", nil)
+			r.Reconcile(ctx, m.FromServer)
 		}
-		r.failMove(ctx, m, errors.New("the panel restarted during the move; the website stays where it was"))
+		r.failMove(ctx, m, errors.New("the panel restarted during the move; it stays where it was"))
 	}
 }
 
@@ -416,15 +419,17 @@ func (r *Runner) moveApp(ctx context.Context, t store.Task, m store.Move) (any, 
 	res, err := r.copyData(ctx, m, exp)
 	if err != nil {
 		r.discardCopy(m)
+		err = r.failMove(ctx, m, fmt.Errorf("copy: %w", err))
 		// The export stopped the app: start it again where it is.
 		r.Reconcile(context.WithoutCancel(ctx), m.FromServer)
-		return nil, r.failMove(ctx, m, fmt.Errorf("copy: %w", err))
+		return nil, err
 	}
 	r.store.SetMoveCopied(ctx, m.ID, res.Bytes)
 	if err := r.store.SwitchMove(ctx, m); err != nil {
 		r.discardCopy(m)
+		err = r.failMove(ctx, m, err)
 		r.Reconcile(context.WithoutCancel(ctx), m.FromServer)
-		return nil, r.failMove(ctx, m, err)
+		return nil, err
 	}
 	if err := r.finishAppSwitch(ctx, m, app); err != nil {
 		r.rollBackMove(ctx, m)
@@ -481,13 +486,14 @@ func (r *Runner) finishAppSwitch(ctx context.Context, m store.Move, app store.Ap
 	return r.appActive(ctx, app.ID)
 }
 
-// appMovesOn is movesOn for apps.
-func (r *Runner) appMovesOn(ctx context.Context, serverID string, apps *[]store.App) (map[string]store.Move, error) {
+// appMovesOn is movesOn for apps. It also returns the apps of this server that are being
+// copied away: they must stay stopped, so their volumes do not change during the copy.
+func (r *Runner) appMovesOn(ctx context.Context, serverID string, apps *[]store.App) (map[string]store.Move, map[string]bool, error) {
 	moves, err := r.store.MovesOn(ctx, serverID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	extra := map[string]store.Move{}
+	extra, copying := map[string]store.Move{}, map[string]bool{}
 	for _, m := range moves {
 		if m.AppID == nil {
 			continue
@@ -497,13 +503,16 @@ func (r *Runner) appMovesOn(ctx context.Context, serverID string, apps *[]store.
 			continue
 		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if a.ServerID == serverID {
+			if m.Phase == "copying" {
+				copying[a.ID] = true
+			}
 			continue
 		}
 		extra[a.ID] = m
 		*apps = append(*apps, a)
 	}
-	return extra, nil
+	return extra, copying, nil
 }

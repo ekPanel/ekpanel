@@ -616,17 +616,17 @@
     "too_many_tokens": "You have 50 tokens. Revoke one you no longer use first.",
     "token_not_found": "That token no longer exists.",
     "task_not_found": "That task no longer exists.",
-    "same_server": "The website is already on this server.",
-    "invalid_server": "Choose a server to move the website to.",
+    "same_server": "It is already on this server.",
+    "invalid_server": "Choose a server to move to.",
     "site_not_active": "The website must be working before it can move.",
     "invalid_database": "A chosen database is not on the website's server or belongs to someone else.",
     "database_not_active": "A chosen database must be working before it can move.",
-    "move_open": "This website is being moved, or its old copy is still on the other server. Finish the move first.",
+    "move_open": "This is being moved, or its old copy is still on the other server. Finish the move first.",
     "move_not_found": "That move no longer exists.",
     "move_not_moved": "There is no old copy to remove.",
     "server_not_in_package": "The customer's package does not include this server. Add it to the package first.",
     "app_not_active": "The app must be working before it can move.",
-    "app_has_previews": "Apps with pull request previews (and previews) cannot move. Turn previews off first."
+    "app_has_previews": "Apps with pull request previews cannot move. Turn previews off and delete the remaining previews first."
   },
   "not_found": {
     "title": "Page not found",
@@ -2321,7 +2321,7 @@
     "no_databases": "No databases of this website's owner on its server.",
     "databases_hint": "They keep their names, users and passwords, so the website's settings stay right.",
     "step_copy": "The files, databases and certificate are copied straight from server to server.",
-    "step_switch": "The new server sets up the website and is checked. If anything fails, the website stays where it is.",
+    "step_switch": "The new server sets it up, and it is checked. If anything fails, it stays where it is.",
     "step_dns": "DNS records the panel manages point to the new server by themselves; otherwise you change them.",
     "step_cleanup": "The old copy keeps serving until you remove it.",
     "writes_warning": "Changes made on the old copy after the copy starts (new orders, comments, uploads) are not carried over. Move at a quiet time.",
@@ -2345,6 +2345,7 @@
     "moved_app": "The app now runs on {{to}}. The old copy on {{from}} is stopped and keeps its data until you remove it.",
     "step_copy_app": "The app is stopped, then its data and (for a Git app) its build are copied straight from server to server.",
     "step_cleanup_app": "The old copy stays stopped, with its data, until you remove it.",
-    "app_warning": "The app is unavailable from the moment it stops until it runs on the new server and its domain points there."
+    "app_warning": "The app is unavailable from the moment it stops until it runs on the new server and its domain points there.",
+    "cleanup_confirm_app": "Remove the old copy on {{server}}? Its containers and data there are deleted. Only do this once the app works on the new server and its domain points there."
   }
 }

@@ -427,7 +427,7 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 	}
 	// An app moving away stays here stopped (its data untouched) until its old copy is
 	// removed; a failed move's half-made copy is removed with its data.
-	movingApps, err := r.appMovesOn(ctx, serverID, &apps)
+	movingApps, copyingApps, err := r.appMovesOn(ctx, serverID, &apps)
 	if err != nil {
 		return sum, err
 	}
@@ -444,8 +444,10 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		}
 		spec := AppSpec(a)
 		spec.Owner = id
-		if isMoving {
+		if isMoving || copyingApps[a.ID] {
 			spec.Stopped = true
+		}
+		if isMoving {
 			if appState == "deleting" {
 				spec.Deleted, spec.DeleteData = true, true
 			}

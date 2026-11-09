@@ -193,6 +193,13 @@ func (s *Server) handleMoveApp(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "same_server", "the app is already on this server")
 		return
 	}
+	if previews, err := s.store.Previews(r.Context(), app.ID); err != nil {
+		s.internalError(w, r, err)
+		return
+	} else if len(previews) > 0 {
+		writeError(w, http.StatusConflict, "app_has_previews", "this app still has pull request previews; delete them first")
+		return
+	}
 	target, err := s.store.GetServer(r.Context(), req.ServerID)
 	if !isUUID(req.ServerID) || errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusBadRequest, "invalid_server", "choose a server to move the app to")
