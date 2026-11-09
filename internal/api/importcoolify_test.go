@@ -141,7 +141,7 @@ func TestImportCoolify(t *testing.T) {
 		}
 	}
 	if !slices.Contains(notes["a1"], "coolify_volumes ") || !slices.Contains(notes["a1"], "coolify_more_domains www.blog.example.com") ||
-		!slices.Contains(notes["a2"], "coolify_builder nixpacks") || !slices.Contains(notes["a2"], "coolify_env_hidden ") {
+		!slices.Contains(notes["a2"], "coolify_builder nixpacks") || !slices.Contains(notes["a2"], "coolify_github_app https://github.com/acme/api") || !slices.Contains(notes["a2"], "coolify_env_hidden ") {
 		t.Fatalf("notes %v", notes)
 	}
 

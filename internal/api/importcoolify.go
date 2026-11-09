@@ -176,6 +176,9 @@ func applicationResource(a anyMap) coolifyResource {
 	case "dockercompose":
 		r.AppKind = "compose"
 		r.Domains = composeDomains(str(a, "docker_compose_domains"))
+		if str(a, "docker_compose_raw") == "" {
+			r.AppKind, r.Reason = "", "no_compose" // hidden from tokens without read:sensitive
+		}
 	case "dockerfile", "nixpacks", "railpack", "static":
 		r.AppKind = "git"
 		r.GitURL = coolifyGitURL(str(a, "git_repository"))
@@ -556,8 +559,12 @@ func (s *Server) coolifyApp(ctx context.Context, c *coolifyClient, kind, uuid st
 			req.Builder = "railpack" // Coolify's Nixpacks and static builds
 			notes = append(notes, tasks.ImportNote{Code: "coolify_builder", Name: r.Type})
 		}
-		if strings.HasPrefix(req.GitURL, "git@") || str(obj, "private_key_id") != "" && str(obj, "private_key_id") != "0" {
+		switch {
+		case strings.HasPrefix(req.GitURL, "git@") || str(obj, "private_key_id") != "" && str(obj, "private_key_id") != "0":
 			notes = append(notes, tasks.ImportNote{Code: "coolify_deploy_key"})
+		case !strings.Contains(str(obj, "git_repository"), "://"):
+			// Through Coolify's GitHub App: a private repository needs its SSH address here.
+			notes = append(notes, tasks.ImportNote{Code: "coolify_github_app", Name: req.GitURL})
 		}
 	case "compose":
 		req.Compose = declareComposeVolumes(str(obj, "docker_compose_raw"))
@@ -576,11 +583,20 @@ func (s *Server) coolifyApp(ctx context.Context, c *coolifyClient, kind, uuid st
 			if len(h) == 0 {
 				continue
 			}
-			if req.Domain == "" && p != 0 {
-				req.Service, req.Domain, req.ContainerPort = svc, h[0], &p
-				continue
+			if p == 0 {
+				p = servicePortFromEnv(req.Env, svc)
 			}
-			notes = append(notes, tasks.ImportNote{Code: "coolify_more_domains", Name: strings.Join(h, ", ")})
+			switch {
+			case req.Domain != "":
+				notes = append(notes, tasks.ImportNote{Code: "coolify_more_domains", Name: strings.Join(h, ", ")})
+			case p == 0:
+				notes = append(notes, tasks.ImportNote{Code: "coolify_no_port", Name: h[0]})
+			default:
+				req.Service, req.Domain, req.ContainerPort = svc, h[0], &p
+				if len(h) > 1 {
+					notes = append(notes, tasks.ImportNote{Code: "coolify_more_domains", Name: strings.Join(h[1:], ", ")})
+				}
+			}
 		}
 		hosts = nil
 	default:

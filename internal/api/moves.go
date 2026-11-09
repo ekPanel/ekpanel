@@ -556,7 +556,7 @@ func (s *Server) handleRebuildSite(w http.ResponseWriter, r *http.Request) {
 	}
 	repo, err := s.store.GetBackupRepo(ctx, req.RepoID)
 	if !isUUID(req.RepoID) || errors.Is(err, store.ErrNotFound) || (err == nil && repo.ServerID != target.ID) {
-		writeError(w, http.StatusBadRequest, "invalid_repo", "choose a backup storage connected on the new server")
+		writeError(w, http.StatusBadRequest, "invalid_backup_repo", "choose a backup storage connected on the new server")
 		return
 	}
 	if err != nil {

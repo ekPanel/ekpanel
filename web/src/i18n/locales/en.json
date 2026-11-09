@@ -532,7 +532,7 @@
     "domain_required": "This service is used through its domain; enter one.",
     "template_not_found": "That service is not in the catalogue.",
     "git_not_allowed": "The package does not include Git apps.",
-    "invalid_repo": "Choose a backup storage connected on the new server.",
+    "invalid_repo": "Enter the repository's https:// address, or its SSH address (git@host:owner/repo.git) for a private one.",
     "invalid_branch": "Enter a branch name, such as main.",
     "invalid_repo_path": "The Dockerfile and build folder are paths inside the repository.",
     "port_required": "Enter the port the app listens on inside its container.",
@@ -633,7 +633,7 @@
     "no_snapshot": "This backup storage has no backup of {{item}}.",
     "backup_unreadable": "The new server could not read the backups.",
     "invalid_import_file": "Enter the name of a .tar.gz backup in /srv/ekpanel/imports on the server, without a folder.",
-    "nothing_to_import": "Choose at least one website, database, mail domain or DNS zone.",
+    "nothing_to_import": "Choose at least one thing to import.",
     "not_in_backup": "The backup has no {{name}}.",
     "import_domains_taken": "Already used by another website or app here: {{names}}.",
     "import_database_taken": "The server already has a database or user named {{name}}.",
@@ -648,7 +648,8 @@
     "invalid_coolify": "Enter Coolify's address (https://…) and an API token.",
     "coolify_unauthorized": "Coolify did not accept the token. Make a new one under Keys & Tokens, and check that the API is on (Settings → Advanced).",
     "coolify_unreachable": "Could not read Coolify's API: {{detail}}",
-    "coolify_resource": "Could not read it from Coolify."
+    "coolify_resource": "Could not read it from Coolify.",
+    "invalid_backup_repo": "Choose a backup storage connected on the new server."
   },
   "not_found": {
     "title": "Page not found",
@@ -2497,7 +2498,8 @@
       "coolify_no_port": "The domain {{name}} has no port to route to: add the domain and the container port on the app's page",
       "coolify_builder": "Built with Railpack here (Coolify used {{name}}): check the first build",
       "coolify_deploy_key": "A private repository: add the app's deploy key (on its page) to the repository, then deploy",
-      "coolify_deploy": "Nothing runs yet: deploy it from the app's page to build the first release"
+      "coolify_deploy": "Nothing runs yet: deploy it from the app's page to build the first release",
+      "coolify_github_app": "{{name}} came through Coolify's GitHub App: if it is private, change it to its SSH address (git@github.com:owner/repo.git) and add the app's deploy key to the repository"
     },
     "email": "Email",
     "mail_off": "This server has no email. Turn on email for it (Email → Servers) to import mailboxes.",
