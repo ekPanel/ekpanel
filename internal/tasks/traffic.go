@@ -39,6 +39,7 @@ func (r *Runner) trafficLoop(ctx context.Context) {
 		if err := r.store.PruneTraffic(ctx, trafficKeep); err != nil && ctx.Err() == nil {
 			r.log.Warn("prune traffic", "err", err)
 		}
+		r.CheckBandwidth(ctx)
 		select {
 		case <-ctx.Done():
 			return

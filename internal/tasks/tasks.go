@@ -133,7 +133,7 @@ func (r *Runner) Run(ctx context.Context, workers int) {
 			r.work(ctx)
 		}()
 	}
-	wg.Add(8)
+	wg.Add(9)
 	go func() {
 		defer wg.Done()
 		r.driftLoop(ctx)
@@ -161,6 +161,10 @@ func (r *Runner) Run(ctx context.Context, workers int) {
 	go func() {
 		defer wg.Done()
 		r.usageLoop(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		r.cronWatchLoop(ctx)
 	}()
 	go func() {
 		defer wg.Done()
@@ -338,6 +342,7 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 	// Each customer with something here gets a slice with their package's limits. Things
 	// being deleted need no slice, so a customer's last delete also removes theirs.
 	packages := map[string]*store.Package{}
+	blocks := map[string]string{} // customer → why their websites and apps are blocked
 	owner := func(id *string, state string) (string, *store.Package, error) {
 		if id == nil || state == "deleting" {
 			return "", nil, nil
@@ -354,6 +359,12 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			return "", nil, err
 		}
 		packages[*id] = &p
+		switch {
+		case c.SuspendedAt != nil:
+			blocks[*id] = agentproto.BlockedSuspended
+		case c.BandwidthBlocked && p.BandwidthStop:
+			blocks[*id] = agentproto.BlockedBandwidth
+		}
 		return *id, &p, nil
 	}
 	for _, s := range sites {
@@ -390,7 +401,12 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		if pkg != nil && !pkg.SFTP {
 			spec.SFTPEnabled = false // the package no longer includes SFTP
 		}
-		if s.FTPEnabled && s.FTPPasswordHash != nil && (pkg == nil || pkg.FTP) {
+		spec.Blocked = blocks[id]
+		suspended := spec.Blocked == agentproto.BlockedSuspended
+		if suspended {
+			spec.SFTPEnabled = false
+		}
+		if s.FTPEnabled && s.FTPPasswordHash != nil && (pkg == nil || pkg.FTP) && !suspended {
 			spec.FTPEnabled, spec.FTPPasswordHash = true, *s.FTPPasswordHash
 			anyFTP = anyFTP || !spec.Deleted
 		}
@@ -456,7 +472,8 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		}
 		spec := AppSpec(a)
 		spec.Owner = id
-		if isMoving || copyingApps[a.ID] {
+		spec.Blocked = blocks[id]
+		if isMoving || copyingApps[a.ID] || spec.Blocked == agentproto.BlockedSuspended {
 			spec.Stopped = true
 		}
 		if isMoving {
@@ -487,7 +504,7 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			return sum, err
 		}
 		spec := agentproto.CronSpec{ID: j.ID, Generation: j.Generation, Owner: id, Schedule: j.Schedule, Timezone: j.Timezone,
-			Command: j.Command, TimeoutSeconds: j.TimeoutSeconds, Enabled: j.Enabled, Deleted: deleted}
+			Command: j.Command, TimeoutSeconds: j.TimeoutSeconds, Enabled: j.Enabled && blocks[id] != agentproto.BlockedSuspended, Deleted: deleted}
 		if j.SiteID != nil && j.LinuxUser != nil {
 			spec.User = *j.LinuxUser
 		} else if j.Service != nil {

@@ -62,6 +62,9 @@ func validateApp(ap agentproto.AppSpec) error {
 	if ap.Owner != "" && !uuidRE.MatchString(ap.Owner) {
 		return errors.New("invalid owner")
 	}
+	if !validBlocked(ap.Blocked) {
+		return fmt.Errorf("unknown block %q", ap.Blocked)
+	}
 	if ap.Deleted {
 		return nil
 	}
@@ -498,12 +501,15 @@ func (a *applier) ensureApp(ctx context.Context, ap agentproto.AppSpec) error {
 	return a.writeAppCaddy(ap, ports)
 }
 
-var appCaddyTemplate = template.Must(template.New("app").Parse(
+var appCaddyTemplate = template.Must(template.New("app").Parse(blockedTemplate +
 	`# Managed by ekPanel (app {{.ID}}). Changes here are overwritten.
 {{.Domain}} {
 {{- if .Internal}}
 	tls internal
 {{- end}}
+{{- if .Blocked}}
+{{- template "blocked" .}}
+{{- else}}
 	encode zstd gzip
 	reverse_proxy{{range .Ports}} 127.0.0.1:{{.}}{{end}}
 {{- if gt (len .Ports) 1}} {
@@ -513,6 +519,7 @@ var appCaddyTemplate = template.Must(template.New("app").Parse(
 		lb_try_interval 20ms
 		fail_duration 30s
 	}
+{{- end}}
 {{- end}}
 	log {
 		output file /var/log/caddy/app-{{.ID}}.log {
@@ -535,7 +542,8 @@ func (a *applier) writeAppCaddy(ap agentproto.AppSpec, ports []int) error {
 	if ports == nil {
 		ports = []int{ap.HostPort}
 	}
-	appCaddyTemplate.Execute(&buf, map[string]any{"ID": ap.ID, "Domain": ap.Domain, "Internal": ap.TLS == "internal", "Ports": ports})
+	appCaddyTemplate.Execute(&buf, map[string]any{"ID": ap.ID, "Domain": ap.Domain, "Internal": ap.TLS == "internal", "Ports": ports,
+		"Blocked": ap.Blocked != "", "BlockedPage": blockedPages[ap.Blocked]})
 	changed, prev, err := a.writeIfChanged(path, buf.Bytes())
 	if err != nil {
 		return err

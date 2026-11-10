@@ -2,12 +2,13 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRightLeft, KeyRound, LogIn, Package as PackageIcon, Pencil, Plus, ShieldOff, Trash2, Users } from "lucide-react";
-import { api, errorMessage, type Customer, type Package, type Server, type Usage, type User } from "../lib/api";
+import { ArrowRightLeft, Ban, CircleCheck, KeyRound, LogIn, Package as PackageIcon, Pencil, Plus, ShieldOff, Trash2, UserRoundCog, Users } from "lucide-react";
+import { api, errorMessage, type App, type Customer, type Database, type MailDomain, type Package, type Server, type Site, type Usage, type User } from "../lib/api";
+import type { HostedZone } from "../components/HostedDNS";
 import { formatBytes, formatNumber } from "../lib/format";
 import { meKey, useMe } from "../lib/session";
 import { PageHeader } from "../components/AppShell";
-import { Button, Card, CopyButton, Dialog, ErrorAlert, Field, Meter, Spinner } from "../components/ui";
+import { Badge, Button, Card, CopyButton, Dialog, ErrorAlert, Field, Meter, Spinner } from "../components/ui";
 import { EmptyState } from "./ServerParts";
 import { usePHPVersions } from "./SitesPage";
 
@@ -58,12 +59,13 @@ function UsageLine({ label, have, limit, text }: { label: string; have: number; 
   );
 }
 
-export function UsageList({ usage, pkg }: { usage: Usage; pkg: Package }) {
+export function UsageList({ usage, pkg, bandwidth }: { usage: Usage; pkg: Package; bandwidth?: number }) {
   const { t, i18n } = useTranslation();
   const lng = i18n.language;
   const n = (x: number) => formatNumber(x, lng);
   const count = (have: number, limit: number) => t("customers.of", { have: n(have), limit: n(limit) });
   const diskLimit = pkg.disk_mb === null ? null : pkg.disk_mb * 1024 * 1024;
+  const bandwidthLimit = pkg.bandwidth_gb === null ? null : pkg.bandwidth_gb * 1024 ** 3;
   return (
     <div className="grid gap-4">
       <UsageLine label={t("nav.sites")} have={usage.sites} limit={pkg.max_sites} text={count(usage.sites, pkg.max_sites)} />
@@ -88,6 +90,18 @@ export function UsageList({ usage, pkg }: { usage: Usage; pkg: Package }) {
             : t("customers.of", { have: formatBytes(usage.disk_bytes, lng), limit: formatBytes(diskLimit, lng) })
         }
       />
+      {bandwidth !== undefined && (
+        <UsageLine
+          label={t("customers.bandwidth")}
+          have={bandwidth}
+          limit={bandwidthLimit}
+          text={
+            bandwidthLimit === null
+              ? t("customers.used_no_limit", { used: formatBytes(bandwidth, lng) })
+              : t("customers.of", { have: formatBytes(bandwidth, lng), limit: formatBytes(bandwidthLimit, lng) })
+          }
+        />
+      )}
     </div>
   );
 }
@@ -114,8 +128,8 @@ export function MyUsageCard() {
         <h2 className="text-lg font-semibold">{t("customers.your_package", { name: pkg.name })}</h2>
         {limits.length > 0 && <p className="text-sm text-muted">{limits.join(" · ")}</p>}
       </div>
-      <UsageList usage={q.data.usage} pkg={pkg} />
-      <p className="text-sm text-muted">{t("customers.bandwidth_month", { size: formatBytes(q.data.bandwidth_month, i18n.language) })}</p>
+      <UsageList usage={q.data.usage} pkg={pkg} bandwidth={q.data.bandwidth_month} />
+      {pkg.bandwidth_gb !== null && <p className="-mt-2 text-sm text-muted">{t(pkg.bandwidth_stop ? "customers.bandwidth_stop_hint" : "customers.bandwidth_hint")}</p>}
     </Card>
   );
 }
@@ -277,6 +291,8 @@ export function CustomersPage() {
   const [deleting, setDeleting] = useState<Customer | null>(null);
   const [reset, setReset] = useState<{ email: string; password: string } | null>(null);
   const [moving, setMoving] = useState<Customer | null>(null);
+  const [suspending, setSuspending] = useState<Customer | null>(null);
+  const [giving, setGiving] = useState<{ from: string } | null>(null);
   const [error, setError] = useState("");
 
   const act = async (run: () => Promise<unknown>) => {
@@ -297,7 +313,21 @@ export function CustomersPage() {
 
   return (
     <>
-      <PageHeader title={t("nav.customers")} description={t("customers.intro")} actions={customers.data?.length ? addButton : undefined} />
+      <PageHeader
+        title={t("nav.customers")}
+        description={t("customers.intro")}
+        actions={
+          customers.data?.length ? (
+            <>
+              <Button onClick={() => setGiving({ from: "" })}>
+                <UserRoundCog className="size-4" aria-hidden />
+                {t("owner.button")}
+              </Button>
+              {addButton}
+            </>
+          ) : undefined
+        }
+      />
       <div className="grid gap-4">
         <ErrorAlert>{error}</ErrorAlert>
         {customers.isPending && <Spinner />}
@@ -317,7 +347,16 @@ export function CustomersPage() {
                   </div>
                   <span className="rounded bg-sunk px-2 py-0.5 text-xs text-muted">{c.package_name}</span>
                 </div>
-                {pkg && <UsageList usage={c.usage} pkg={pkg} />}
+                {(c.suspended_at || c.bandwidth_blocked) && (
+                  <div className="grid gap-1.5">
+                    <div className="flex flex-wrap gap-2">
+                      {c.suspended_at && <Badge tone="crit">{t("customers.suspended_badge", { date: new Date(c.suspended_at).toLocaleDateString(i18n.language) })}</Badge>}
+                      {c.bandwidth_blocked && <Badge tone="warn">{t("customers.bandwidth_blocked")}</Badge>}
+                    </div>
+                    {c.suspended_at && c.suspend_reason && <p className="text-sm text-muted">{t("customers.suspend_reason_is", { reason: c.suspend_reason })}</p>}
+                  </div>
+                )}
+                {pkg && <UsageList usage={c.usage} pkg={pkg} bandwidth={c.bandwidth_month} />}
                 <div className="flex flex-wrap gap-2">
                   <Button
                     size="sm"
@@ -370,6 +409,29 @@ export function CustomersPage() {
                     <ArrowRightLeft className="size-4" aria-hidden />
                     {t("customers.move.button")}
                   </Button>
+                  <Button size="sm" onClick={() => setGiving({ from: c.id })}>
+                    <UserRoundCog className="size-4" aria-hidden />
+                    {t("owner.button")}
+                  </Button>
+                  {c.suspended_at ? (
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        act(async () => {
+                          await api.post(`/customers/${c.id}/unsuspend`);
+                          qc.invalidateQueries({ queryKey: ["customers"] });
+                        })
+                      }
+                    >
+                      <CircleCheck className="size-4" aria-hidden />
+                      {t("customers.unsuspend")}
+                    </Button>
+                  ) : (
+                    <Button size="sm" onClick={() => setSuspending(c)}>
+                      <Ban className="size-4" aria-hidden />
+                      {t("customers.suspend")}
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" onClick={() => setDeleting(c)} aria-label={t("customers.delete")}>
                     <Trash2 className="size-4" aria-hidden />
                   </Button>
@@ -381,6 +443,8 @@ export function CustomersPage() {
       </div>
       <CustomerDialog open={adding || editing !== null} customer={editing} onClose={() => (setEditing(null), setParams({}, { replace: true }))} />
       {moving && <MoveCustomerDialog customer={moving} onClose={() => setMoving(null)} />}
+      {suspending && <SuspendDialog customer={suspending} onClose={() => setSuspending(null)} />}
+      {giving && <OwnerChangeDialog from={giving.from} customers={customers.data ?? []} onClose={() => setGiving(null)} />}
       <Dialog open={reset !== null} onClose={() => setReset(null)} title={t("customers.reset_password")}>
         {reset && <OneTimePassword {...reset} />}
         <div className="flex justify-end">
@@ -444,6 +508,8 @@ interface PackageForm {
   max_mail_domains: string;
   max_mailboxes: string;
   mailbox_gb: string;
+  bandwidth_gb: string;
+  bandwidth_stop: boolean;
 }
 
 const newPackage: PackageForm = {
@@ -464,6 +530,8 @@ const newPackage: PackageForm = {
   max_mail_domains: "1",
   max_mailboxes: "10",
   mailbox_gb: "1",
+  bandwidth_gb: "",
+  bandwidth_stop: false,
 };
 
 function formFromPackage(p: Package): PackageForm {
@@ -485,6 +553,8 @@ function formFromPackage(p: Package): PackageForm {
     max_mail_domains: String(p.max_mail_domains),
     max_mailboxes: String(p.max_mailboxes),
     mailbox_gb: p.mailbox_quota_mb === null ? "" : String(Math.round((p.mailbox_quota_mb / 1024) * 100) / 100),
+    bandwidth_gb: p.bandwidth_gb === null ? "" : String(p.bandwidth_gb),
+    bandwidth_stop: p.bandwidth_stop,
   };
 }
 
@@ -568,6 +638,8 @@ function PackageDialog({ open, pkg, onClose }: { open: boolean; pkg: Package | n
       max_mail_domains: Number(f.max_mail_domains || 0),
       max_mailboxes: Number(f.max_mailboxes || 0),
       mailbox_quota_mb: opt(f.mailbox_gb, 1024),
+      bandwidth_gb: opt(f.bandwidth_gb),
+      bandwidth_stop: f.bandwidth_stop,
     };
     try {
       if (pkg) await api.put(`/packages/${pkg.id}`, body);
@@ -627,6 +699,27 @@ function PackageDialog({ open, pkg, onClose }: { open: boolean; pkg: Package | n
           />
         </div>
         <p className="-mt-3 text-sm text-muted">{t("packages.limits_hint")}</p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field
+            label={t("packages.bandwidth")}
+            value={f.bandwidth_gb}
+            onChange={digits("bandwidth_gb")}
+            inputMode="numeric"
+            dir="ltr"
+            placeholder={t("apps.no_limit")}
+          />
+          <label className="flex items-start gap-2 text-sm sm:col-span-2 sm:mt-7">
+            <input
+              type="checkbox"
+              checked={f.bandwidth_stop}
+              disabled={!f.bandwidth_gb.trim()}
+              onChange={(e) => set("bandwidth_stop", e.target.checked)}
+              className="mt-1 accent-[var(--accent)]"
+            />
+            <span>{t("packages.bandwidth_stop")}</span>
+          </label>
+        </div>
+        <p className="-mt-3 text-sm text-muted">{t("packages.bandwidth_hint")}</p>
         <Checks
           label={t("packages.php")}
           hint={t("packages.php_hint")}
@@ -732,6 +825,7 @@ export function PackagesPage() {
                         p.disk_mb === null ? t("packages.disk_unlimited") : formatBytes(p.disk_mb * 1024 * 1024, lng),
                         p.memory_mb && t("customers.limit_memory", { size: formatBytes(p.memory_mb * 1024 * 1024, lng) }),
                         p.cpu_percent && t("customers.limit_cpu", { count: p.cpu_percent / 100, cores: formatNumber(p.cpu_percent / 100, lng, 2) }),
+                        p.bandwidth_gb !== null && t("packages.bandwidth_month", { size: formatBytes(p.bandwidth_gb * 1024 ** 3, lng) }),
                       ]
                         .filter(Boolean)
                         .join(" · ")}
@@ -841,6 +935,188 @@ function MoveCustomerDialog({ customer, onClose }: { customer: Customer; onClose
             </Button>
             <Button type="submit" variant="primary" loading={busy} disabled={!from || !to}>
               <ArrowRightLeft className="size-4" aria-hidden /> {t("move.confirm")}
+            </Button>
+          </div>
+        </form>
+      )}
+    </Dialog>
+  );
+}
+
+/** Suspends a customer, with a reason only administrators see. */
+function SuspendDialog({ customer, onClose }: { customer: Customer; onClose: () => void }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api.post(`/customers/${customer.id}/suspend`, { reason });
+      qc.invalidateQueries({ queryKey: ["customers"] });
+      onClose();
+    } catch (err) {
+      setError(errorMessage(t, err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog open onClose={onClose} title={t("customers.suspend_title", { name: customer.name })}>
+      <form onSubmit={submit} className="grid gap-4">
+        <ErrorAlert>{error}</ErrorAlert>
+        <p className="text-sm text-muted">{t("customers.suspend_body")}</p>
+        <label className="grid gap-1.5">
+          <span className="text-sm font-medium">{t("customers.suspend_reason")}</span>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            maxLength={500}
+            rows={3}
+            className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
+          />
+          <span className="text-sm text-muted">{t("customers.suspend_reason_hint")}</span>
+        </label>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button type="submit" variant="danger" loading={busy}>
+            <Ban className="size-4" aria-hidden />
+            {t("customers.suspend")}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+type OwnerKind = "sites" | "databases" | "apps" | "mail_domains" | "zones";
+
+/** Gives websites, databases, apps, email domains and DNS zones to another owner. */
+function OwnerChangeDialog({ from: initialFrom, customers, onClose }: { from: string; customers: Customer[]; onClose: () => void }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const [from, setFrom] = useState(initialFrom);
+  const [to, setTo] = useState("");
+  const [chosen, setChosen] = useState<Record<OwnerKind, string[]>>({ sites: [], databases: [], apps: [], mail_domains: [], zones: [] });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(0);
+  const sites = useQuery({ queryKey: ["sites"], queryFn: () => api.get<Site[]>("/sites") });
+  const dbs = useQuery({ queryKey: ["databases"], queryFn: () => api.get<Database[]>("/databases") });
+  const apps = useQuery({ queryKey: ["apps"], queryFn: () => api.get<App[]>("/apps") });
+  const mail = useQuery({ queryKey: ["mail", "domains"], queryFn: () => api.get<MailDomain[]>("/mail/domains") });
+  const zones = useQuery({ queryKey: ["dns", "hosted"], queryFn: () => api.get<HostedZone[]>("/dns/hosted") });
+  const owned = (o: { owner_id: string | null }) => (o.owner_id ?? "") === from;
+  const groups: { kind: OwnerKind; label: string; items: { id: string; name: string }[] }[] = [
+    { kind: "sites", label: t("nav.sites"), items: (sites.data ?? []).filter((x) => owned(x) && x.state !== "deleting").map((x) => ({ id: x.id, name: x.domain })) },
+    { kind: "databases", label: t("nav.databases"), items: (dbs.data ?? []).filter((x) => owned(x) && x.state !== "deleting").map((x) => ({ id: x.id, name: x.name })) },
+    { kind: "apps", label: t("nav.apps"), items: (apps.data ?? []).filter((x) => owned(x) && x.state !== "deleting").map((x) => ({ id: x.id, name: x.name })) },
+    { kind: "mail_domains", label: t("owner.mail_domains"), items: (mail.data ?? []).filter((x) => owned(x) && x.state !== "deleting").map((x) => ({ id: x.id, name: x.domain })) },
+    { kind: "zones", label: t("owner.zones"), items: (zones.data ?? []).filter(owned).map((x) => ({ id: x.id, name: x.name })) },
+  ];
+  const loading = [sites, dbs, apps, mail, zones].some((q) => q.isPending);
+  const count = Object.values(chosen).reduce((n, l) => n + l.length, 0);
+  const toggle = (kind: OwnerKind, id: string, on: boolean) =>
+    setChosen((c) => ({ ...c, [kind]: on ? [...c[kind], id] : c[kind].filter((x) => x !== id) }));
+  const ownerName = (id: string) => (id ? (customers.find((c) => c.id === id)?.name ?? "") : t("customers.owner_admins"));
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const r = await api.post<{ moved: number }>("/owner-changes", { to, ...chosen });
+      setDone(r.moved);
+      for (const key of [["customers"], ["sites"], ["databases"], ["apps"], ["mail"], ["dns"], ["cron"]]) qc.invalidateQueries({ queryKey: key });
+    } catch (err) {
+      setError(errorMessage(t, err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onClose={onClose} title={t("owner.title")} wide>
+      {done > 0 ? (
+        <div className="grid gap-4">
+          <p className="text-sm">{t("owner.done", { count: done, name: ownerName(to) })}</p>
+          <Button variant="primary" onClick={onClose} className="justify-self-end">
+            {t("common.close", { defaultValue: "OK" })}
+          </Button>
+        </div>
+      ) : (
+        <form onSubmit={submit} className="grid gap-4">
+          <ErrorAlert>{error}</ErrorAlert>
+          <p className="text-sm text-muted">{t("owner.intro")}</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium">{t("owner.from")}</span>
+              <select
+                value={from}
+                onChange={(e) => (setFrom(e.target.value), setChosen({ sites: [], databases: [], apps: [], mail_domains: [], zones: [] }))}
+                className={select}
+              >
+                <option value="">{t("customers.owner_admins")}</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium">{t("owner.to")}</span>
+              <select value={to} onChange={(e) => setTo(e.target.value)} className={select}>
+                <option value="">{t("customers.owner_admins")}</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} · {c.package_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {loading ? (
+            <Spinner />
+          ) : groups.every((g) => g.items.length === 0) ? (
+            <p className="rounded-lg bg-sunk p-3 text-sm text-muted">{t("owner.nothing", { name: ownerName(from) })}</p>
+          ) : (
+            <div className="grid max-h-80 gap-4 overflow-y-auto rounded-lg border border-line p-4">
+              {groups
+                .filter((g) => g.items.length > 0)
+                .map((g) => (
+                  <fieldset key={g.kind} className="grid gap-1.5">
+                    <legend className="mb-1 text-sm font-medium">{g.label}</legend>
+                    {g.items.map((it) => (
+                      <label key={it.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={chosen[g.kind].includes(it.id)}
+                          onChange={(e) => toggle(g.kind, it.id, e.target.checked)}
+                          className="accent-[var(--accent)]"
+                        />
+                        <span className="truncate" dir="ltr">
+                          {it.name}
+                        </span>
+                      </label>
+                    ))}
+                  </fieldset>
+                ))}
+            </div>
+          )}
+          <p className="text-sm text-muted">{t("owner.hint")}</p>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onClose}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="submit" variant="primary" loading={busy} disabled={count === 0 || from === to}>
+              <UserRoundCog className="size-4" aria-hidden />
+              {t("owner.confirm", { count })}
             </Button>
           </div>
         </form>

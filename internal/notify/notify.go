@@ -60,8 +60,8 @@ func init() {
 // Events a user can choose for a channel. Administrators get every one; customers get
 // those about their own websites, apps, databases, disk space and account.
 var (
-	AdminEvents    = []string{"server_offline", "server_online", "server_disk", "backup_failed", "backup_partial", "site_error", "certificate_expiring", "app_error", "deploy_failed", "database_error", "mail_error", "wordpress_update", "malware_found", "quota_warning", "quota_full", "task_failed", "login_new_ip", "recovery_code_used", "update_available", "update_finished", "update_failed"}
-	CustomerEvents = []string{"site_error", "certificate_expiring", "app_error", "deploy_failed", "database_error", "mail_error", "wordpress_update", "malware_found", "quota_warning", "quota_full", "task_failed", "login_new_ip", "recovery_code_used"}
+	AdminEvents    = []string{"server_offline", "server_online", "server_disk", "backup_failed", "backup_partial", "site_error", "certificate_expiring", "app_error", "deploy_failed", "database_error", "mail_error", "wordpress_update", "malware_found", "quota_warning", "quota_full", "bandwidth_warning", "bandwidth_full", "bandwidth_stopped", "cron_failed", "task_failed", "login_new_ip", "recovery_code_used", "update_available", "update_finished", "update_failed"}
+	CustomerEvents = []string{"site_error", "certificate_expiring", "app_error", "deploy_failed", "database_error", "mail_error", "wordpress_update", "malware_found", "quota_warning", "quota_full", "bandwidth_warning", "bandwidth_full", "bandwidth_stopped", "cron_failed", "task_failed", "login_new_ip", "recovery_code_used"}
 )
 
 func fill(text string, params map[string]string) string {

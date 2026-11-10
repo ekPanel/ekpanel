@@ -13,6 +13,8 @@ export interface User {
   impersonator_id?: string;
   /** Until when this session may open terminals without the password again. */
   confirmed_until?: string;
+  /** Set while an administrator has suspended this customer. */
+  suspended_at?: string;
 }
 
 export interface Package {
@@ -35,6 +37,10 @@ export interface Package {
   /** Largest size of one mailbox; null means no limit. */
   mailbox_quota_mb: number | null;
   ftp: boolean;
+  /** Bandwidth per calendar month (UTC); null means no limit. */
+  bandwidth_gb: number | null;
+  /** Stop websites and apps when the bandwidth is used up. */
+  bandwidth_stop: boolean;
   customers: number;
   created_at: string;
 }
@@ -52,6 +58,12 @@ export interface Usage {
 export interface Customer extends User {
   package_name: string;
   usage: Usage;
+  /** Why the customer is suspended; only administrators see it. */
+  suspend_reason: string | null;
+  /** Websites and apps are stopped for using up this month's bandwidth. */
+  bandwidth_blocked: boolean;
+  /** Bytes served this month (UTC). */
+  bandwidth_month: number;
 }
 
 /** Who owns a website, database or app; null means the administrators. */

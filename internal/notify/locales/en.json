@@ -60,6 +60,22 @@
       "title": "Disk space used up",
       "body": "{{customer}} uses {{used}} of {{limit}}. Files and new websites cannot be added until some space is freed."
     },
+    "bandwidth_warning": {
+      "title": "Bandwidth almost used up",
+      "body": "{{customer}} has used {{used}} of {{limit}} this month."
+    },
+    "bandwidth_full": {
+      "title": "Bandwidth used up",
+      "body": "{{customer}} has used {{used}} of {{limit}} this month. The websites keep working; the package allows going over."
+    },
+    "bandwidth_stopped": {
+      "title": "Bandwidth used up: websites stopped",
+      "body": "{{customer}} has used {{used}} of {{limit}} this month. Websites and apps show a \"bandwidth used up\" page until next month or a larger package."
+    },
+    "cron_failed": {
+      "title": "Cron job {{name}} failed",
+      "body": "The last run of {{name}} ({{target}}) failed: {{result}}. You will be told again only after it has worked in between."
+    },
     "task_failed": {
       "title": "A task failed: {{task}}",
       "body": "{{message}}"

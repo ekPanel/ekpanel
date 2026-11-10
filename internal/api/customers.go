@@ -38,6 +38,11 @@ func (s *Server) validPackage(w http.ResponseWriter, r *http.Request, l *store.P
 		return fail("invalid_package", "the CPU limit must be at least 5%")
 	case l.MailboxQuotaMB != nil && (*l.MailboxQuotaMB < 1 || *l.MailboxQuotaMB > agentproto.MaxMailboxQuotaMB):
 		return fail("invalid_package", "the mailbox size must be at least 1 MB")
+	case l.BandwidthGB != nil && (*l.BandwidthGB < 1 || *l.BandwidthGB > 1<<20):
+		return fail("invalid_package", "the bandwidth must be at least 1 GB")
+	}
+	if l.BandwidthGB == nil {
+		l.BandwidthStop = false
 	}
 	if l.PHPVersions == nil {
 		l.PHPVersions = []string{}
@@ -139,6 +144,7 @@ func (s *Server) handleUpdatePackage(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, "package.updated", p.Name, map[string]any{"package_id": p.ID})
 	s.reapplyCustomersOf(r, p.ID)
+	s.opts.Tasks.CheckBandwidth(r.Context()) // a new limit may block or unblock websites
 	writeJSON(w, http.StatusOK, p)
 }
 
@@ -276,6 +282,7 @@ func (s *Server) handleUpdateCustomer(w http.ResponseWriter, r *http.Request) {
 	s.audit(r, "customer.updated", c.Email, map[string]any{"customer_id": c.ID, "package_id": req.PackageID})
 	if *before.PackageID != req.PackageID {
 		s.reapplyOwner(r, c.ID)
+		s.opts.Tasks.CheckBandwidth(r.Context(), c.ID)
 	}
 	writeJSON(w, http.StatusOK, c)
 }

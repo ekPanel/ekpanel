@@ -322,6 +322,10 @@ func (s *Server) handlePasskeyLogin(w http.ResponseWriter, r *http.Request) {
 		fail(errors.New("the authenticator's counter went back: it may be cloned"))
 		return
 	}
+	if found.u.SuspendedAt != nil {
+		writeSuspended(w)
+		return
+	}
 	raw, _ := json.Marshal(cred)
 	if err := s.store.UsePasskey(r.Context(), cred.ID, raw); err != nil {
 		s.internalError(w, r, err)

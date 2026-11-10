@@ -425,8 +425,9 @@ limits are measured and enforced by the panel, real filesystem quotas come later
       customer's other requests kept working; 50% CPU gave 2.0 s of CPU for two 4-second loops;
       container placed in the slice; package change applied live; 60 MB in a 50 MB package
       blocked writes and new databases
-- [ ] Moving an existing website, database or app to another owner: later
-- [ ] Suspending a customer; email to new customers: with notifications (2c)
+- [x] Moving an existing website, database or app to another owner (4e-2)
+- [x] Suspending a customer (4e-2)
+- [ ] Email to new customers with their sign-in details
 - [ ] SFTP uploads are not stopped by the disk limit (the panel's own file actions are)
 
 **2b. Cron jobs — done**
@@ -474,8 +475,8 @@ limits are measured and enforced by the panel, real filesystem quotas come later
       request log; PHP warnings shown; a link to /etc/shadow returned nothing; customers'
       webhooks to 127.0.0.1 and 169.254.169.254 refused; a webhook on the server received a
       signed test, and "offline" 3 minutes after stopping the agent, then "back online"
-- [ ] Bandwidth limits in packages: later (the numbers are now there)
-- [ ] Cron job failures do not alert yet (the panel does not watch job results)
+- [x] Bandwidth limits in packages (4e-2)
+- [x] Cron job failures alert (4e-2: the panel reads job results every 5 minutes)
 
 **2d. Web terminal — done**
 - [x] A root shell on any server for administrators, and a shell inside a running container of
@@ -1085,6 +1086,36 @@ How 4e-1 works:
   no code). The relying party is the panel's host name as the browser reaches it (passkeys
   need HTTPS, or localhost); a passkey made on one address does not work on another.
 
+How 4e-2 works:
+- **Suspending a customer** (administrators, with a reason only they see): the customer
+  cannot sign in (password, passkey or API token; their sessions end), websites and app
+  addresses answer with a "suspended" page (503), apps stop, cron jobs pause, SFTP and FTP
+  are off, mailboxes cannot sign in (mail still arrives). Files, databases and mail stay.
+  Administrators can still "sign in as" the customer. Unsuspending puts everything back.
+  Both are in the audit log.
+- **Changing the owner** of websites, databases, apps, email domains and DNS zones
+  (administrators): one or more at a time, to another customer or to the administrators.
+  The new owner's package is checked (counts, disk space, servers) first. Cron jobs,
+  backups and this month's traffic go with a website or app; nothing moves on the server
+  except the customer slice its processes run in.
+- **Bandwidth limits:** a package can have a monthly limit (GB, by calendar month in UTC).
+  At 90% and 100% the customer and the administrators are told. If the package says so,
+  websites and app addresses answer with a "bandwidth used up" page (503) until the next
+  month or a larger package; the check runs after each traffic collection (15 minutes) and
+  at once when a package or a customer's package changes.
+- **Failed cron jobs:** every 5 minutes the panel reads the last run of each enabled job
+  (one `systemctl show` per server); a run that failed or timed out alerts the owner and the
+  administrators once, and again only after a run has succeeded in between.
+- Tried in the VM: a suspended customer's website answered 503 with the page, their app's
+  container stopped, the cron timer was disabled and IMAP sign-in refused while a message
+  sent to the mailbox still arrived; unsuspending brought all back. 1.1 GB served by a
+  website of a 1 GB package switched it to the bandwidth page; 2 GB lifted it within 15
+  seconds. A job exiting with 3 gave one "Cron job failed". Owner change moved a website
+  (with its cron job), an app and an email domain, and the app limit refused a third app.
+- Found while trying it: an owner change was refused for a website whose move to another
+  server had finished but whose old copy was not removed yet; only copying and switching
+  block it now.
+
 **4f. Security center**
 - [ ] WAF: Coraza with the OWASP Core Rule Set in a Caddy that ekPanel builds and ships (with
       the modules it needs), per site on/off and in detect-only mode first
@@ -1099,9 +1130,10 @@ How 4e-1 works:
 **Smaller things left from earlier phases** (taken along where they fit)
 - [ ] Database browser and import/export (4b or 4c)
 - [ ] Single-file restore and downloading a backup (4c)
-- [ ] Suspending a customer, bandwidth limits in packages, alerts for failed cron jobs (4e)
+- [x] Suspending a customer, bandwidth limits in packages, alerts for failed cron jobs (4e-2)
 - [ ] DNS-01 wildcard certificates through Cloudflare or the built-in DNS (4a or later)
-- [ ] Moving a website, database or app to another owner (4e)
+- [x] Moving a website, database or app to another owner (4e-2: "Change owner", with email
+      domains and DNS zones)
 - [ ] Not yet tried for real: the Cloudflare API, outside mail delivery (need an account,
       a domain and a server with port 25)
 

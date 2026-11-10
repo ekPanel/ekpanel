@@ -229,6 +229,9 @@ type SiteSpec struct {
 	FTPPasswordHash string `json:"ftp_password_hash,omitempty"` // SHA-512 crypt
 
 	Web SiteWeb `json:"web"`
+	// Blocked makes the site answer every request with a page saying why (503) instead of
+	// serving it: BlockedSuspended or BlockedBandwidth.
+	Blocked string `json:"blocked,omitempty"`
 	// With TLS "custom": the uploaded certificate chain and its key, in PEM.
 	CertPEM string `json:"cert_pem,omitempty"`
 	KeyPEM  string `json:"key_pem,omitempty"`
@@ -291,7 +294,9 @@ type AppSpec struct {
 	// past the firewall, so it is off unless the user chose it.
 	PublicPorts bool `json:"public_ports,omitempty"`
 	Stopped     bool `json:"stopped,omitempty"`
-	Deleted     bool `json:"deleted,omitempty"`
+	// Blocked: the app's address answers with a page saying why (503), as for websites.
+	Blocked string `json:"blocked,omitempty"`
+	Deleted bool   `json:"deleted,omitempty"`
 	// KeepImages are the builds of a Git app kept for rollbacks; the agent removes others.
 	KeepImages []string `json:"keep_images,omitempty"`
 	DeleteData bool     `json:"delete_data,omitempty"` // with Deleted: remove volumes and the app folder too
@@ -309,6 +314,12 @@ type EnvVar struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }
+
+// Why a website or app is blocked.
+const (
+	BlockedSuspended = "suspended"
+	BlockedBandwidth = "bandwidth"
+)
 
 // AppServiceName is the Compose service of an image app.
 const AppServiceName = "app"
@@ -636,6 +647,27 @@ const (
 
 type CronParams struct {
 	ID string `json:"id"`
+}
+
+// OpCronResults reads the last finished run of many jobs at once, for alerts.
+const OpCronResults = "cron.results"
+
+type CronResultsParams struct {
+	IDs []string `json:"ids"`
+}
+
+// CronResult is a job's last run that has finished; jobs never run, still running, or not
+// on the server are left out.
+type CronResult struct {
+	ID       string    `json:"id"`
+	Started  time.Time `json:"started"`
+	Ended    time.Time `json:"ended"`
+	Result   string    `json:"result"` // systemd's: success, exit-code, timeout, signal…
+	ExitCode int       `json:"exit_code"`
+}
+
+type CronResultsResult struct {
+	Jobs []CronResult `json:"jobs"`
 }
 
 type CronStatusResult struct {

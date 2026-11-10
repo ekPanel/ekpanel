@@ -49,6 +49,8 @@ type MailboxSpec struct {
 	ForwardTo []string   `json:"forward_to,omitempty"`
 	KeepCopy  bool       `json:"keep_copy"`
 	AutoReply *AutoReply `json:"auto_reply,omitempty"`
+	// Locked mailboxes cannot sign in (their owner is suspended); mail still arrives.
+	Locked bool `json:"locked,omitempty"`
 }
 
 // AutoReply answers incoming mail, once a day per sender, between the dates (if any).

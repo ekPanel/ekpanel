@@ -51,6 +51,16 @@ All notable changes to ekPanel are listed here. The format follows
   of them (4e)
 - Passkeys: add them on the Security page and sign in with one instead of a password and
   code (4e)
+- Suspend a customer (Customers → Suspend, with a reason only administrators see): they
+  cannot sign in, their websites and app addresses show a "suspended" page, apps stop, cron
+  jobs pause, SFTP, FTP and mailbox sign-in are off, and mail still arrives. Unsuspending
+  puts everything back (4e)
+- Change the owner of websites, databases, apps, email domains and DNS zones (Customers →
+  Change owner), to another customer or to the administrators, after checking the new
+  owner's package (4e)
+- Bandwidth limits in packages, per calendar month: notifications at 90% and 100%, and if the
+  package says so, websites and apps show a "bandwidth used up" page until the next month (4e)
+- A notification when a cron job fails, once until it has worked again (4e)
 
 ### Changed
 - PHP websites serve a folder's `index.html` when it has no `index.php`, as Apache does (4d)

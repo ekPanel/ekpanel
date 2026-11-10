@@ -369,7 +369,9 @@
         "impersonated": "Signed in as customer",
         "impersonation_ended": "Left customer account",
         "2fa_reset": "Customer's two-factor reset",
-        "move_started": "Customer move started"
+        "move_started": "Customer move started",
+        "suspended": "Customer suspended",
+        "unsuspended": "Customer unsuspended"
       },
       "cron": {
         "created": "Cron job added",
@@ -452,6 +454,9 @@
       "token": {
         "created": "API token created",
         "revoked": "API token revoked"
+      },
+      "owner": {
+        "changed": "Owner changed"
       }
     },
     "via_token": "with the API token “{{name}}”"
@@ -720,7 +725,20 @@
     "passkey_not_found": "That passkey is gone already.",
     "session_current": "This is the device you are using: sign out instead.",
     "session_not_found": "That device is signed out already.",
-    "totp_not_enabled": "Turn on two-factor authentication first."
+    "totp_not_enabled": "Turn on two-factor authentication first.",
+    "account_suspended": "This account is suspended. Please contact your hosting provider.",
+    "nothing_to_give": "Choose something the new owner does not have yet.",
+    "move_in_progress": "{{name}} is being moved to another server. Wait until that has finished.",
+    "zone_not_found": "That DNS zone does not exist.",
+    "invalid_reason": "The reason can be up to 500 characters.",
+    "new_owner_limit_site": "The new owner's package does not allow that many websites.",
+    "new_owner_limit_database": "The new owner's package does not allow that many databases.",
+    "new_owner_limit_app": "The new owner's package does not allow that many apps.",
+    "new_owner_limit_cron": "The new owner's package does not allow that many cron jobs (they go with websites and apps).",
+    "new_owner_limit_mail_domain": "The new owner's package does not allow that many email domains.",
+    "new_owner_limit_mailbox": "The new owner's package does not allow that many mailboxes.",
+    "new_owner_quota": "These do not fit in the disk space of the new owner's package.",
+    "new_owner_server": "The new owner's package cannot use the server of one of these."
   },
   "not_found": {
     "title": "Page not found",
@@ -2084,7 +2102,6 @@
     "back_to_admin": "Back to my account",
     "limit_cpu_one": "{{cores}} CPU core",
     "limit_cpu_other": "{{cores}} CPU cores",
-    "bandwidth_month": "Traffic this month: {{size}}",
     "move": {
       "button": "Move…",
       "title": "Move {{name}}'s things",
@@ -2094,7 +2111,19 @@
       "started": "The move has started. Each website, database and app shows its progress on its own page, where you can also remove its old copy once it has moved."
     },
     "reset_2fa": "Reset two-factor",
-    "reset_2fa_confirm": "Turn off two-factor sign-in for {{name}}? They sign in with their password and can turn it on again. Do this only when you know it is really them."
+    "reset_2fa_confirm": "Turn off two-factor sign-in for {{name}}? They sign in with their password and can turn it on again. Do this only when you know it is really them.",
+    "bandwidth": "Bandwidth this month",
+    "bandwidth_hint": "Bandwidth counts what your websites and apps send, per calendar month (UTC).",
+    "bandwidth_stop_hint": "Bandwidth counts what your websites and apps send, per calendar month (UTC). When it is used up, they show a \"bandwidth used up\" page until next month.",
+    "suspended_badge": "Suspended since {{date}}",
+    "bandwidth_blocked": "Bandwidth used up: websites stopped",
+    "suspend_reason_is": "Reason: {{reason}}",
+    "suspend": "Suspend",
+    "unsuspend": "Unsuspend",
+    "suspend_title": "Suspend {{name}}?",
+    "suspend_body": "They can no longer sign in (password, passkey or API token). Their websites and app addresses show a \"suspended\" page, apps stop, cron jobs pause, SFTP and FTP are off and mailboxes cannot sign in; mail still arrives. Nothing is deleted, and unsuspending puts everything back. You can still sign in as them.",
+    "suspend_reason": "Reason",
+    "suspend_reason_hint": "For the administrators and the audit log; the customer does not see it."
   },
   "packages": {
     "intro": "What each customer may use: how many websites, databases and apps, disk space, and memory and CPU for all their processes together.",
@@ -2129,7 +2158,11 @@
     "mailboxes": "Mailboxes",
     "mailbox_size": "Mailbox size (GB)",
     "mailbox_size_hint": "Largest size of one mailbox. Leave empty for no limit.",
-    "ftp": "FTP (encrypted) for their websites"
+    "ftp": "FTP (encrypted) for their websites",
+    "bandwidth": "Bandwidth per month (GB)",
+    "bandwidth_stop": "Stop websites and apps when it is used up, until the next month",
+    "bandwidth_hint": "What websites and apps send, per calendar month (UTC). The customer and the administrators are told at 90% and 100%. Empty means no limit.",
+    "bandwidth_month": "{{size}} bandwidth a month"
   },
   "cron": {
     "title": "Cron jobs",
@@ -2277,7 +2310,11 @@
       "update_available": "New ekPanel version",
       "update_finished": "ekPanel updated",
       "update_failed": "ekPanel update failed",
-      "recovery_code_used": "Sign-in with a recovery code"
+      "recovery_code_used": "Sign-in with a recovery code",
+      "bandwidth_warning": "Bandwidth almost used up",
+      "bandwidth_full": "Bandwidth used up",
+      "bandwidth_stopped": "Bandwidth used up, websites stopped",
+      "cron_failed": "Cron job failed"
     },
     "inbox_note": "Notifications are kept for 90 days.",
     "mail": {
@@ -2650,5 +2687,20 @@
     "coolify_done_other": "{{made}} of {{count}} made",
     "coolify_after": "The apps start on the server now. Copy their data, check them, then point their domains at this server.",
     "open_apps": "Open apps"
+  },
+  "owner": {
+    "button": "Change owner…",
+    "title": "Change owner",
+    "intro": "Give websites, databases, apps, email domains and DNS zones to another customer, or to the administrators. Nothing moves on the server: files, data and addresses stay as they are.",
+    "from": "From",
+    "to": "To",
+    "mail_domains": "Email domains",
+    "zones": "DNS zones",
+    "nothing": "{{name}} has nothing to give.",
+    "hint": "The new owner's package is checked first (counts, disk space and servers). Cron jobs, backups and this month's traffic go with a website or app.",
+    "confirm_one": "Give {{count}} item",
+    "confirm_other": "Give {{count}} items",
+    "done_one": "{{count}} item now belongs to {{name}}.",
+    "done_other": "{{count}} items now belong to {{name}}."
   }
 }

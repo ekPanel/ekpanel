@@ -199,6 +199,9 @@ func validateSite(sp agentproto.SiteSpec) error {
 	if err := sp.Web.Validate(); err != nil {
 		return err
 	}
+	if !validBlocked(sp.Blocked) {
+		return fmt.Errorf("unknown block %q", sp.Blocked)
+	}
 	if sp.SFTPPasswordHash != "" && !cryptHashRE.MatchString(sp.SFTPPasswordHash) {
 		return errors.New("invalid SFTP password hash")
 	}
@@ -598,7 +601,31 @@ func (a *applier) writePools(sp agentproto.SiteSpec) error {
 
 // ---- Caddy ----
 
-var caddyTemplate = template.Must(template.New("caddy").Funcs(template.FuncMap{"join": strings.Join}).Parse(
+// blockedPages are what a blocked website or app answers, in English: the agent does not
+// know the visitor's language. Caddy's backtick quotes hold them, so they have no backticks.
+var blockedPages = map[string]string{
+	agentproto.BlockedSuspended: blockedPage("Website suspended", "This website is suspended. If it is yours, please contact your hosting provider."),
+	agentproto.BlockedBandwidth: blockedPage("Bandwidth used up", "This website has used up its bandwidth for this month. If it is yours, please contact your hosting provider."),
+}
+
+func blockedPage(title, text string) string {
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
+		`<meta name="robots" content="noindex"><title>` + title + `</title></head>` +
+		`<body style="font-family:system-ui,sans-serif;max-width:36rem;margin:15vh auto;padding:0 1rem;color:#222">` +
+		`<h1 style="font-size:1.5rem">` + title + `</h1><p>` + text + `</p></body></html>`
+}
+
+func validBlocked(b string) bool { _, ok := blockedPages[b]; return b == "" || ok }
+
+// blockedTemplate is the inside of a blocked site block: the page, for every path.
+const blockedTemplate = `{{define "blocked"}}
+	header Content-Type "text/html; charset=utf-8"
+	header Cache-Control "no-store"
+	header Retry-After "3600"
+	respond ` + "`{{.BlockedPage}}`" + ` 503
+{{- end}}`
+
+var caddyTemplate = template.Must(template.New("caddy").Funcs(template.FuncMap{"join": strings.Join}).Parse(blockedTemplate +
 	`# Managed by ekPanel (site {{.ID}}). Changes here are overwritten.
 {{- define "tls"}}
 {{- if .Cert}}
@@ -615,6 +642,9 @@ var caddyTemplate = template.Must(template.New("caddy").Funcs(template.FuncMap{"
 {{- end}}
 {{join .Hosts ", "}} {
 {{- template "tls" .}}
+{{- if .Blocked}}
+{{- template "blocked" .}}
+{{- else}}
 	root * /home/{{.User}}/public_html{{if .DocRoot}}/{{.DocRoot}}{{end}}
 	encode zstd gzip
 	@hidden {
@@ -663,6 +693,7 @@ var caddyTemplate = template.Must(template.New("caddy").Funcs(template.FuncMap{"
 	}
 {{- end}}
 	file_server
+{{- end}}
 	log {
 		output file /var/log/caddy/site-{{.ID}}.log {
 			roll_size 20MiB
@@ -728,7 +759,7 @@ func (a *applier) writeCaddy(sp agentproto.SiteSpec) error {
 		"ID": sp.ID, "Domain": sp.Domain, "Hosts": hosts, "AliasHosts": aliases, "Internal": sp.TLS == "internal",
 		"Cert": cert, "Key": key, "User": sp.User, "PHP": sp.Kind == "php", "Socket": groupFor(sp).socket(sp.ID),
 		"Hotlink": hotlinkRule(sp), "Redirects": caddyRedirects(sp.Web), "BlockXMLRPC": sp.Web.BlockXMLRPC, "NoUploadsPHP": sp.Web.NoUploadsPHP,
-		"DocRoot": sp.Web.DocRoot,
+		"DocRoot": sp.Web.DocRoot, "Blocked": sp.Blocked != "", "BlockedPage": blockedPages[sp.Blocked],
 	})
 	path := caddySitePath(sp.ID)
 	changed, prev, err := a.writeIfChanged(path, buf.Bytes())

@@ -68,7 +68,7 @@ func (s *Server) loadSession(next http.Handler) http.Handler {
 		hash := auth.HashToken(c.Value)
 		u, err := s.store.SessionUser(r.Context(), hash)
 		switch {
-		case errors.Is(err, store.ErrNotFound):
+		case errors.Is(err, store.ErrNotFound), err == nil && u.SuspendedAt != nil && u.ImpersonatorID == nil:
 			s.setSessionCookie(w, "", -1)
 		case err != nil:
 			s.internalError(w, r, err)
@@ -79,6 +79,11 @@ func (s *Server) loadSession(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// writeSuspended refuses a suspended customer; administrators can still sign in as them.
+func writeSuspended(w http.ResponseWriter) {
+	writeError(w, http.StatusForbidden, "account_suspended", "this account is suspended; please contact your hosting provider")
 }
 
 func currentUser(r *http.Request) *store.User {
@@ -286,6 +291,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	if ok, err := auth.VerifyPassword(req.Password, u.PasswordHash); err != nil || !ok {
 		fail("invalid_credentials", "email or password is not correct")
+		return
+	}
+	if u.SuspendedAt != nil {
+		writeSuspended(w)
 		return
 	}
 	if u.TOTPEnabled {

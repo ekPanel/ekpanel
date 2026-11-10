@@ -2712,6 +2712,96 @@
         "x-ekpanel-scope": "customers"
       }
     },
+    "/api/v1/customers/{id}/suspend": {
+      "post": {
+        "operationId": "postCustomersIdSuspend",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Suspend customer",
+        "tags": [
+          "customers"
+        ],
+        "x-ekpanel-scope": "customers"
+      }
+    },
+    "/api/v1/customers/{id}/unsuspend": {
+      "post": {
+        "operationId": "postCustomersIdUnsuspend",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Unsuspend customer",
+        "tags": [
+          "customers"
+        ],
+        "x-ekpanel-scope": "customers"
+      }
+    },
     "/api/v1/databases": {
       "get": {
         "operationId": "getDatabases",
@@ -5205,6 +5295,41 @@
         "tags": [
           "panel"
         ]
+      }
+    },
+    "/api/v1/owner-changes": {
+      "post": {
+        "operationId": "postOwnerChanges",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Change owner",
+        "tags": [
+          "owner-changes"
+        ],
+        "x-ekpanel-scope": "customers"
       }
     },
     "/api/v1/packages": {

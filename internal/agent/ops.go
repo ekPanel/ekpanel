@@ -175,6 +175,12 @@ func Dispatch(ctx context.Context, op string, params json.RawMessage) (any, *age
 			return cronRun(ctx, realSystem, p)
 		}
 		return cronStatus(ctx, realSystem, p)
+	case agentproto.OpCronResults:
+		var p agentproto.CronResultsParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return cronResults(ctx, realSystem, p)
 	case agentproto.OpAccessLog:
 		return accessLogOp(ctx, realSystem, params)
 	case agentproto.OpTraffic:

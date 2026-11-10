@@ -46,6 +46,7 @@ var routeScopes = map[string][]string{
 	"servers":       {"servers"},
 	"customers":     {"customers"},
 	"packages":      {"customers"},
+	"owner-changes": {"customers"},
 	"settings":      {"settings"},
 	"updates":       {"settings"},
 	"audit":         {"settings"},
@@ -121,6 +122,10 @@ func (s *Server) tokenAuth(w http.ResponseWriter, r *http.Request) (*http.Reques
 	}
 	if err != nil {
 		s.internalError(w, r, err)
+		return r, false
+	}
+	if u.SuspendedAt != nil {
+		writeSuspended(w)
 		return r, false
 	}
 	scopes, allowed := tokenScopeFor(r.Method, r.URL.Path)
