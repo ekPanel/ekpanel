@@ -209,7 +209,7 @@ func (s *Store) ListApps(ctx context.Context, serverID string) ([]App, error) {
 // ListAppsOf is ListApps for one owner only, unless ownerID is empty.
 func (s *Store) ListAppsOf(ctx context.Context, serverID, ownerID string) ([]App, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+appColumns+appFrom+`
-		WHERE ($1 = '' OR a.server_id::text = $1) AND ($2 = '' OR a.owner_id::text = $2) ORDER BY a.name, sv.name`, serverID, ownerID)
+		WHERE ($1 = '' OR a.server_id::text = $1) AND ($2 = '' OR `+ownedBy("a.owner_id", "$2")+`) ORDER BY a.name, sv.name`, serverID, ownerID)
 	if err != nil {
 		return nil, err
 	}

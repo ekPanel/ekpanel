@@ -113,26 +113,27 @@ func (s *Server) checkPasswordAgain(w http.ResponseWriter, u *store.User, passwo
 // handleResetCustomerTOTP turns a customer's two-factor off (they lost their phone and
 // codes); they sign in with the password and can turn it on again.
 func (s *Server) handleResetCustomerTOTP(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	if !isUUID(id) {
-		writeError(w, http.StatusNotFound, "customer_not_found", "no such customer")
+	c, err := s.getCustomer(r, urlID(r))
+	if err != nil {
+		s.writeCustomerError(w, r, err)
 		return
 	}
-	c, err := s.store.UserByID(r.Context(), id)
-	if err != nil || c.Role != "customer" {
-		writeError(w, http.StatusNotFound, "customer_not_found", "no such customer")
-		return
+	if s.resetTOTP(w, r, c.ID) {
+		s.audit(r, "customer.2fa_reset", c.Email, map[string]any{"customer_id": c.ID})
+		w.WriteHeader(http.StatusNoContent)
 	}
-	if err := s.store.SetTOTP(r.Context(), c.ID, nil, false); err != nil {
+}
+
+func (s *Server) resetTOTP(w http.ResponseWriter, r *http.Request, id string) bool {
+	if err := s.store.SetTOTP(r.Context(), id, nil, false); err != nil {
 		s.internalError(w, r, err)
-		return
+		return false
 	}
-	if err := s.store.SetRecoveryCodes(r.Context(), c.ID, nil); err != nil {
+	if err := s.store.SetRecoveryCodes(r.Context(), id, nil); err != nil {
 		s.internalError(w, r, err)
-		return
+		return false
 	}
-	s.audit(r, "customer.2fa_reset", c.Email, map[string]any{"customer_id": c.ID})
-	w.WriteHeader(http.StatusNoContent)
+	return true
 }
 
 // ---- Sessions ----

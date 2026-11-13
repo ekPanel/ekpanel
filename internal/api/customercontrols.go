@@ -24,9 +24,9 @@ func (s *Server) handleSuspendCustomer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_reason", "the reason can be up to 500 characters")
 		return
 	}
-	c, err := s.store.GetCustomer(r.Context(), urlID(r))
+	c, err := s.getCustomer(r, urlID(r))
 	if err == nil {
-		err = s.store.SuspendCustomer(r.Context(), c.ID, req.Reason)
+		err = s.store.SuspendUser(r.Context(), c.ID, "customer", req.Reason, currentUser(r).ID)
 	}
 	if err != nil {
 		s.writeCustomerError(w, r, err)
@@ -38,11 +38,24 @@ func (s *Server) handleSuspendCustomer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUnsuspendCustomer(w http.ResponseWriter, r *http.Request) {
-	c, err := s.store.GetCustomer(r.Context(), urlID(r))
-	if err == nil {
-		err = s.store.UnsuspendCustomer(r.Context(), c.ID)
-	}
+	c, err := s.getCustomer(r, urlID(r))
 	if err != nil {
+		s.writeCustomerError(w, r, err)
+		return
+	}
+	// What an administrator suspended, only an administrator lifts.
+	if isReseller(r) {
+		byAdmin, err := s.store.SuspendedByAdmin(r.Context(), c.ID)
+		if err != nil {
+			s.internalError(w, r, err)
+			return
+		}
+		if byAdmin {
+			writeError(w, http.StatusForbidden, "suspended_by_admin", "an administrator suspended this customer; ask them")
+			return
+		}
+	}
+	if err := s.store.UnsuspendUser(r.Context(), c.ID, "customer"); err != nil {
 		s.writeCustomerError(w, r, err)
 		return
 	}
@@ -52,7 +65,7 @@ func (s *Server) handleUnsuspendCustomer(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) writeCustomer(w http.ResponseWriter, r *http.Request, id string) {
-	c, err := s.store.GetCustomer(r.Context(), id)
+	c, err := s.getCustomer(r, id)
 	if err != nil {
 		s.writeCustomerError(w, r, err)
 		return
@@ -96,6 +109,7 @@ func uniqueIDs(ids []string) ([]string, bool) {
 
 // handleChangeOwner gives websites, databases, apps, email domains and DNS zones to another
 // customer or to the administrators. Things the new owner already has are left as they are.
+// A reseller moves things only between their own customers.
 func (s *Server) handleChangeOwner(w http.ResponseWriter, r *http.Request) {
 	var req ownerChangeRequest
 	if !readJSON(w, r, &req) {
@@ -119,8 +133,12 @@ func (s *Server) handleChangeOwner(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var to *string
 	var target store.Customer
+	if req.To == "" && isReseller(r) {
+		writeError(w, http.StatusBadRequest, "customer_required", "choose the customer to give these to")
+		return
+	}
 	if req.To != "" {
-		c, err := s.store.GetCustomer(ctx, urlSafeID(req.To))
+		c, err := s.getCustomer(r, urlSafeID(req.To))
 		if errors.Is(err, store.ErrNotFound) {
 			writeError(w, http.StatusBadRequest, "customer_not_found", "choose a customer")
 			return
@@ -149,9 +167,22 @@ func (s *Server) handleChangeOwner(w http.ResponseWriter, r *http.Request) {
 			add.servers = append(add.servers, id)
 		}
 	}
+	// What comes to the new owner's reseller from outside it counts against their limits.
+	var fromOutside store.Usage
+	var outsideServers []string
+	outside := func(owner *string) bool {
+		if target.ResellerID == nil {
+			return false
+		}
+		if owner == nil {
+			return true
+		}
+		reseller, err := s.store.ResellerOf(ctx, *owner)
+		return err != nil || !sameID(reseller, target.ResellerID)
+	}
 	for _, id := range req.Sites {
 		site, err := s.store.GetSite(ctx, id)
-		if err != nil || site.State == "deleting" {
+		if err != nil || site.State == "deleting" || !s.visible(r, site.OwnerID) {
 			notFound("site_not_found")
 			return
 		}
@@ -176,12 +207,18 @@ func (s *Server) handleChangeOwner(w http.ResponseWriter, r *http.Request) {
 			add.disk += *site.DiskBytes
 		}
 		addServer(site.ServerID)
+		if outside(site.OwnerID) {
+			fromOutside.Sites++
+			fromOutside.CronJobs += len(jobs)
+			fromOutside.DiskBytes += deref(site.DiskBytes)
+			outsideServers = append(outsideServers, site.ServerID)
+		}
 		add.names = append(add.names, site.Domain)
 		change.Sites = append(change.Sites, id)
 	}
 	for _, id := range req.Databases {
 		db, err := s.store.GetDatabase(ctx, id)
-		if err != nil || db.State == "deleting" {
+		if err != nil || db.State == "deleting" || !s.visible(r, db.OwnerID) {
 			notFound("database_not_found")
 			return
 		}
@@ -197,12 +234,17 @@ func (s *Server) handleChangeOwner(w http.ResponseWriter, r *http.Request) {
 			add.disk += *db.SizeBytes
 		}
 		addServer(db.ServerID)
+		if outside(db.OwnerID) {
+			fromOutside.Databases++
+			fromOutside.DiskBytes += deref(db.SizeBytes)
+			outsideServers = append(outsideServers, db.ServerID)
+		}
 		add.names = append(add.names, db.Name)
 		change.Databases = append(change.Databases, id)
 	}
 	for _, id := range req.Apps {
 		app, err := s.store.GetApp(ctx, id)
-		if err != nil || app.State == "deleting" {
+		if err != nil || app.State == "deleting" || !s.visible(r, app.OwnerID) {
 			notFound("app_not_found")
 			return
 		}
@@ -227,12 +269,18 @@ func (s *Server) handleChangeOwner(w http.ResponseWriter, r *http.Request) {
 			add.disk += *app.DiskBytes
 		}
 		addServer(app.ServerID)
+		if outside(app.OwnerID) {
+			fromOutside.Apps++
+			fromOutside.CronJobs += len(jobs)
+			fromOutside.DiskBytes += deref(app.DiskBytes)
+			outsideServers = append(outsideServers, app.ServerID)
+		}
 		add.names = append(add.names, app.Name)
 		change.Apps = append(change.Apps, id)
 	}
 	for _, id := range req.MailDomains {
 		d, err := s.store.GetMailDomain(ctx, id)
-		if err != nil || d.State == "deleting" {
+		if err != nil || d.State == "deleting" || !s.visible(r, d.OwnerID) {
 			notFound("mail_not_found")
 			return
 		}
@@ -247,17 +295,23 @@ func (s *Server) handleChangeOwner(w http.ResponseWriter, r *http.Request) {
 		add.mailDomains++
 		addServer(d.ServerID)
 		add.mailboxes += len(boxes)
+		var used int64
 		for _, b := range boxes {
-			if b.UsedBytes != nil {
-				add.disk += *b.UsedBytes
-			}
+			used += deref(b.UsedBytes)
+		}
+		add.disk += used
+		if outside(d.OwnerID) {
+			fromOutside.MailDomains++
+			fromOutside.Mailboxes += len(boxes)
+			fromOutside.DiskBytes += used
+			outsideServers = append(outsideServers, d.ServerID)
 		}
 		add.names = append(add.names, d.Domain)
 		change.MailDomains = append(change.MailDomains, id)
 	}
 	for _, id := range req.Zones {
 		z, err := s.store.GetHostedZone(ctx, id)
-		if err != nil {
+		if err != nil || !s.visible(r, z.OwnerID) {
 			notFound("zone_not_found")
 			return
 		}
@@ -272,6 +326,10 @@ func (s *Server) handleChangeOwner(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if to != nil && !s.ownerChangeFits(w, r, target, add) {
+		return
+	}
+	if target.ResellerID != nil && fromOutside != (store.Usage{}) &&
+		!s.resellerAllowsFor(w, r, *target.ResellerID, fromOutside, outsideServers...) {
 		return
 	}
 	servers, err := s.store.ChangeOwner(ctx, change)
@@ -351,4 +409,11 @@ func urlSafeID(id string) string {
 		return id
 	}
 	return nilUUID
+}
+
+func deref(n *int64) int64 {
+	if n == nil {
+		return 0
+	}
+	return *n
 }

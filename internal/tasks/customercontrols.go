@@ -111,20 +111,42 @@ func cronResultText(jr agentproto.CronResult) string {
 
 // ---- Bandwidth ----
 
-// CheckBandwidth compares each limited customer's traffic this month with their package:
-// it alerts at 90% and 100%, and blocks (or unblocks) their websites and apps where the
-// package says so. ids limits the check to those customers; none means all of them.
+// CheckBandwidth compares each limited customer's traffic this month with their package,
+// and each limited reseller's (all their customers together) with their limits: it alerts at
+// 90% and 100%, and blocks (or unblocks) websites and apps where the package or the reseller
+// says so. ids limits the check to those customers and resellers (a customer's reseller is
+// checked with them); none means all of them.
 func (r *Runner) CheckBandwidth(ctx context.Context, ids ...string) {
+	var customers, resellers []string
 	if len(ids) == 0 {
 		var err error
-		if ids, err = r.store.BandwidthCustomers(ctx); err != nil {
+		if customers, err = r.store.BandwidthCustomers(ctx); err != nil {
 			r.log.Error("customers with bandwidth limits", "err", err)
 			return
+		}
+		if resellers, err = r.store.BandwidthResellers(ctx); err != nil {
+			r.log.Error("resellers with bandwidth limits", "err", err)
+			return
+		}
+	}
+	for _, id := range ids {
+		u, err := r.store.UserByID(ctx, id)
+		if err != nil {
+			continue
+		}
+		switch {
+		case u.Role == "reseller":
+			resellers = append(resellers, id)
+		case u.Role == "customer":
+			customers = append(customers, id)
+			if u.ResellerID != nil {
+				resellers = append(resellers, *u.ResellerID)
+			}
 		}
 	}
 	now := time.Now().UTC()
 	month := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-	for _, id := range ids {
+	for _, id := range customers {
 		c, err := r.store.GetCustomer(ctx, id)
 		if err != nil {
 			continue
@@ -133,42 +155,79 @@ func (r *Runner) CheckBandwidth(ctx context.Context, ids ...string) {
 		if err != nil {
 			continue
 		}
-		level := "ok"
-		var used, limit int64
+		var used int64
 		if pkg.BandwidthGB != nil {
-			limit = int64(*pkg.BandwidthGB) << 30
 			if used, err = r.store.OwnerBandwidth(ctx, id, month); err != nil {
 				r.log.Error("bandwidth of customer", "customer", id, "err", err)
 				continue
 			}
-			switch {
-			case used >= limit:
-				level = "full"
-			case used*10 >= limit*9:
-				level = "warning"
-			}
 		}
-		// The key holds the month, so each month starts afresh.
-		prev, _ := r.store.SwapAlertState(ctx, "bandwidth:"+id+":"+month.Format("2006-01"), level)
-		if level != "ok" && level != prev && !(level == "warning" && prev == "full") {
-			owner := id
-			event := "bandwidth_" + level
-			if level == "full" && pkg.BandwidthStop {
-				event = "bandwidth_stopped"
-			}
-			r.alert(ctx, &owner, event, map[string]string{"full": "critical", "warning": "warning"}[level],
-				map[string]string{"customer": c.Name, "used": humanBytes(used), "limit": humanBytes(limit)}, "/")
-		}
-		blocked := level == "full" && pkg.BandwidthStop
-		changed, err := r.store.SetBandwidthBlocked(ctx, id, blocked)
-		if err != nil {
-			r.log.Error("record bandwidth block", "customer", id, "err", err)
-			continue
-		}
-		if changed {
+		if r.bandwidthLevel(ctx, id, c.Name, month, used, pkg.BandwidthGB, pkg.BandwidthStop) {
 			r.ReapplyOwner(ctx, id)
 		}
 	}
+	for _, id := range dedupe(resellers) {
+		rs, err := r.store.GetReseller(ctx, id)
+		if err != nil {
+			continue
+		}
+		if r.bandwidthLevel(ctx, id, rs.Name, month, rs.BandwidthMonth, rs.Limits.BandwidthGB, rs.Limits.BandwidthStop) {
+			list, err := r.store.CustomersOfReseller(ctx, id)
+			if err != nil {
+				r.log.Error("customers of reseller", "reseller", id, "err", err)
+				continue
+			}
+			for _, c := range list {
+				r.ReapplyOwner(ctx, c)
+			}
+		}
+	}
+}
+
+// bandwidthLevel alerts the account (a customer or a reseller) when their use this month
+// crosses 90% or 100% of limitGB, records whether their websites are blocked for it, and
+// reports whether that changed.
+func (r *Runner) bandwidthLevel(ctx context.Context, id, name string, month time.Time, used int64, limitGB *int, stop bool) bool {
+	level := "ok"
+	var limit int64
+	if limitGB != nil {
+		limit = int64(*limitGB) << 30
+		switch {
+		case used >= limit:
+			level = "full"
+		case used*10 >= limit*9:
+			level = "warning"
+		}
+	}
+	// The key holds the month, so each month starts afresh.
+	prev, _ := r.store.SwapAlertState(ctx, "bandwidth:"+id+":"+month.Format("2006-01"), level)
+	if level != "ok" && level != prev && !(level == "warning" && prev == "full") {
+		owner := id
+		event := "bandwidth_" + level
+		if level == "full" && stop {
+			event = "bandwidth_stopped"
+		}
+		r.alert(ctx, &owner, event, map[string]string{"full": "critical", "warning": "warning"}[level],
+			map[string]string{"customer": name, "used": humanBytes(used), "limit": humanBytes(limit)}, "/")
+	}
+	changed, err := r.store.SetBandwidthBlocked(ctx, id, level == "full" && stop)
+	if err != nil {
+		r.log.Error("record bandwidth block", "account", id, "err", err)
+		return false
+	}
+	return changed
+}
+
+func dedupe(ids []string) []string {
+	seen := map[string]bool{}
+	out := ids[:0:0]
+	for _, id := range ids {
+		if !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // ReapplyOwner queues a reconcile of every server where the customer has something.

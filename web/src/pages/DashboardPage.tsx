@@ -72,7 +72,9 @@ export function DashboardPage() {
       <PageHeader
         title={t("dashboard.greeting", { name: user.name.split(" ")[0] })}
         description={
-          !isAdmin
+          user.role === "reseller"
+            ? t("dashboard.reseller_intro")
+            : !isAdmin
             ? t("dashboard.customer_intro")
             : list.length === 0
               ? t("dashboard.no_servers_intro")

@@ -101,7 +101,7 @@ func (s *Server) writeCronError(w http.ResponseWriter, r *http.Request, err erro
 
 func (s *Server) getCron(r *http.Request) (store.CronJob, error) {
 	j, err := s.store.GetCronJob(r.Context(), urlID(r))
-	if err == nil && !visible(r, j.OwnerID) {
+	if err == nil && !s.visible(r, j.OwnerID) {
 		return store.CronJob{}, store.ErrNotFound
 	}
 	return j, err

@@ -253,6 +253,10 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusConflict, "limit_reached_cron", "the package does not allow that many cron jobs")
 			return
 		}
+		add := store.Usage{Sites: len(domains), Databases: len(dbs), CronJobs: cronN}
+		if !s.resellerAllows(w, r, place.OwnerID, add, srv.ID) {
+			return
+		}
 	}
 	// Names that are taken stop the import before anything is made.
 	var names []string

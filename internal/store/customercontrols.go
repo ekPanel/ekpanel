@@ -6,35 +6,45 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// SuspendCustomer suspends a customer and ends their own sessions (an administrator signed
-// in as them keeps theirs). It reports ErrNotFound for anyone who is not a customer.
-func (s *Store) SuspendCustomer(ctx context.Context, id, reason string) error {
+// SuspendUser suspends a customer or a reseller (role) and ends their own sessions (an
+// administrator signed in as them keeps theirs; a reseller's sessions as one of their
+// customers end too). It reports ErrNotFound for anyone else. by is who suspends.
+func (s *Store) SuspendUser(ctx context.Context, id, role, reason, by string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	tag, err := tx.Exec(ctx, `UPDATE users SET suspended_at = COALESCE(suspended_at, now()), suspend_reason = $2, updated_at = now()
-		WHERE id = $1 AND role = 'customer'`, id, reason)
+	tag, err := tx.Exec(ctx, `UPDATE users SET suspended_at = COALESCE(suspended_at, now()), suspend_reason = $3,
+			suspended_by = $4, updated_at = now()
+		WHERE id = $1 AND role = $2`, id, role, reason, by)
 	if err != nil {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
-	if _, err := tx.Exec(ctx, `DELETE FROM sessions WHERE user_id = $1 AND impersonator_id IS NULL`, id); err != nil {
+	if _, err := tx.Exec(ctx, `DELETE FROM sessions WHERE (user_id = $1 AND impersonator_id IS NULL) OR impersonator_id = $1`, id); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
 }
 
-func (s *Store) UnsuspendCustomer(ctx context.Context, id string) error {
-	tag, err := s.pool.Exec(ctx, `UPDATE users SET suspended_at = NULL, suspend_reason = NULL, updated_at = now()
-		WHERE id = $1 AND role = 'customer'`, id)
+func (s *Store) UnsuspendUser(ctx context.Context, id, role string) error {
+	tag, err := s.pool.Exec(ctx, `UPDATE users SET suspended_at = NULL, suspend_reason = NULL, suspended_by = NULL, updated_at = now()
+		WHERE id = $1 AND role = $2`, id, role)
 	if err == nil && tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
 	return err
+}
+
+// SuspendedByAdmin reports whether an administrator suspended the account itself.
+func (s *Store) SuspendedByAdmin(ctx context.Context, id string) (bool, error) {
+	var admin bool
+	err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM users u JOIN users b ON b.id = u.suspended_by
+		WHERE u.id = $1 AND u.suspended_at IS NOT NULL AND b.role = 'admin')`, id).Scan(&admin)
+	return admin, err
 }
 
 // SetBandwidthBlocked records whether a customer's websites are stopped for bandwidth and
@@ -118,9 +128,10 @@ func (s *Store) ChangeOwner(ctx context.Context, c OwnerChange) ([]string, error
 	return out, nil
 }
 
-// SuspendedCustomers is the set of suspended customers.
+// SuspendedCustomers is the set of suspended customers, those of suspended resellers too.
 func (s *Store) SuspendedCustomers(ctx context.Context) (map[string]bool, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id::text FROM users WHERE suspended_at IS NOT NULL`)
+	rows, err := s.pool.Query(ctx, `SELECT u.id::text FROM users u LEFT JOIN users r ON r.id = u.reseller_id
+		WHERE u.suspended_at IS NOT NULL OR r.suspended_at IS NOT NULL`)
 	if err != nil {
 		return nil, err
 	}

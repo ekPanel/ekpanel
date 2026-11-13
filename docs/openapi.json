@@ -5551,6 +5551,410 @@
         "x-ekpanel-scope": "read or sites"
       }
     },
+    "/api/v1/resellers": {
+      "get": {
+        "operationId": "getResellers",
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "List resellers",
+        "tags": [
+          "resellers"
+        ],
+        "x-ekpanel-scope": "read or customers"
+      },
+      "post": {
+        "operationId": "postResellers",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Create reseller",
+        "tags": [
+          "resellers"
+        ],
+        "x-ekpanel-scope": "customers"
+      }
+    },
+    "/api/v1/resellers/{id}": {
+      "delete": {
+        "operationId": "deleteResellersId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Delete reseller",
+        "tags": [
+          "resellers"
+        ],
+        "x-ekpanel-scope": "customers"
+      },
+      "get": {
+        "operationId": "getResellersId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Get reseller",
+        "tags": [
+          "resellers"
+        ],
+        "x-ekpanel-scope": "read or customers"
+      },
+      "put": {
+        "operationId": "putResellersId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Update reseller",
+        "tags": [
+          "resellers"
+        ],
+        "x-ekpanel-scope": "customers"
+      }
+    },
+    "/api/v1/resellers/{id}/2fa/reset": {
+      "post": {
+        "operationId": "postResellersId2faReset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Reset reseller two-factor",
+        "tags": [
+          "resellers"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
+    "/api/v1/resellers/{id}/impersonate": {
+      "post": {
+        "operationId": "postResellersIdImpersonate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Impersonate reseller",
+        "tags": [
+          "resellers"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
+    "/api/v1/resellers/{id}/password": {
+      "post": {
+        "operationId": "postResellersIdPassword",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Reset reseller password",
+        "tags": [
+          "resellers"
+        ],
+        "x-ekpanel-scope": "customers"
+      }
+    },
+    "/api/v1/resellers/{id}/suspend": {
+      "post": {
+        "operationId": "postResellersIdSuspend",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Suspend reseller",
+        "tags": [
+          "resellers"
+        ],
+        "x-ekpanel-scope": "customers"
+      }
+    },
+    "/api/v1/resellers/{id}/unsuspend": {
+      "post": {
+        "operationId": "postResellersIdUnsuspend",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Unsuspend reseller",
+        "tags": [
+          "resellers"
+        ],
+        "x-ekpanel-scope": "customers"
+      }
+    },
     "/api/v1/servers": {
       "get": {
         "operationId": "getServers",

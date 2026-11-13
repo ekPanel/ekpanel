@@ -25,6 +25,7 @@ const tokenPrefix = "ekp_"
 var (
 	TokenScopes    = []string{"read", "sites", "databases", "apps", "dns", "mail", "backups", "servers", "customers", "settings"}
 	customerScopes = []string{"read", "sites", "databases", "apps", "dns", "mail", "settings"}
+	resellerScopes = []string{"read", "sites", "databases", "apps", "dns", "mail", "customers", "settings"}
 )
 
 // routeScopes maps the first segment of an API path to the scopes that allow it. A segment
@@ -47,6 +48,7 @@ var routeScopes = map[string][]string{
 	"customers":     {"customers"},
 	"packages":      {"customers"},
 	"owner-changes": {"customers"},
+	"resellers":     {"customers"},
 	"settings":      {"settings"},
 	"updates":       {"settings"},
 	"audit":         {"settings"},
@@ -181,8 +183,11 @@ func (s *Server) handleCreateToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	allowed := TokenScopes
-	if u.Role != "admin" {
+	switch u.Role {
+	case "customer":
 		allowed = customerScopes
+	case "reseller":
+		allowed = resellerScopes
 	}
 	scopes := []string{}
 	for _, sc := range req.Scopes {

@@ -362,7 +362,7 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		switch {
 		case c.SuspendedAt != nil:
 			blocks[*id] = agentproto.BlockedSuspended
-		case c.BandwidthBlocked && p.BandwidthStop:
+		case (c.BandwidthBlocked && p.BandwidthStop) || c.ResellerBandwidthBlocked:
 			blocks[*id] = agentproto.BlockedBandwidth
 		}
 		return *id, &p, nil

@@ -172,7 +172,7 @@ func (s *Store) GetMailDomain(ctx context.Context, id string) (MailDomain, error
 // owner only unless ownerID is "".
 func (s *Store) ListMailDomains(ctx context.Context, serverID, ownerID string) ([]MailDomain, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+mailDomainColumns+mailDomainFrom+`
-		WHERE ($1 = '' OR d.server_id::text = $1) AND ($2 = '' OR d.owner_id::text = $2) ORDER BY d.domain`, serverID, ownerID)
+		WHERE ($1 = '' OR d.server_id::text = $1) AND ($2 = '' OR `+ownedBy("d.owner_id", "$2")+`) ORDER BY d.domain`, serverID, ownerID)
 	if err != nil {
 		return nil, err
 	}

@@ -346,13 +346,13 @@ func (s *Server) handleDeleteSite(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handlePHPVersions(w http.ResponseWriter, r *http.Request) {
 	versions, def := agentproto.PHPVersions, agentproto.DefaultPHPVersion
 	if !isAdmin(r) {
-		pkg, err := s.packageFor(r, &currentUser(r).ID)
+		of, err := s.offerFor(r)
 		if err != nil {
 			s.internalError(w, r, err)
 			return
 		}
-		if len(pkg.PHPVersions) > 0 {
-			versions = slices.DeleteFunc(slices.Clone(versions), func(v string) bool { return !slices.Contains(pkg.PHPVersions, v) })
+		if len(of.PHPVersions) > 0 {
+			versions = slices.DeleteFunc(slices.Clone(versions), func(v string) bool { return !slices.Contains(of.PHPVersions, v) })
 			if !slices.Contains(versions, def) && len(versions) > 0 {
 				def = versions[0]
 			}

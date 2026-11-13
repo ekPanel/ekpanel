@@ -94,6 +94,9 @@ func (s *Server) checkImportMail(w http.ResponseWriter, r *http.Request, srv sto
 			writeError(w, http.StatusConflict, "limit_reached_mailbox", "the package does not allow that many mailboxes")
 			return nil, false
 		}
+		if !s.resellerAllows(w, r, place.OwnerID, store.Usage{MailDomains: len(out), Mailboxes: boxes}, srv.ID) {
+			return nil, false
+		}
 	}
 	return out, true
 }

@@ -219,6 +219,13 @@ func (s *Server) handleImportSiteArchive(w http.ResponseWriter, r *http.Request)
 			return
 		}
 	}
+	add := store.Usage{Sites: 1}
+	if withDB {
+		add.Databases = 1
+	}
+	if !s.resellerAllows(w, r, place.OwnerID, add, srv.ID) {
+		return
+	}
 	if taken, err := s.store.HostnamesTaken(ctx, append([]string{domain}, site.Aliases...)); err != nil {
 		s.internalError(w, r, err)
 		return

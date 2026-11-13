@@ -34,7 +34,9 @@
     "security_page": "Server security",
     "updates": "Updates",
     "tokens": "API tokens",
-    "import": "Import"
+    "import": "Import",
+    "reseller": "Reseller",
+    "resellers": "Resellers"
   },
   "theme": {
     "label": "Theme",
@@ -238,7 +240,8 @@
       "admin": "Create the administrator account",
       "server": "Connect a server",
       "twofa": "Turn on two-factor authentication"
-    }
+    },
+    "reseller_intro": "Your customers' websites, databases and apps, and what your reseller account allows."
   },
   "audit": {
     "intro": "Every change made in this panel, who made it and from where. Entries cannot be edited or deleted.",
@@ -457,6 +460,16 @@
       },
       "owner": {
         "changed": "Owner changed"
+      },
+      "reseller": {
+        "created": "Reseller added",
+        "updated": "Reseller changed",
+        "deleted": "Reseller deleted",
+        "password_reset": "Reseller password reset",
+        "2fa_reset": "Reseller's two-factor reset",
+        "impersonated": "Signed in as reseller",
+        "suspended": "Reseller suspended",
+        "unsuspended": "Reseller unsuspended"
       }
     },
     "via_token": "with the API token “{{name}}”"
@@ -738,7 +751,23 @@
     "new_owner_limit_mail_domain": "The new owner's package does not allow that many email domains.",
     "new_owner_limit_mailbox": "The new owner's package does not allow that many mailboxes.",
     "new_owner_quota": "These do not fit in the disk space of the new owner's package.",
-    "new_owner_server": "The new owner's package cannot use the server of one of these."
+    "new_owner_server": "The new owner's package cannot use the server of one of these.",
+    "customer_required": "Choose the customer this is for.",
+    "reseller_not_found": "Choose a reseller.",
+    "reseller_has_customers": "This reseller still has customers. Move them to yourself or another reseller, or delete them, first.",
+    "reseller_limit_customer": "The reseller's account allows no more customers.",
+    "reseller_limit_site": "The reseller's account allows no more websites.",
+    "reseller_limit_database": "The reseller's account allows no more databases.",
+    "reseller_limit_app": "The reseller's account allows no more apps.",
+    "reseller_limit_cron": "The reseller's account allows no more cron jobs.",
+    "reseller_limit_mail_domain": "The reseller's account allows no more email domains.",
+    "reseller_limit_mailbox": "The reseller's account allows no more mailboxes.",
+    "reseller_quota": "The disk space of the reseller's account is used up.",
+    "reseller_server": "The reseller's account cannot use that server.",
+    "package_over_reseller": "This package gives more than your reseller account allows: {{field}}. Your limits are on the dashboard; an empty size means \"no limit\", which is more than a limited account allows.",
+    "suspended_by_admin": "An administrator suspended this customer, so only an administrator can lift it.",
+    "not_for_resellers": "Sign in as the customer to connect their Cloudflare account.",
+    "invalid_reseller_limits": "Check the limits: counts are 0 or more, and sizes must be large enough."
   },
   "not_found": {
     "title": "Page not found",
@@ -2123,7 +2152,17 @@
     "suspend_title": "Suspend {{name}}?",
     "suspend_body": "They can no longer sign in (password, passkey or API token). Their websites and app addresses show a \"suspended\" page, apps stop, cron jobs pause, SFTP and FTP are off and mailboxes cannot sign in; mail still arrives. Nothing is deleted, and unsuspending puts everything back. You can still sign in as them.",
     "suspend_reason": "Reason",
-    "suspend_reason_hint": "For the administrators and the audit log; the customer does not see it."
+    "suspend_reason_hint": "For the administrators and the audit log; the customer does not see it.",
+    "reseller_needs_customer": "Add a customer first: as a reseller, everything you create belongs to one of your customers.",
+    "reseller": "Reseller",
+    "reseller_none": "None (your own customer)",
+    "reseller_hint": "A reseller's customer uses one of that reseller's packages and counts against the reseller's limits.",
+    "show": "Show",
+    "show_all": "All customers",
+    "show_admins": "Your own customers",
+    "show_reseller": "Customers of {{name}}",
+    "of_reseller": "via {{name}}",
+    "reseller_bandwidth_blocked": "Reseller's bandwidth used up: websites stopped"
   },
   "packages": {
     "intro": "What each customer may use: how many websites, databases and apps, disk space, and memory and CPU for all their processes together.",
@@ -2162,7 +2201,9 @@
     "bandwidth": "Bandwidth per month (GB)",
     "bandwidth_stop": "Stop websites and apps when it is used up, until the next month",
     "bandwidth_hint": "What websites and apps send, per calendar month (UTC). The customer and the administrators are told at 90% and 100%. Empty means no limit.",
-    "bandwidth_month": "{{size}} bandwidth a month"
+    "bandwidth_month": "{{size}} bandwidth a month",
+    "whose": "Whose",
+    "whose_yours": "Yours"
   },
   "cron": {
     "title": "Cron jobs",
@@ -2702,5 +2743,38 @@
     "confirm_other": "Give {{count}} items",
     "done_one": "{{count}} item now belongs to {{name}}.",
     "done_other": "{{count}} items now belong to {{name}}."
+  },
+  "resellers": {
+    "intro": "Resellers sell hosting to their own customers: they make packages and customers within the limits you give them, and see only their own customers.",
+    "add": "Add reseller",
+    "create": "Create reseller",
+    "edit": "Edit reseller",
+    "delete": "Delete reseller",
+    "delete_title": "Delete {{name}}?",
+    "delete_body": "The reseller's account and packages go. A reseller with customers cannot be deleted: move their customers to yourself or another reseller (Edit on the customer), or delete them, first.",
+    "delete_has_one": "{{formatted}} customer still belongs to this reseller.",
+    "delete_has_other": "{{formatted}} customers still belong to this reseller.",
+    "share_hint": "Send the reseller this address and password. They should change the password and turn on two-factor after signing in.",
+    "totals": "Totals for all their customers",
+    "totals_hint": "What all the reseller's customers may have together. Their packages may promise more; what customers actually have is counted, and new things are refused once a total is reached.",
+    "bandwidth_stop": "Stop all their customers' websites and apps when it is used up",
+    "bandwidth_stop_hint": "Bandwidth counts what all your customers' websites and apps send, per calendar month (UTC). When it is used up, they show a \"bandwidth used up\" page until next month.",
+    "per_package": "The most one package may give",
+    "per_package_hint": "Empty means any. With a limit, every package of the reseller must have one at most this large.",
+    "per_package_short": "Per package at most: {{limits}}",
+    "offer": "What their packages may offer",
+    "php_hint": "None ticked: every PHP version.",
+    "servers_hint": "None ticked: every server. Their customers' websites, databases and apps go only on these.",
+    "images_hint": "One per line; a name ending in / allows everything under it. Empty: any image.",
+    "packages_count_one": "{{formatted}} package",
+    "packages_count_other": "{{formatted}} packages",
+    "customers": "Customers",
+    "suspend_body": "The reseller and all their customers can no longer sign in, and every customer's websites and apps show a \"suspended\" page, as if each was suspended. Nothing is deleted, and unsuspending puts everything back (customers you or the reseller suspended on their own stay suspended).",
+    "your_account": "Your reseller account",
+    "your_account_hint": "What all your customers have together, against what the administrator gave you.",
+    "empty": {
+      "title": "No resellers yet",
+      "body": "Add a reseller to let someone sell hosting on your servers to their own customers."
+    }
   }
 }

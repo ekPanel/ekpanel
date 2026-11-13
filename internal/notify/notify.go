@@ -174,7 +174,8 @@ func (n *Notifier) Event(ctx context.Context, users []string, event, severity st
 	}
 }
 
-// Admins sends an event to every administrator, and also to owner if given.
+// Admins sends an event to every administrator, and also to owner if given (and to the
+// reseller whose customer owner is).
 func (n *Notifier) Admins(ctx context.Context, owner *string, event, severity string, params map[string]string, path string) {
 	users, err := n.store.AdminIDs(ctx)
 	if err != nil {
@@ -182,6 +183,10 @@ func (n *Notifier) Admins(ctx context.Context, owner *string, event, severity st
 	}
 	if owner != nil {
 		users = append(users, *owner)
+		// A reseller hears about their customers too.
+		if reseller, err := n.store.ResellerOf(ctx, *owner); err == nil && reseller != nil {
+			users = append(users, *reseller)
+		}
 	}
 	n.Event(ctx, users, event, severity, params, path)
 }

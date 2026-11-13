@@ -1057,8 +1057,8 @@ DNS zones and certificates next):
   and redirect such a folder to its trailing slash, as Apache does.
 
 **4e. Resellers and white-label**
-- [ ] Resellers: their own packages and customers within the limits an administrator gives
-      them; they see only their customers
+- [x] Resellers: their own packages and customers within the limits an administrator gives
+      them; they see only their customers (4e-3)
 - [ ] White-label: name, logo, colors and the panel's domain, per panel and per reseller
 - [ ] Sub-users of an account with chosen permissions (only files, only email …)
 - [x] Passkeys (WebAuthn) besides passwords and two-factor codes; active sessions listed and
@@ -1115,6 +1115,49 @@ How 4e-2 works:
 - Found while trying it: an owner change was refused for a website whose move to another
   server had finished but whose old copy was not removed yet; only copying and switching
   block it now.
+
+How 4e-3 works:
+- **A reseller** is an account an administrator makes (Admin → Resellers) with limits:
+  totals over all their customers (customers, websites, databases, apps, cron jobs, email
+  domains, mailboxes, disk space, bandwidth a month with an optional stop), the most one
+  package may give (memory, CPU, mailbox size) and what packages may offer (PHP versions,
+  images, servers, SFTP, FTP, Git apps).
+- **Totals count what customers have**, not what their packages promise (decided
+  2026-11-13): a reseller may sell more than they have, as hosts do, and new things are
+  refused once a total is reached ("the reseller's account allows no more websites"). The
+  same check runs for administrators acting for those customers, imports and owner changes.
+- **Packages** belong to the administrators or to one reseller; a reseller's package can
+  give no more than the reseller has (a limited size cannot be "no limit"; images matter only
+  with apps, the mailbox size only with mailboxes). Names are unique per reseller.
+- **What a reseller sees and does:** their customers and their customers' websites,
+  databases, apps, email, DNS zones and cron jobs (everything else reads as not found);
+  creating those for a customer (they own nothing themselves: their own website is a
+  customer of theirs); their own packages; adding, changing, suspending, signing in as and
+  deleting their customers; resetting their passwords and two-factor; changing the owner
+  between their customers. Not: servers, backups, security, imports, updates, the audit log,
+  connecting Cloudflare for a customer (sign in as them for that).
+- **Suspending a reseller** suspends all their customers with them (sign-in and websites);
+  customers suspended on their own stay so when the reseller is unsuspended. A reseller
+  cannot lift a suspension an administrator made.
+- **Bandwidth:** the reseller's customers' traffic is added up; at 90% and 100% the reseller
+  and the administrators are told, and with the stop every customer's websites and apps show
+  the "bandwidth used up" page. A reseller also hears about their customers' alerts.
+- **Administrators** see every customer with their reseller, can show one reseller's
+  customers, move a customer to another reseller or to themselves (Edit; the new reseller's
+  limits are checked with everything the customer has), and sign in as a reseller. A
+  reseller with customers cannot be deleted; deleting one removes their packages.
+- Tried in the VM: a reseller with a total of 2 websites made a customer's website, another
+  customer made one, and a third was refused; suspending the reseller turned both websites
+  into the "suspended" page (503) and refused the reseller's and both customers' sign-in; a
+  customer an administrator suspended stayed suspended after the reseller was unsuspended
+  and the reseller could not lift it. 1.06 GB served by the two customers' websites (600 MB
+  and 457 MB, each under their own 1 GB package) stopped both with the bandwidth page and
+  told the reseller; 5 GB brought them back within 2 seconds. An owner change moved a website
+  between the reseller's customers and kept it serving; deleting the reseller was refused
+  while they had customers, then removed them and their package.
+- Found while trying it: collecting traffic by hand did not check bandwidth limits until the
+  next quarter hour; it does now. A reseller whose images were limited could not make a
+  package without apps.
 
 **4f. Security center**
 - [ ] WAF: Coraza with the OWASP Core Rule Set in a Caddy that ekPanel builds and ships (with

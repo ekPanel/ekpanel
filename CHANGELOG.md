@@ -61,9 +61,17 @@ All notable changes to ekPanel are listed here. The format follows
 - Bandwidth limits in packages, per calendar month: notifications at 90% and 100%, and if the
   package says so, websites and apps show a "bandwidth used up" page until the next month (4e)
 - A notification when a cron job fails, once until it has worked again (4e)
+- Resellers (Admin → Resellers): accounts that sell hosting to their own customers within
+  limits an administrator gives them (totals of customers, websites, databases, apps, cron
+  jobs, email, disk space and monthly bandwidth; the most one package may give; the PHP
+  versions, images, servers and features packages may offer). Resellers make their own
+  packages and customers, see only their customers and what they own, and can sign in as
+  them, suspend them and move things between them. Suspending a reseller suspends their
+  customers too (4e)
 
 ### Changed
 - PHP websites serve a folder's `index.html` when it has no `index.php`, as Apache does (4d)
+- Collecting a server's traffic by hand also checks bandwidth limits (4e)
 
 ### Fixed
 - An app whose Compose file had become invalid could not be deleted

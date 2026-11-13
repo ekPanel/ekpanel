@@ -407,7 +407,11 @@ function AddAppDialog({ open, onClose }: { open: boolean; onClose: () => void })
   // themselves. Git apps are for administrators, and for customers whose package allows them
   // (the panel checks the package of the customer an administrator picks).
   const kinds: App["kind"][] =
-    isAdmin && owner === "" ? ["image", "compose", "git"] : isAdmin || myPackage.data?.package?.git_apps ? ["image", "git"] : ["image"];
+    isAdmin && owner === ""
+      ? ["image", "compose", "git"]
+      : isAdmin || me.data?.role === "reseller" || myPackage.data?.package?.git_apps
+        ? ["image", "git"]
+        : ["image"];
   useEffect(() => {
     if (!kinds.includes(kind)) setKind("image");
   }, [kinds, kind]);

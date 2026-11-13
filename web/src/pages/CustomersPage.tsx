@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRightLeft, Ban, CircleCheck, KeyRound, LogIn, Package as PackageIcon, Pencil, Plus, ShieldOff, Trash2, UserRoundCog, Users } from "lucide-react";
-import { api, errorMessage, type App, type Customer, type Database, type MailDomain, type Package, type Server, type Site, type Usage, type User } from "../lib/api";
+import { api, ApiError, errorMessage, type App, type Customer, type Database, type MailDomain, type Package, type Reseller, type Server, type Site, type Usage, type User } from "../lib/api";
 import type { HostedZone } from "../components/HostedDNS";
 import { formatBytes, formatNumber } from "../lib/format";
 import { meKey, useMe } from "../lib/session";
@@ -22,18 +22,29 @@ export function usePackages(enabled = true) {
   return useQuery({ queryKey: ["packages"], queryFn: () => api.get<Package[]>("/packages"), enabled });
 }
 
-/** For administrators: who a new website, database or app is for. Customers own what they create. */
+export function useResellers(enabled = true) {
+  return useQuery({ queryKey: ["resellers"], queryFn: () => api.get<Reseller[]>("/resellers"), enabled });
+}
+
+/** Who a new website, database or app is for. Administrators may keep it for themselves;
+ * a reseller picks one of their customers; customers own what they create. */
 export function OwnerField({ value, onChange }: { value: string; onChange: (id: string) => void }) {
   const { t } = useTranslation();
   const me = useMe();
   const isAdmin = me.data?.role === "admin";
-  const customers = useCustomers(isAdmin);
-  if (!isAdmin || !customers.data?.length) return null;
+  const isReseller = me.data?.role === "reseller";
+  const customers = useCustomers(isAdmin || isReseller);
+  const first = customers.data?.[0]?.id;
+  useEffect(() => {
+    if (isReseller && !value && first) onChange(first);
+  }, [isReseller, value, first, onChange]);
+  if (isReseller && customers.data?.length === 0) return <ErrorAlert>{t("customers.reseller_needs_customer")}</ErrorAlert>;
+  if (!(isAdmin || isReseller) || !customers.data?.length) return null;
   return (
     <label className="grid gap-1.5">
       <span className="text-sm font-medium">{t("customers.owner")}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className={select}>
-        <option value="">{t("customers.owner_admins")}</option>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className={select} required={isReseller}>
+        {isAdmin && <option value="">{t("customers.owner_admins")}</option>}
         {customers.data.map((c) => (
           <option key={c.id} value={c.id}>
             {c.name} · {c.package_name}
@@ -59,7 +70,10 @@ function UsageLine({ label, have, limit, text }: { label: string; have: number; 
   );
 }
 
-export function UsageList({ usage, pkg, bandwidth }: { usage: Usage; pkg: Package; bandwidth?: number }) {
+/** The limits a usage list compares with: a package's, or a reseller's totals. */
+type UsageLimits = Pick<Package, "max_sites" | "max_databases" | "max_apps" | "max_cron_jobs" | "max_mail_domains" | "max_mailboxes" | "disk_mb" | "bandwidth_gb">;
+
+export function UsageList({ usage, pkg, bandwidth }: { usage: Usage; pkg: UsageLimits; bandwidth?: number }) {
   const { t, i18n } = useTranslation();
   const lng = i18n.language;
   const n = (x: number) => formatNumber(x, lng);
@@ -106,16 +120,47 @@ export function UsageList({ usage, pkg, bandwidth }: { usage: Usage; pkg: Packag
   );
 }
 
-/** A customer's own package and what they use of it, on their dashboard. */
+/** A reseller's limits and what all their customers have, on cards and their dashboard. */
+export function ResellerUsage({ reseller }: { reseller: Reseller }) {
+  const { t, i18n } = useTranslation();
+  const n = (x: number) => formatNumber(x, i18n.language);
+  const l = reseller.limits;
+  return (
+    <div className="grid gap-4">
+      <UsageLine
+        label={t("nav.customers")}
+        have={reseller.customers}
+        limit={l.max_customers}
+        text={t("customers.of", { have: n(reseller.customers), limit: n(l.max_customers) })}
+      />
+      <UsageList usage={reseller.usage} pkg={l} bandwidth={reseller.bandwidth_month} />
+    </div>
+  );
+}
+
+/** A customer's own package and what they use of it, or a reseller's limits, on their dashboard. */
 export function MyUsageCard() {
   const { t, i18n } = useTranslation();
   const q = useQuery({
     queryKey: ["me", "usage"],
-    queryFn: () => api.get<{ package: Package | null; usage: Usage; bandwidth_month: number }>("/me/usage"),
+    queryFn: () => api.get<{ package: Package | null; reseller?: Reseller; usage: Usage; bandwidth_month: number }>("/me/usage"),
     refetchInterval: 60000,
   });
   if (q.isPending) return <Spinner />;
   if (q.error) return <ErrorAlert>{errorMessage(t, q.error)}</ErrorAlert>;
+  if (q.data.reseller) {
+    const l = q.data.reseller.limits;
+    return (
+      <Card className="grid gap-5 p-6">
+        <div className="grid gap-1">
+          <h2 className="text-lg font-semibold">{t("resellers.your_account")}</h2>
+          <p className="text-sm text-muted">{t("resellers.your_account_hint")}</p>
+        </div>
+        <ResellerUsage reseller={q.data.reseller} />
+        {l.bandwidth_gb !== null && <p className="-mt-2 text-sm text-muted">{t(l.bandwidth_stop ? "resellers.bandwidth_stop_hint" : "customers.bandwidth_hint")}</p>}
+      </Card>
+    );
+  }
   const pkg = q.data.package;
   if (!pkg) return null;
   const limits = [
@@ -152,10 +197,10 @@ export function ImpersonationBanner({ user }: { user: User }) {
         onClick={async () => {
           setBusy(true);
           try {
-            const admin = await api.post<User>("/auth/impersonation/end");
+            const back = await api.post<User>("/auth/impersonation/end");
             qc.clear();
-            qc.setQueryData(meKey, admin);
-            navigate("/customers");
+            qc.setQueryData(meKey, back);
+            navigate(user.role === "reseller" ? "/resellers" : "/customers");
           } catch {
             qc.setQueryData(meKey, null);
             navigate("/login");
@@ -172,7 +217,7 @@ export function ImpersonationBanner({ user }: { user: User }) {
 
 // ---- Customers (administrators) ----
 
-function OneTimePassword({ email, password }: { email: string; password: string }) {
+export function OneTimePassword({ email, password }: { email: string; password: string }) {
   const { t } = useTranslation();
   return (
     <div className="grid gap-2 rounded-lg bg-warn-soft p-4 text-warn">
@@ -192,13 +237,19 @@ function OneTimePassword({ email, password }: { email: string; password: string 
   );
 }
 
-function CustomerDialog({ open, customer, onClose }: { open: boolean; customer: Customer | null; onClose: () => void }) {
+function CustomerDialog({ open, customer, reseller: initialReseller, onClose }: { open: boolean; customer: Customer | null; reseller: string; onClose: () => void }) {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
-  const packages = usePackages(open);
+  const me = useMe();
+  const isAdmin = me.data?.role === "admin";
+  const allPackages = usePackages(open);
+  const resellers = useResellers(open && isAdmin);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [packageId, setPackageId] = useState("");
+  const [reseller, setReseller] = useState("");
+  // A customer's package is one of their reseller's (or the administrators', for theirs).
+  const packages = { ...allPackages, data: allPackages.data?.filter((p) => !isAdmin || (p.reseller_id ?? "") === reseller) };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
@@ -207,19 +258,21 @@ function CustomerDialog({ open, customer, onClose }: { open: boolean; customer: 
     setName(customer?.name ?? "");
     setEmail(customer?.email ?? "");
     setPackageId(customer?.package_id ?? "");
+    setReseller(customer ? (customer.reseller_id ?? "") : initialReseller);
     setError("");
     setCreated(null);
-  }, [open, customer]);
+  }, [open, customer, initialReseller]);
+  const choices = packages.data;
   useEffect(() => {
-    if (!packageId && packages.data?.length) setPackageId(packages.data[0].id);
-  }, [packages.data, packageId]);
+    if (choices && !choices.some((p) => p.id === packageId)) setPackageId(choices[0]?.id ?? "");
+  }, [choices, packageId]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError("");
     try {
-      const body = { name, email, package_id: packageId, locale: i18n.language };
+      const body = { name, email, package_id: packageId, locale: i18n.language, ...(isAdmin ? { reseller_id: reseller } : {}) };
       if (customer) {
         await api.put(`/customers/${customer.id}`, body);
         onClose();
@@ -254,6 +307,20 @@ function CustomerDialog({ open, customer, onClose }: { open: boolean; customer: 
           {packages.data?.length === 0 && <ErrorAlert>{t("customers.needs_package")}</ErrorAlert>}
           <Field label={t("packages.name")} value={name} onChange={(e) => setName(e.target.value)} maxLength={100} required />
           <Field label={t("account.email")} type="email" value={email} onChange={(e) => setEmail(e.target.value)} dir="ltr" required />
+          {isAdmin && !!resellers.data?.length && (
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium">{t("customers.reseller")}</span>
+              <select value={reseller} onChange={(e) => setReseller(e.target.value)} className={select}>
+                <option value="">{t("customers.reseller_none")}</option>
+                {resellers.data.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+              <span className="text-sm text-muted">{t("customers.reseller_hint")}</span>
+            </label>
+          )}
           <label className="grid gap-1.5">
             <span className="text-sm font-medium">{t("customers.package")}</span>
             <select value={packageId} onChange={(e) => setPackageId(e.target.value)} className={select} required>
@@ -283,9 +350,19 @@ export function CustomersPage() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const customers = useCustomers();
+  const me = useMe();
+  const isAdmin = me.data?.role === "admin";
+  const allCustomers = useCustomers();
   const packages = usePackages();
+  const resellers = useResellers(isAdmin);
   const [params, setParams] = useSearchParams();
+  // Administrators can look at one reseller's customers (or only their own: "admins").
+  const resellerFilter = isAdmin ? (params.get("reseller") ?? "") : "";
+  const customers = {
+    ...allCustomers,
+    data: allCustomers.data?.filter((c) => !resellerFilter || (resellerFilter === "admins" ? !c.reseller_id : c.reseller_id === resellerFilter)),
+  };
+  const setFilter = (v: string) => setParams(v ? { reseller: v } : {}, { replace: true });
   const [editing, setEditing] = useState<Customer | null>(null);
   const adding = params.get("add") === "1";
   const [deleting, setDeleting] = useState<Customer | null>(null);
@@ -304,12 +381,13 @@ export function CustomersPage() {
     }
   };
   const addButton = (
-    <Button variant="primary" onClick={() => setParams({ add: "1" }, { replace: true })}>
+    <Button variant="primary" onClick={() => setParams({ ...(resellerFilter ? { reseller: resellerFilter } : {}), add: "1" }, { replace: true })}>
       <Plus className="size-4" aria-hidden />
       {t("customers.add")}
     </Button>
   );
   const pkgOf = (c: Customer) => packages.data?.find((p) => p.id === c.package_id);
+  const closeDialog = () => (setEditing(null), setParams(resellerFilter ? { reseller: resellerFilter } : {}, { replace: true }));
 
   return (
     <>
@@ -317,9 +395,9 @@ export function CustomersPage() {
         title={t("nav.customers")}
         description={t("customers.intro")}
         actions={
-          customers.data?.length ? (
+          allCustomers.data?.length ? (
             <>
-              <Button onClick={() => setGiving({ from: "" })}>
+              <Button onClick={() => setGiving({ from: isAdmin ? "" : (customers.data?.[0]?.id ?? "") })}>
                 <UserRoundCog className="size-4" aria-hidden />
                 {t("owner.button")}
               </Button>
@@ -330,6 +408,20 @@ export function CustomersPage() {
       />
       <div className="grid gap-4">
         <ErrorAlert>{error}</ErrorAlert>
+        {isAdmin && !!resellers.data?.length && (
+          <label className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="font-medium">{t("customers.show")}</span>
+            <select value={resellerFilter} onChange={(e) => setFilter(e.target.value)} className={select}>
+              <option value="">{t("customers.show_all")}</option>
+              <option value="admins">{t("customers.show_admins")}</option>
+              {resellers.data.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {t("customers.show_reseller", { name: r.name })}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {customers.isPending && <Spinner />}
         {customers.error && <ErrorAlert>{errorMessage(t, customers.error)}</ErrorAlert>}
         {customers.data?.length === 0 && <EmptyState icon={<Users />} title={t("customers.empty.title")} body={t("customers.empty.body")} action={addButton} />}
@@ -345,13 +437,17 @@ export function CustomersPage() {
                       {c.email}
                     </p>
                   </div>
-                  <span className="rounded bg-sunk px-2 py-0.5 text-xs text-muted">{c.package_name}</span>
+                  <span className="grid justify-items-end gap-1">
+                    <span className="rounded bg-sunk px-2 py-0.5 text-xs text-muted">{c.package_name}</span>
+                    {isAdmin && c.reseller_name && <span className="text-xs text-muted">{t("customers.of_reseller", { name: c.reseller_name })}</span>}
+                  </span>
                 </div>
-                {(c.suspended_at || c.bandwidth_blocked) && (
+                {(c.suspended_at || c.bandwidth_blocked || c.reseller_bandwidth_blocked) && (
                   <div className="grid gap-1.5">
                     <div className="flex flex-wrap gap-2">
                       {c.suspended_at && <Badge tone="crit">{t("customers.suspended_badge", { date: new Date(c.suspended_at).toLocaleDateString(i18n.language) })}</Badge>}
                       {c.bandwidth_blocked && <Badge tone="warn">{t("customers.bandwidth_blocked")}</Badge>}
+                      {c.reseller_bandwidth_blocked && <Badge tone="warn">{t("customers.reseller_bandwidth_blocked")}</Badge>}
                     </div>
                     {c.suspended_at && c.suspend_reason && <p className="text-sm text-muted">{t("customers.suspend_reason_is", { reason: c.suspend_reason })}</p>}
                   </div>
@@ -405,10 +501,12 @@ export function CustomersPage() {
                       {t("customers.reset_2fa")}
                     </Button>
                   )}
-                  <Button size="sm" onClick={() => setMoving(c)}>
-                    <ArrowRightLeft className="size-4" aria-hidden />
-                    {t("customers.move.button")}
-                  </Button>
+                  {isAdmin && (
+                    <Button size="sm" onClick={() => setMoving(c)}>
+                      <ArrowRightLeft className="size-4" aria-hidden />
+                      {t("customers.move.button")}
+                    </Button>
+                  )}
                   <Button size="sm" onClick={() => setGiving({ from: c.id })}>
                     <UserRoundCog className="size-4" aria-hidden />
                     {t("owner.button")}
@@ -441,10 +539,15 @@ export function CustomersPage() {
           })}
         </div>
       </div>
-      <CustomerDialog open={adding || editing !== null} customer={editing} onClose={() => (setEditing(null), setParams({}, { replace: true }))} />
+      <CustomerDialog
+        open={adding || editing !== null}
+        customer={editing}
+        reseller={resellerFilter === "admins" ? "" : resellerFilter}
+        onClose={closeDialog}
+      />
       {moving && <MoveCustomerDialog customer={moving} onClose={() => setMoving(null)} />}
       {suspending && <SuspendDialog customer={suspending} onClose={() => setSuspending(null)} />}
-      {giving && <OwnerChangeDialog from={giving.from} customers={customers.data ?? []} onClose={() => setGiving(null)} />}
+      {giving && <OwnerChangeDialog from={giving.from} customers={allCustomers.data ?? []} onClose={() => setGiving(null)} />}
       <Dialog open={reset !== null} onClose={() => setReset(null)} title={t("customers.reset_password")}>
         {reset && <OneTimePassword {...reset} />}
         <div className="flex justify-end">
@@ -558,7 +661,7 @@ function formFromPackage(p: Package): PackageForm {
   };
 }
 
-function Checks({
+export function Checks({
   label,
   hint,
   options,
@@ -648,6 +751,30 @@ function PackageDialog({ open, pkg, onClose }: { open: boolean; pkg: Package | n
       qc.invalidateQueries({ queryKey: ["customers"] });
       onClose();
     } catch (err) {
+      if (err instanceof ApiError && err.code === "package_over_reseller") {
+        // Name the part of the form that gives more than the reseller has.
+        const labels: Record<string, string> = {
+          max_sites: t("nav.sites"),
+          max_databases: t("nav.databases"),
+          max_apps: t("nav.apps"),
+          max_cron_jobs: t("cron.title"),
+          max_mail_domains: t("packages.mail_domains"),
+          max_mailboxes: t("packages.mailboxes"),
+          disk_mb: t("packages.disk"),
+          bandwidth_gb: t("packages.bandwidth"),
+          memory_mb: t("packages.memory"),
+          cpu_percent: t("packages.cpu"),
+          mailbox_quota_mb: t("packages.mailbox_size"),
+          php_versions: t("packages.php"),
+          server_ids: t("packages.servers"),
+          app_images: t("packages.images"),
+          sftp: t("packages.sftp"),
+          ftp: t("packages.ftp"),
+          git_apps: t("packages.git_apps"),
+        };
+        setError(t("errors.package_over_reseller", { field: labels[String(err.data.field)] ?? String(err.data.field) }));
+        return;
+      }
       setError(errorMessage(t, err));
     } finally {
       setBusy(false);
@@ -779,7 +906,12 @@ function PackageDialog({ open, pkg, onClose }: { open: boolean; pkg: Package | n
 export function PackagesPage() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
+  const me = useMe();
+  const isAdmin = me.data?.role === "admin";
   const packages = usePackages();
+  const resellers = useResellers(isAdmin);
+  const ownerOf = (p: Package) => (p.reseller_id ? (resellers.data?.find((r) => r.id === p.reseller_id)?.name ?? "") : t("packages.whose_yours"));
+  const showOwner = isAdmin && !!packages.data?.some((p) => p.reseller_id);
   const [params, setParams] = useSearchParams();
   const [editing, setEditing] = useState<Package | null>(null);
   const [error, setError] = useState("");
@@ -807,6 +939,7 @@ export function PackagesPage() {
               <thead>
                 <tr className="border-b border-line bg-sunk text-xs tracking-wider text-muted uppercase">
                   <th className="px-4 py-3 text-start font-semibold">{t("packages.name")}</th>
+                  {showOwner && <th className="px-4 py-3 text-start font-semibold">{t("packages.whose")}</th>}
                   <th className="px-4 py-3 text-start font-semibold">{t("packages.includes")}</th>
                   <th className="px-4 py-3 text-start font-semibold">{t("packages.resources")}</th>
                   <th className="px-4 py-3 text-start font-semibold">{t("nav.customers")}</th>
@@ -817,6 +950,7 @@ export function PackagesPage() {
                 {packages.data.map((p) => (
                   <tr key={p.id} className="border-b border-line last:border-0 hover:bg-sunk/60">
                     <td className="px-4 py-3 font-semibold">{p.name}</td>
+                    {showOwner && <td className="px-4 py-3 text-muted">{ownerOf(p)}</td>}
                     <td className="px-4 py-3 text-muted">
                       {t("packages.includes_text", { sites: n(p.max_sites), databases: n(p.max_databases), apps: n(p.max_apps), cron: n(p.max_cron_jobs) })}
                     </td>
@@ -943,8 +1077,9 @@ function MoveCustomerDialog({ customer, onClose }: { customer: Customer; onClose
   );
 }
 
-/** Suspends a customer, with a reason only administrators see. */
-function SuspendDialog({ customer, onClose }: { customer: Customer; onClose: () => void }) {
+/** Suspends a customer (or, for administrators, a reseller with all their customers), with
+ * a reason the account does not see. */
+export function SuspendDialog({ customer, kind = "customers", onClose }: { customer: { id: string; name: string }; kind?: "customers" | "resellers"; onClose: () => void }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [reason, setReason] = useState("");
@@ -955,8 +1090,8 @@ function SuspendDialog({ customer, onClose }: { customer: Customer; onClose: () 
     setBusy(true);
     setError("");
     try {
-      await api.post(`/customers/${customer.id}/suspend`, { reason });
-      qc.invalidateQueries({ queryKey: ["customers"] });
+      await api.post(`/${kind}/${customer.id}/suspend`, { reason });
+      qc.invalidateQueries({ queryKey: [kind] });
       onClose();
     } catch (err) {
       setError(errorMessage(t, err));
@@ -968,7 +1103,7 @@ function SuspendDialog({ customer, onClose }: { customer: Customer; onClose: () 
     <Dialog open onClose={onClose} title={t("customers.suspend_title", { name: customer.name })}>
       <form onSubmit={submit} className="grid gap-4">
         <ErrorAlert>{error}</ErrorAlert>
-        <p className="text-sm text-muted">{t("customers.suspend_body")}</p>
+        <p className="text-sm text-muted">{t(kind === "resellers" ? "resellers.suspend_body" : "customers.suspend_body")}</p>
         <label className="grid gap-1.5">
           <span className="text-sm font-medium">{t("customers.suspend_reason")}</span>
           <textarea
@@ -1000,8 +1135,11 @@ type OwnerKind = "sites" | "databases" | "apps" | "mail_domains" | "zones";
 function OwnerChangeDialog({ from: initialFrom, customers, onClose }: { from: string; customers: Customer[]; onClose: () => void }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const me = useMe();
+  // A reseller moves things only between their own customers.
+  const isAdmin = me.data?.role === "admin";
   const [from, setFrom] = useState(initialFrom);
-  const [to, setTo] = useState("");
+  const [to, setTo] = useState(isAdmin ? "" : (customers.find((c) => c.id !== initialFrom)?.id ?? ""));
   const [chosen, setChosen] = useState<Record<OwnerKind, string[]>>({ sites: [], databases: [], apps: [], mail_domains: [], zones: [] });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -1061,7 +1199,7 @@ function OwnerChangeDialog({ from: initialFrom, customers, onClose }: { from: st
                 onChange={(e) => (setFrom(e.target.value), setChosen({ sites: [], databases: [], apps: [], mail_domains: [], zones: [] }))}
                 className={select}
               >
-                <option value="">{t("customers.owner_admins")}</option>
+                {isAdmin && <option value="">{t("customers.owner_admins")}</option>}
                 {customers.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -1072,7 +1210,7 @@ function OwnerChangeDialog({ from: initialFrom, customers, onClose }: { from: st
             <label className="grid gap-1.5">
               <span className="text-sm font-medium">{t("owner.to")}</span>
               <select value={to} onChange={(e) => setTo(e.target.value)} className={select}>
-                <option value="">{t("customers.owner_admins")}</option>
+                {isAdmin && <option value="">{t("customers.owner_admins")}</option>}
                 {customers.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name} · {c.package_name}

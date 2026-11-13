@@ -53,15 +53,25 @@ type User struct {
 	ImpersonatorID *string `json:"impersonator_id,omitempty"`
 	// Until when this session may do things that need the password again; SessionUser fills it.
 	ConfirmedUntil *time.Time `json:"confirmed_until,omitempty"`
-	// Set while an administrator has suspended this customer.
+	// Set while the account is suspended, or the reseller whose customer it is.
 	SuspendedAt *time.Time `json:"suspended_at,omitempty"`
+	// The reseller whose customer this is; nil for the administrators' customers.
+	ResellerID *string `json:"reseller_id,omitempty"`
 }
 
-const userColumns = `id, email, name, role, locale, totp_enabled, created_at, password_hash, totp_secret, package_id, suspended_at`
+// effectiveSuspension is when the user of table alias t was suspended, themselves or
+// through their reseller.
+func effectiveSuspension(t string) string {
+	return `COALESCE(` + t + `.suspended_at, (SELECT rs.suspended_at FROM users rs WHERE rs.id = ` + t + `.reseller_id))`
+}
+
+var userColumns = `id, email, name, role, locale, totp_enabled, created_at, password_hash, totp_secret, package_id, ` +
+	effectiveSuspension("users") + `, reseller_id`
 
 func scanUser(row pgx.Row) (User, error) {
 	var u User
-	err := row.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Locale, &u.TOTPEnabled, &u.CreatedAt, &u.PasswordHash, &u.TOTPSecret, &u.PackageID, &u.SuspendedAt)
+	err := row.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Locale, &u.TOTPEnabled, &u.CreatedAt, &u.PasswordHash, &u.TOTPSecret, &u.PackageID,
+		&u.SuspendedAt, &u.ResellerID)
 	return u, notFound(err)
 }
 
@@ -142,10 +152,12 @@ func (s *Store) SessionUser(ctx context.Context, tokenHash []byte) (User, error)
 	var u User
 	err := s.pool.QueryRow(ctx, `
 		SELECT u.id, u.email, u.name, u.role, u.locale, u.totp_enabled, u.created_at, u.password_hash, u.totp_secret,
-			u.package_id, s.impersonator_id, CASE WHEN s.confirmed_until > now() THEN s.confirmed_until END, u.suspended_at
+			u.package_id, s.impersonator_id, CASE WHEN s.confirmed_until > now() THEN s.confirmed_until END, `+effectiveSuspension("u")+`,
+			u.reseller_id
 		FROM sessions s JOIN users u ON u.id = s.user_id
 		WHERE s.token_hash = $1 AND s.expires_at > now()`, tokenHash).Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Locale,
-		&u.TOTPEnabled, &u.CreatedAt, &u.PasswordHash, &u.TOTPSecret, &u.PackageID, &u.ImpersonatorID, &u.ConfirmedUntil, &u.SuspendedAt)
+		&u.TOTPEnabled, &u.CreatedAt, &u.PasswordHash, &u.TOTPSecret, &u.PackageID, &u.ImpersonatorID, &u.ConfirmedUntil, &u.SuspendedAt,
+		&u.ResellerID)
 	if err != nil {
 		return User{}, notFound(err)
 	}

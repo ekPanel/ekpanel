@@ -13,8 +13,10 @@ export interface User {
   impersonator_id?: string;
   /** Until when this session may open terminals without the password again. */
   confirmed_until?: string;
-  /** Set while an administrator has suspended this customer. */
+  /** Set while the account is suspended, or the reseller whose customer it is. */
   suspended_at?: string;
+  /** The reseller whose customer this is. */
+  reseller_id?: string;
 }
 
 export interface Package {
@@ -41,6 +43,8 @@ export interface Package {
   bandwidth_gb: number | null;
   /** Stop websites and apps when the bandwidth is used up. */
   bandwidth_stop: boolean;
+  /** The reseller whose package this is; null for the administrators'. */
+  reseller_id: string | null;
   customers: number;
   created_at: string;
 }
@@ -64,6 +68,45 @@ export interface Customer extends User {
   bandwidth_blocked: boolean;
   /** Bytes served this month (UTC). */
   bandwidth_month: number;
+  /** The reseller's name, for administrators. */
+  reseller_name?: string;
+  /** The reseller's bandwidth is used up, so this customer's websites are stopped too. */
+  reseller_bandwidth_blocked: boolean;
+}
+
+/** What an administrator gives a reseller: totals over all their customers, the most one
+ * package may give, and what packages may offer. */
+export interface ResellerLimits {
+  max_customers: number;
+  max_sites: number;
+  max_databases: number;
+  max_apps: number;
+  max_cron_jobs: number;
+  max_mail_domains: number;
+  max_mailboxes: number;
+  disk_mb: number | null;
+  bandwidth_gb: number | null;
+  bandwidth_stop: boolean;
+  memory_mb: number | null;
+  cpu_percent: number | null;
+  mailbox_quota_mb: number | null;
+  php_versions: string[];
+  app_images: string[];
+  server_ids: string[];
+  sftp: boolean;
+  ftp: boolean;
+  git_apps: boolean;
+}
+
+export interface Reseller extends User {
+  limits: ResellerLimits;
+  /** What all the reseller's customers have together. */
+  usage: Usage;
+  customers: number;
+  packages: number;
+  bandwidth_month: number;
+  bandwidth_blocked: boolean;
+  suspend_reason: string | null;
 }
 
 /** Who owns a website, database or app; null means the administrators. */
