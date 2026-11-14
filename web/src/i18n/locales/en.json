@@ -36,7 +36,8 @@
     "tokens": "API tokens",
     "import": "Import",
     "reseller": "Reseller",
-    "resellers": "Resellers"
+    "resellers": "Resellers",
+    "branding": "Branding"
   },
   "theme": {
     "label": "Theme",
@@ -67,7 +68,7 @@
     "title": "Sign in",
     "subtitle": "Manage your servers, sites and apps.",
     "code_subtitle": "One more step to keep your account safe.",
-    "code_help": "Open your authenticator app and enter the 6-digit code for ekPanel.",
+    "code_help": "Open your authenticator app and enter the 6-digit code for {{brand}}.",
     "verify": "Verify",
     "submit": "Sign in",
     "code_or_recovery": "Code from the app, or a recovery code",
@@ -397,7 +398,7 @@
         "zone_added": "Domain added",
         "zone_updated": "Domain settings changed",
         "zone_removed": "Domain no longer managed",
-        "issue_resolved": "DNS record set by ekPanel",
+        "issue_resolved": "DNS record set by {{brand}}",
         "record_created": "DNS record added",
         "record_updated": "DNS record changed",
         "record_deleted": "DNS record deleted",
@@ -470,6 +471,11 @@
         "impersonated": "Signed in as reseller",
         "suspended": "Reseller suspended",
         "unsuspended": "Reseller unsuspended"
+      },
+      "brand": {
+        "updated": "Branding changed",
+        "logo_changed": "Logo changed",
+        "logo_removed": "Logo removed"
       }
     },
     "via_token": "with the API token “{{name}}”"
@@ -630,10 +636,10 @@
     "invalid_token": "This API token does not exist, was revoked or has expired.",
     "cloudflare_denied": "Cloudflare refused the token. Check that it is active and has the permissions listed.",
     "cloudflare_error": "Cloudflare could not do this.",
-    "zone_taken": "This domain is already managed in ekPanel.",
+    "zone_taken": "This domain is already managed in {{brand}}.",
     "cloudflare_account_unknown": "This token cannot see its Cloudflare account; add the domain in Cloudflare first.",
     "invalid_record": "This record is not valid.",
-    "managed_record": "ekPanel made this record for a website or app; it goes when that does.",
+    "managed_record": "{{brand}} made this record for a website or app; it goes when that does.",
     "invalid_ssl_mode": "Choose off, flexible, full or strict.",
     "invalid_address": "Enter an IPv4 and an IPv6 address, or leave them empty.",
     "mail_not_found": "That mail domain, mailbox or forwarder does not exist.",
@@ -678,7 +684,7 @@
     "invalid_countries": "Choose known countries, at least one.",
     "blocks_you": "This would block your own address. Add it to the allowlist first.",
     "not_allowed": "Only administrators can do this.",
-    "no_name_servers": "Set up ekPanel's name servers first (DNS page).",
+    "no_name_servers": "Set up {{brand}}'s name servers first (DNS page).",
     "invalid_zone": "Enter a domain such as example.com.",
     "zone_not_owned": "Add a website or app on this domain first.",
     "zone_overlaps": "This domain is inside, or contains, another account's domain.",
@@ -722,7 +728,7 @@
     "agent_not_cpanel_backup": "This file is not a cPanel full backup, or it is damaged. Make a full account backup in cPanel and copy it again.",
     "import_mail_not_owned": "Email for {{name}} needs a website with that domain for this customer. Import the website too.",
     "import_mail_taken": "Email is set up here already for {{names}}.",
-    "import_zone_taken": "ekPanel already has the zone {{name}}.",
+    "import_zone_taken": "{{brand}} already has the zone {{name}}.",
     "import_zone_not_owned": "The zone {{name}} needs a website on that domain for this customer. Import the website too.",
     "invalid_site_archive": "Choose a .zip, .tar.gz or .tar archive in /srv/ekpanel/imports on the server.",
     "invalid_dump": "Choose one .sql or .sql.gz database dump.",
@@ -767,7 +773,14 @@
     "package_over_reseller": "This package gives more than your reseller account allows: {{field}}. Your limits are on the dashboard; an empty size means \"no limit\", which is more than a limited account allows.",
     "suspended_by_admin": "An administrator suspended this customer, so only an administrator can lift it.",
     "not_for_resellers": "Sign in as the customer to connect their Cloudflare account.",
-    "invalid_reseller_limits": "Check the limits: counts are 0 or more, and sizes must be large enough."
+    "invalid_reseller_limits": "Check the limits: counts are 0 or more, and sizes must be large enough.",
+    "white_label_off": "An administrator has not allowed you your own branding.",
+    "invalid_brand_name": "Enter a name of up to 60 characters, without < or >.",
+    "invalid_color": "Enter a color such as #1a7f4b.",
+    "invalid_logo": "Upload a PNG, JPEG, GIF or WebP picture of at least 16×16 pixels.",
+    "logo_too_large": "The logo can be up to 2 MB.",
+    "brand_name_first": "Save your panel's name first.",
+    "domain_taken": "A website, an app or another panel already uses this domain."
   },
   "not_found": {
     "title": "Page not found",
@@ -833,7 +846,7 @@
     "intro": "Each website gets its own Linux account and PHP processes, so one site cannot touch another.",
     "empty": {
       "title": "Add your first website",
-      "body": "Point a domain at one of your servers, choose PHP or static, and ekPanel sets up the web server and a free SSL certificate."
+      "body": "Point a domain at one of your servers, choose PHP or static, and {{brand}} sets up the web server and a free SSL certificate."
     },
     "none_on_server": "No websites on this server yet.",
     "need_server": "Connect a server first. Websites are hosted on your servers.",
@@ -876,7 +889,7 @@
     "visit": "Visit site",
     "applying": "Applying your settings on {{server}}. This usually takes a few seconds.",
     "deleting": "Deleting this website and its files…",
-    "delete_failed": "Deleting is not finished yet: {{reason}}. ekPanel keeps trying.",
+    "delete_failed": "Deleting is not finished yet: {{reason}}. {{brand}} keeps trying.",
     "error_title": "The server could not apply this website's settings",
     "retry": "Try again",
     "settings": "Settings",
@@ -974,7 +987,7 @@
     "intro": "MariaDB and PostgreSQL databases for your websites and apps. Each has its own account with access to that database only.",
     "empty": {
       "title": "Create your first database",
-      "body": "WordPress and most PHP apps use MariaDB; many modern apps use PostgreSQL. ekPanel installs the engine on the server the first time."
+      "body": "WordPress and most PHP apps use MariaDB; many modern apps use PostgreSQL. {{brand}} installs the engine on the server the first time."
     },
     "none_on_server": "No databases on this server yet.",
     "engine": "Engine",
@@ -986,8 +999,8 @@
     "name_hint": "Lowercase letters, digits and _ , up to 32 characters.",
     "username": "User name",
     "password": "Password",
-    "password_note": "ekPanel creates a strong password and shows it once. Only a one-way hash is stored.",
-    "password_once": "Copy the password now. ekPanel does not keep it and cannot show it again; you can only reset it.",
+    "password_note": "{{brand}} creates a strong password and shows it once. Only a one-way hash is stored.",
+    "password_once": "Copy the password now. {{brand}} does not keep it and cannot show it again; you can only reset it.",
     "created_title": "{{name}} is being created",
     "saved_it": "I have saved the password",
     "open": "Open database",
@@ -1099,8 +1112,8 @@
     },
     "dns": {
       "title": "DNS records",
-      "published": "ekPanel keeps these records in the Cloudflare zone {{zone}}.",
-      "manual": "Add these records where this domain's DNS is hosted. With the domain on Cloudflare, ekPanel adds and updates them for you.",
+      "published": "{{brand}} keeps these records in the Cloudflare zone {{zone}}.",
+      "manual": "Add these records where this domain's DNS is hosted. With the domain on Cloudflare, {{brand}} adds and updates them for you.",
       "open_zone": "Open the zone",
       "use_cloudflare": "Connect Cloudflare",
       "waiting": "The records appear once the mail server has set up the domain.",
@@ -1216,7 +1229,7 @@
     "turn_on": "Turn on SFTP",
     "turn_off": "Turn off",
     "new_password": "New password",
-    "password_once": "Copy this password now. It is shown only once and ekPanel does not keep it.",
+    "password_once": "Copy this password now. It is shown only once and {{brand}} does not keep it.",
     "keys_one": "SSH key ({{count, number}})",
     "keys_other": "SSH keys ({{count, number}})",
     "keys_hint": "Sign in without a password: paste public keys (id_ed25519.pub), one per line.",
@@ -1234,7 +1247,7 @@
   },
   "wordpress": {
     "title": "Install WordPress",
-    "intro": "A fresh WordPress with its own MariaDB database, ready in about a minute. ekPanel creates the database, downloads WordPress, writes wp-config.php and sets up your admin account.",
+    "intro": "A fresh WordPress with its own MariaDB database, ready in about a minute. {{brand}} creates the database, downloads WordPress, writes wp-config.php and sets up your admin account.",
     "site_title": "Site title",
     "admin_user": "Admin user name",
     "admin_email": "Admin email",
@@ -1242,8 +1255,8 @@
     "install": "Install WordPress",
     "installing": "Installing WordPress. This takes about a minute; you can leave this page.",
     "failed": "The last install did not finish: {{reason}}",
-    "empty_note": "The website folder must be empty (the ekPanel welcome page is fine), so none of your files are overwritten.",
-    "password_once": "Your WordPress admin password is shown only once. Copy it now; ekPanel does not keep it.",
+    "empty_note": "The website folder must be empty (the {{brand}} welcome page is fine), so none of your files are overwritten.",
+    "password_once": "Your WordPress admin password is shown only once. Copy it now; {{brand}} does not keep it.",
     "open_admin": "Open WordPress admin",
     "installed_hint": "Plugins and updates work directly from WordPress; no FTP details are needed.",
     "with_site": "Install WordPress",
@@ -1328,7 +1341,7 @@
     },
     "auto": {
       "title": "Automatic updates",
-      "hint": "ekPanel checks every day and updates by itself, checking the site after each update and undoing any that breaks it.",
+      "hint": "{{brand}} checks every day and updates by itself, checking the site after each update and undoing any that breaks it.",
       "core": "Core:",
       "core_off": "None",
       "core_minor": "Security releases",
@@ -1518,7 +1531,7 @@
     "created_title": "Backups are ready",
     "empty": {
       "title": "No backups yet",
-      "body": "Add a backup location and ekPanel backs up every website and database on that server on a schedule."
+      "body": "Add a backup location and {{brand}} backs up every website and database on that server on a schedule."
     },
     "where": "Where to keep the backups",
     "kind": {
@@ -1603,10 +1616,10 @@
     "remove": "Remove location",
     "remove_title": "Remove this backup location",
     "remove_body": "Stops backing up here. The backups themselves are not deleted; you can connect them again with the recovery key.",
-    "remove_confirm": "ekPanel stops backing up here and forgets the location. The stored backups stay where they are and can be connected again with the recovery key.",
+    "remove_confirm": "{{brand}} stops backing up here and forgets the location. The stored backups stay where they are and can be connected again with the recovery key.",
     "saved_it": "I have saved the recovery key",
     "remove_body_local": "Stops backing up here. The backups already made stay on the server in {{path}}; delete that folder yourself if you no longer need them.",
-    "remove_confirm_local": "ekPanel stops backing up here and forgets the location. The backups stay in {{path}} on the server, and cannot be connected again from the panel."
+    "remove_confirm_local": "{{brand}} stops backing up here and forgets the location. The backups stay in {{path}} on the server, and cannot be connected again from the panel."
   },
   "firewall": {
     "title": "Firewall",
@@ -1618,7 +1631,7 @@
     "turn_on": "Turn on firewall",
     "turn_off": "Turn off",
     "stop_managing": "Stop managing",
-    "unmanaged": "ekPanel is not managing this server's firewall, so whatever firewall the server has stays as it is. Turn it on to block every incoming connection except SSH, websites, the ekPanel agent and the ports you open.",
+    "unmanaged": "{{brand}} is not managing this server's firewall, so whatever firewall the server has stays as it is. Turn it on to block every incoming connection except SSH, websites, the {{brand}} agent and the ports you open.",
     "off": "The firewall is off: every port that a program listens on can be reached. Your rules are kept for when you turn it on again.",
     "always_open": "Always open: SSH ({{ssh}}), HTTP (80), HTTPS (443) and the ekPanel agent (7443). Everything else coming in is blocked unless a rule below opens it.",
     "checked": "Checked by the server {{when}}",
@@ -1656,7 +1669,7 @@
     "create": "Create app",
     "empty": {
       "title": "Run your first app",
-      "body": "Install a ready-made service from the catalogue, run any Docker image, or paste a Compose file. ekPanel installs Docker on first use."
+      "body": "Install a ready-made service from the catalogue, run any Docker image, or paste a Compose file. {{brand}} installs Docker on first use."
     },
     "kind_label": "App type",
     "kind": {
@@ -1730,7 +1743,7 @@
   },
   "catalog": {
     "title": "App catalogue",
-    "intro": "Ready-made services, reviewed by ekPanel. Passwords and keys are made fresh for every install.",
+    "intro": "Ready-made services, reviewed by {{brand}}. Passwords and keys are made fresh for every install.",
     "open": "Catalogue",
     "browse": "install a ready-made service from the catalogue",
     "or": "Or",
@@ -1887,15 +1900,15 @@
   },
   "dns": {
     "title": "DNS",
-    "intro": "Your domains' DNS: on ekPanel's own name servers, or at Cloudflare, kept in sync with your websites, apps and email.",
+    "intro": "Your domains' DNS: on {{brand}}'s own name servers, or at Cloudflare, kept in sync with your websites, apps and email.",
     "add_domain": "Add a domain",
     "connect": {
       "title": "Connect Cloudflare",
-      "why": "ekPanel recommends keeping your domains' DNS on Cloudflare: it is free, fast and protects your sites. Connect your account once, and every website and app gets its DNS records by itself.",
+      "why": "{{brand}} recommends keeping your domains' DNS on Cloudflare: it is free, fast and protects your sites. Connect your account once, and every website and app gets its DNS records by itself.",
       "step1": "In Cloudflare, create an API token:",
       "open": "open API tokens",
-      "step2": "Choose “Create Custom Token” and give it a name such as ekPanel.",
-      "step3": "Add these permissions, for all zones (or only the ones ekPanel should manage):",
+      "step2": "Choose “Create Custom Token” and give it a name such as {{brand}}.",
+      "step3": "Add these permissions, for all zones (or only the ones {{brand}} should manage):",
       "step4": "Create the token and paste it here.",
       "name": "Name",
       "name_hint": "Optional, to tell accounts apart.",
@@ -1928,8 +1941,8 @@
       "ok": "In sync",
       "active": "Active"
     },
-    "managed_count_one": "{{count, number}} record by ekPanel",
-    "managed_count_other": "{{count, number}} records by ekPanel",
+    "managed_count_one": "{{count, number}} record by {{brand}}",
+    "managed_count_other": "{{count, number}} records by {{brand}}",
     "accounts": "Cloudflare accounts",
     "zones_count_one": "{{count, number}} domain",
     "zones_count_other": "{{count, number}} domains",
@@ -1944,7 +1957,7 @@
     "new_domain": "Add a new domain to Cloudflare",
     "new_domain_hint": "It is added to your Cloudflare account; you then change its nameservers at your registrar.",
     "add_to_cloudflare": "Add to Cloudflare",
-    "zone_intro": "On Cloudflare ({{account}}). Records for your websites and apps are made and kept up to date by ekPanel.",
+    "zone_intro": "On Cloudflare ({{account}}). Records for your websites and apps are made and kept up to date by {{brand}}.",
     "sync": "Sync now",
     "purge": "Purge cache",
     "purged": "Cloudflare's cache of this domain was emptied.",
@@ -1954,11 +1967,11 @@
     "pending_body": "At the registrar where you bought the domain, replace its nameservers with these two. Cloudflare activates the domain once it sees them, usually within an hour.",
     "issues_title": "Needs your attention",
     "issue": {
-      "changed": "was changed in Cloudflare to {{have}}; ekPanel would set {{want}}.",
-      "conflict": "is already used ({{have}}); ekPanel would set {{want}}.",
+      "changed": "was changed in Cloudflare to {{have}}; {{brand}} would set {{want}}.",
+      "conflict": "is already used ({{have}}); {{brand}} would set {{want}}.",
       "no_address": "server {{server}} has no public address yet; set it on the server's page."
     },
-    "use_ours": "Use ekPanel's value",
+    "use_ours": "Use {{brand}}'s value",
     "ssl_title": "SSL/TLS mode",
     "ssl_now": "Cloudflare uses “{{mode}}”.",
     "ssl_modes": {
@@ -1975,7 +1988,7 @@
     "settings": "Settings",
     "remove": "Stop managing",
     "records_title": "Records",
-    "records_hint": "ekPanel's records follow your websites and apps; you can switch their proxy.",
+    "records_hint": "{{brand}}'s records follow your websites and apps; you can switch their proxy.",
     "add_record": "Add record",
     "proxied": "Proxied",
     "dns_only": "DNS only",
@@ -1994,17 +2007,17 @@
     },
     "priority": "Priority",
     "remove_title": "Stop managing {{name}}?",
-    "remove_body": "ekPanel no longer keeps this domain's records in sync. The domain stays in Cloudflare.",
-    "remove_records": "Also delete the records ekPanel made",
+    "remove_body": "{{brand}} no longer keeps this domain's records in sync. The domain stays in Cloudflare.",
+    "remove_records": "Also delete the records {{brand}} made",
     "remove_records_hint": "Your websites and apps on this domain stop being reachable by name.",
     "cloudflare_intro": "Domains at Cloudflare, kept in sync with your websites and apps."
   },
   "hosted": {
-    "title": "ekPanel name servers",
+    "title": "{{brand}} name servers",
     "intro": "Domains whose DNS your own servers answer, with records for your websites, apps and email made automatically.",
     "add": "Add a domain",
     "add_hint": "After adding it, set the domain's name servers at its registrar to the ones shown on its page.",
-    "none": "No domains on ekPanel's name servers yet.",
+    "none": "No domains on {{brand}}'s name servers yet.",
     "kept_count_one": "{{count}} record",
     "kept_count_other": "{{count}} records",
     "signed": "Signed",
@@ -2038,16 +2051,16 @@
       "delete": "Delete template {{name}}",
       "delete_confirm": "Delete the template {{name}}? Domains made with it keep their records."
     },
-    "zone_intro": "On ekPanel's own name servers. Records for websites, apps and email on this domain are made by ekPanel.",
+    "zone_intro": "On {{brand}}'s own name servers. Records for websites, apps and email on this domain are made by {{brand}}.",
     "delete": "Remove domain",
-    "delete_confirm": "Remove {{name}} from ekPanel's name servers? Its records stop being answered there.",
-    "issues": "Records ekPanel could not add",
-    "issue_conflict": "{{type}} {{name}}: your record ({{have}}) is used instead of {{want}}. Delete yours to use ekPanel's.",
+    "delete_confirm": "Remove {{name}} from {{brand}}'s name servers? Its records stop being answered there.",
+    "issues": "Records {{brand}} could not add",
+    "issue_conflict": "{{type}} {{name}}: your record ({{have}}) is used instead of {{want}}. Delete yours to use {{brand}}'s.",
     "issue_no_address": "{{name}}: the server {{server}} has no public address. Set one on the server's page.",
     "records": "Records",
-    "records_intro": "Your records. When one has the same name and type as a record ekPanel would make, yours is used.",
-    "made": "By ekPanel",
-    "made_hint": "Grey records are made by ekPanel for websites, apps, email and the name servers, and change with them.",
+    "records_intro": "Your records. When one has the same name and type as a record {{brand}} would make, yours is used.",
+    "made": "By {{brand}}",
+    "made_hint": "Grey records are made by {{brand}} for websites, apps, email and the name servers, and change with them.",
     "delegate": "Name servers for the registrar",
     "delegate_intro": "At the domain's registrar, replace its name servers with these:",
     "glue_intro": "The name servers are named inside this domain, so the registrar also needs their addresses (glue records, sometimes called child name servers or host records):",
@@ -2321,7 +2334,7 @@
     "url_hint": {
       "discord": "Server settings → Integrations → Webhooks → Copy URL.",
       "slack": "An Incoming Webhook URL from your Slack app.",
-      "webhook": "ekPanel sends a signed JSON POST to this address."
+      "webhook": "{{brand}} sends a signed JSON POST to this address."
     },
     "keep_secret": "Leave empty to keep the saved one.",
     "events": "Events",
@@ -2602,7 +2615,7 @@
     "cron_jobs": "Cron jobs",
     "new_passwords": "These databases have new passwords: {{names}}. Set the new password in the website's configuration (on the database's page).",
     "not_imported": "Not imported",
-    "after": "Check each website (for example with an entry in your computer's hosts file), then point the domains at this server: change their name servers to ekPanel's if you imported the zones, or their records at your DNS host. Certificates are issued once the domains point here.",
+    "after": "Check each website (for example with an entry in your computer's hosts file), then point the domains at this server: change their name servers to {{brand}}'s if you imported the zones, or their records at your DNS host. Certificates are issued once the domains point here.",
     "open_sites": "Open websites",
     "another": "Import another",
     "paths_changed_one": "The old home folder's path was changed in {{count}} file",
@@ -2627,12 +2640,12 @@
       "mail_mdbox": "Mail of {{name}}: kept in Dovecot's mdbox format, which cannot be read. The mailbox is made, empty; move the mail with a mail program or imapsync",
       "zone_mx_here": "Zone {{name}}: its MX record points at {{detail}}, which now points here, where it has no email. Import the email too, or change the MX record",
       "zone_old_ip": "Records that still point at the old server ({{detail}}): {{name}}",
-      "zone_record": "Record of {{detail}} that ekPanel cannot keep: {{name}}",
+      "zone_record": "Record of {{detail}} that {{brand}} cannot keep: {{name}}",
       "zone_unread_one": "Zone {{name}}: {{count}} line of its file could not be read",
       "zone_unread_other": "Zone {{name}}: {{count}} lines of its file could not be read",
       "zone_failed": "Zone {{name}}: {{detail}}",
       "dns_zone": "DNS zone {{name}}",
-      "mail_unusable": "Forwarding line of {{detail}}: {{name}} (to a program or a refusal, which ekPanel does not have)",
+      "mail_unusable": "Forwarding line of {{detail}}: {{name}} (to a program or a refusal, which {{brand}} does not have)",
       "mail_catch_all": "Catch-all of {{detail}}: unknown addresses went to {{name}}, which is not a mailbox here; choose a mailbox on the domain's Email page",
       "outside_website_one": "{{count}} file outside the website's folder in the archive",
       "outside_website_other": "{{count}} files outside the website's folder in the archive",
@@ -2659,8 +2672,8 @@
     "mail_new_passwords_one": "{{count}} gets a new password",
     "mail_new_passwords_other": "{{count}} get new passwords",
     "zones": "DNS zones",
-    "zones_hint": "Made on ekPanel's name servers. Records for the websites and email here are made by ekPanel; cPanel's own names are left out; everything else is kept.",
-    "zones_off": "ekPanel's name servers are not set up (DNS → Name servers), so zones cannot be imported. Keep them at your DNS host.",
+    "zones_hint": "Made on {{brand}}'s name servers. Records for the websites and email here are made by {{brand}}; cPanel's own names are left out; everything else is kept.",
+    "zones_off": "{{brand}}'s name servers are not set up (DNS → Name servers), so zones cannot be imported. Keep them at your DNS host.",
     "zone_records_one": "{{count}} record",
     "zone_records_other": "{{count}} records",
     "mail_done": "{{mailboxes}} mailboxes, {{forwarders}} forwarders, {{messages}} messages",
@@ -2775,6 +2788,50 @@
     "empty": {
       "title": "No resellers yet",
       "body": "Add a reseller to let someone sell hosting on your servers to their own customers."
-    }
+    },
+    "white_label": "Own branding",
+    "white_label_hint": "The reseller can give the panel their own name, logo, color and domain for their customers."
+  },
+  "brand": {
+    "source": "Source code"
+  },
+  "branding": {
+    "title": "Branding",
+    "intro": "Give the panel your own name, logo, color and domain. Everyone sees it, except a reseller's customers when the reseller has their own branding.",
+    "intro_reseller": "Your own name, logo, color and domain. You and your customers see the panel this way.",
+    "not_allowed_title": "Branding is not turned on for you",
+    "not_allowed": "An administrator can allow you your own branding in your reseller settings.",
+    "name": "Name",
+    "name_hint": "Shown in the header, the browser tab, emails and authenticator apps. Empty: ekPanel.",
+    "name_hint_reseller": "Shown in the header, the browser tab, emails and authenticator apps.",
+    "color": "Color",
+    "color_default": "Default",
+    "color_reset": "Use the default",
+    "color_hint": "For buttons, links and highlights. It is made darker or lighter where needed, so text stays readable in light and dark themes.",
+    "color_hint_reseller": "For buttons, links and highlights. Empty: the panel's color.",
+    "domain": "Domain",
+    "domain_hint": "An address for the panel, such as panel.example.com. The panel's server answers it with a free certificate once the domain points there.",
+    "domain_hint_reseller": "Your customers sign in here and see your branding even before signing in. Links in their emails use it too.",
+    "state": {
+      "none": "No domain",
+      "active": "Active",
+      "pending": "Being set up",
+      "failed": "Failed",
+      "no_server": "No server"
+    },
+    "dns": "Point {{domain}} at the panel's server with these DNS records:",
+    "no_server": "The server that runs the panel is not added to the panel, so nothing can answer this domain yet.",
+    "passkeys_note": "Passkeys belong to one address: a passkey added at another of the panel's addresses does not work here.",
+    "saved": "Saved",
+    "logo": "Logo",
+    "logo_hint": "PNG, JPEG, GIF or WebP, up to 2 MB, shown about 32 pixels high. A wide logo with a transparent background reads best in both themes. It is also the browser tab's icon.",
+    "logo_upload": "Upload a logo",
+    "logo_change": "Change the logo",
+    "logo_remove": "Remove",
+    "preview": "Preview",
+    "preview_button": "Button",
+    "preview_link": "A link",
+    "preview_note": "Save to see it everywhere. The link to the panel's source code stays, as its license (AGPL) asks.",
+    "preview_badge": "Highlight"
   }
 }

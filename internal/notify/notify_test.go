@@ -21,6 +21,15 @@ func TestRender(t *testing.T) {
 	if m := Render("xx", n); m.Title != "Server web-1 is offline" {
 		t.Errorf("fallback: %+v", m)
 	}
+	// White-label: the recipient's panel name, ekPanel for notifications from before.
+	login := store.Notification{Event: "login_new_ip", Params: map[string]string{"ip": "192.0.2.1"}, Link: "https://cp.example/x"}
+	if m := Render("en", login); !strings.Contains(m.Body, "your ekPanel account") || !strings.Contains(m.text("en"), "Open in ekPanel:") {
+		t.Errorf("without a brand: %+v", m)
+	}
+	login.Params["brand"] = "Host BD"
+	if m := Render("bn", login); !strings.Contains(m.Body, "আপনার Host BD অ্যাকাউন্টে") || !strings.Contains(m.text("bn"), "Host BD-এ খুলুন") {
+		t.Errorf("with a brand: %+v %q", m, m.text("bn"))
+	}
 	for _, e := range append(AdminEvents, "test") {
 		for l, c := range catalogs {
 			if c.Events[e].Title == "" || c.Events[e].Body == "" {

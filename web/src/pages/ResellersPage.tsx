@@ -34,6 +34,7 @@ interface LimitsForm {
   sftp: boolean;
   ftp: boolean;
   git_apps: boolean;
+  white_label: boolean;
 }
 
 const newLimits: LimitsForm = {
@@ -56,6 +57,7 @@ const newLimits: LimitsForm = {
   sftp: true,
   ftp: false,
   git_apps: false,
+  white_label: false,
 };
 
 const gb = (mb: number | null) => (mb === null ? "" : String(Math.round((mb / 1024) * 100) / 100));
@@ -81,6 +83,7 @@ function formFromLimits(l: ResellerLimits): LimitsForm {
     sftp: l.sftp,
     ftp: l.ftp,
     git_apps: l.git_apps,
+    white_label: l.white_label,
   };
 }
 
@@ -109,6 +112,7 @@ function limitsFromForm(f: LimitsForm): ResellerLimits {
     sftp: f.sftp,
     ftp: f.ftp,
     git_apps: f.git_apps,
+    white_label: f.white_label,
   };
 }
 
@@ -282,6 +286,13 @@ function ResellerDialog({ open, reseller, onClose }: { open: boolean; reseller: 
                 {t("packages.git_apps")}
               </label>
             </div>
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" checked={f.white_label} onChange={(e) => set("white_label", e.target.checked)} className="mt-0.5 accent-[var(--accent)]" />
+              <span>
+                {t("resellers.white_label")}
+                <span className="block text-muted">{t("resellers.white_label_hint")}</span>
+              </span>
+            </label>
           </section>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>
@@ -353,11 +364,12 @@ export function ResellersPage() {
                   </div>
                   <span className="rounded bg-sunk px-2 py-0.5 text-xs text-muted">{t("resellers.packages_count", { count: r.packages, formatted: formatNumber(r.packages, lng) })}</span>
                 </div>
-                {(r.suspended_at || r.bandwidth_blocked) && (
+                {(r.suspended_at || r.bandwidth_blocked || r.limits.white_label) && (
                   <div className="grid gap-1.5">
                     <div className="flex flex-wrap gap-2">
                       {r.suspended_at && <Badge tone="crit">{t("customers.suspended_badge", { date: new Date(r.suspended_at).toLocaleDateString(lng) })}</Badge>}
                       {r.bandwidth_blocked && <Badge tone="warn">{t("customers.bandwidth_blocked")}</Badge>}
+                      {r.limits.white_label && <Badge tone="accent">{t("resellers.white_label")}</Badge>}
                     </div>
                     {r.suspended_at && r.suspend_reason && <p className="text-sm text-muted">{t("customers.suspend_reason_is", { reason: r.suspend_reason })}</p>}
                   </div>

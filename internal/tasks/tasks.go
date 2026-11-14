@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"net"
 	"slices"
 	"sync"
 	"time"
@@ -59,7 +60,34 @@ type Runner struct {
 	agentWait time.Duration
 	// stopping closes when the panel shuts down (set by Run).
 	stopping <-chan struct{}
+	// panelUpstream is the panel's local address, for its own domains (SetPanelAddress).
+	panelUpstream string
 }
+
+// SetPanelAddress tells the runner where the panel listens, so the server running it can
+// proxy the panel's white-label domains there.
+func (r *Runner) SetPanelAddress(listen string) {
+	host, port, err := net.SplitHostPort(listen)
+	if err != nil {
+		return
+	}
+	if ip := net.ParseIP(host); host == "" || (ip != nil && ip.IsUnspecified()) {
+		host = "127.0.0.1"
+	}
+	r.panelUpstream = net.JoinHostPort(host, port)
+}
+
+// PanelDomainsStatus is how the panel's server last applied the panel's own domains.
+type PanelDomainsStatus struct {
+	OK      bool      `json:"ok"`
+	Error   string    `json:"error,omitempty"`
+	Domains []string  `json:"domains"`
+	Skipped []string  `json:"skipped,omitempty"`
+	At      time.Time `json:"at"`
+}
+
+// PanelDomainsStatusKey is the setting that holds PanelDomainsStatus.
+const PanelDomainsStatusKey = "panel_domains_status"
 
 // SetSecrets lets the runner open sealed secrets, such as Git apps' deploy keys.
 func (r *Runner) SetSecrets(b *secretbox.Box) { r.secrets = b }
@@ -549,6 +577,13 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 	if params.NameServer, err = r.nameServerSpec(ctx, serverID); err != nil {
 		return sum, fmt.Errorf("name server: %w", err)
 	}
+	if srv, err := r.store.GetServer(ctx, serverID); err == nil && srv.PanelHost && r.panelUpstream != "" {
+		domains, err := r.store.PanelDomains(ctx)
+		if err != nil {
+			return sum, err
+		}
+		params.Panel = &agentproto.PanelSpec{Upstream: r.panelUpstream, Domains: domains}
+	}
 	if params.Firewall != nil {
 		params.Firewall.Mail = params.Mail != nil
 		params.Firewall.FTP = anyFTP
@@ -712,6 +747,21 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			return sum, err
 		}
 		if res.Security.Error != "" {
+			sum.Failed++
+		}
+	}
+	if params.Panel != nil {
+		st := PanelDomainsStatus{OK: true, Domains: params.Panel.Domains, At: time.Now()}
+		switch {
+		case res.Panel == nil:
+			st.OK, st.Error = false, "the agent does not support the panel's own domains; update the agent"
+		default:
+			st.OK, st.Error, st.Skipped = res.Panel.OK, res.Panel.Error, res.Panel.Skipped
+		}
+		if err := r.store.SetSetting(ctx, PanelDomainsStatusKey, st); err != nil {
+			return sum, err
+		}
+		if !st.OK {
 			sum.Failed++
 		}
 	}

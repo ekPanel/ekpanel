@@ -50,6 +50,7 @@ var routeScopes = map[string][]string{
 	"owner-changes": {"customers"},
 	"resellers":     {"customers"},
 	"settings":      {"settings"},
+	"brand":         {"settings"},
 	"updates":       {"settings"},
 	"audit":         {"settings"},
 	"notifications": {"settings"},
@@ -59,6 +60,7 @@ var routeScopes = map[string][]string{
 	"health":       {},
 	"openapi.json": {},
 	"setup":        {},
+	"branding":     {},
 }
 
 // tokenScopeFor returns the scopes that allow a request with a token, and whether a token

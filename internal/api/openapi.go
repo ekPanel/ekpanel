@@ -23,6 +23,12 @@ import (
 // summaryOverrides replaces summaries that do not read well when made from a handler name.
 var summaryOverrides = map[string]string{
 	"GET /api/v1/health":                                "Check that the panel is running (and its version)",
+	"GET /api/v1/branding":                              "The panel's name, color and logo for you (or, signed out, for the domain it was opened at)",
+	"GET /api/v1/branding/logo/{id}":                    "A brand's logo (PNG)",
+	"GET /api/v1/brand":                                 "Your white-label settings (the panel's, for administrators)",
+	"PUT /api/v1/brand":                                 "Set your panel's name, color and domain",
+	"PUT /api/v1/brand/logo":                            "Upload your panel's logo (PNG, JPEG, GIF or WebP, sent as application/octet-stream)",
+	"DELETE /api/v1/brand/logo":                         "Remove your panel's logo",
 	"GET /api/v1/auth/me":                               "The signed-in user",
 	"GET /api/v1/me/usage":                              "Your usage against your package's limits",
 	"POST /api/v1/hooks/git/{id}":                       "Webhook from a Git host: deploy an app (signed with the app's webhook secret)",

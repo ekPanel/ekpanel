@@ -411,9 +411,11 @@ func urlSafeID(id string) string {
 	return nilUUID
 }
 
-func deref(n *int64) int64 {
-	if n == nil {
-		return 0
+// deref returns what p points at, or the zero value for nil.
+func deref[T any](p *T) T {
+	var zero T
+	if p == nil {
+		return zero
 	}
-	return *n
+	return *p
 }

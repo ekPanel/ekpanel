@@ -2044,6 +2044,182 @@
         "x-ekpanel-scope": "read or backups"
       }
     },
+    "/api/v1/brand": {
+      "get": {
+        "operationId": "getBrand",
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Your white-label settings (the panel's, for administrators)",
+        "tags": [
+          "brand"
+        ],
+        "x-ekpanel-scope": "read or settings"
+      },
+      "put": {
+        "operationId": "putBrand",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Set your panel's name, color and domain",
+        "tags": [
+          "brand"
+        ],
+        "x-ekpanel-scope": "settings"
+      }
+    },
+    "/api/v1/brand/logo": {
+      "delete": {
+        "operationId": "deleteBrandLogo",
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Remove your panel's logo",
+        "tags": [
+          "brand"
+        ],
+        "x-ekpanel-scope": "settings"
+      },
+      "put": {
+        "operationId": "putBrandLogo",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Upload your panel's logo (PNG, JPEG, GIF or WebP, sent as application/octet-stream)",
+        "tags": [
+          "brand"
+        ],
+        "x-ekpanel-scope": "settings"
+      }
+    },
+    "/api/v1/branding": {
+      "get": {
+        "operationId": "getBranding",
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "The panel's name, color and logo for you (or, signed out, for the domain it was opened at)",
+        "tags": [
+          "branding"
+        ],
+        "x-ekpanel-scope": "any"
+      }
+    },
+    "/api/v1/branding/logo/{id}": {
+      "get": {
+        "operationId": "getBrandingLogoId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "A brand's logo (PNG)",
+        "tags": [
+          "branding"
+        ],
+        "x-ekpanel-scope": "any"
+      }
+    },
     "/api/v1/catalog": {
       "get": {
         "operationId": "getCatalog",

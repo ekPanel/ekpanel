@@ -68,6 +68,12 @@ All notable changes to ekPanel are listed here. The format follows
   packages and customers, see only their customers and what they own, and can sign in as
   them, suspend them and move things between them. Suspending a reseller suspends their
   customers too (4e)
+- White-label (Admin → Branding): the panel's own name, color, logo and domain, and, when an
+  administrator allows it, a reseller's for them and their customers. The name is used in the
+  header, the browser tab, notifications and authenticator apps; the color is adjusted to stay
+  readable in both themes; the logo is saved again as a plain PNG; the domain is served by the
+  panel's server with its own certificate, and shows its brand before signing in. A link to
+  the source code stays, as the AGPL asks (4e)
 
 ### Changed
 - PHP websites serve a folder's `index.html` when it has no `index.php`, as Apache does (4d)

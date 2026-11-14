@@ -227,6 +227,7 @@ func run(log *slog.Logger, args []string) error {
 	runner.SetNotifier(notifier)
 	runner.SetSecrets(box)
 	runner.SetRelease(version, cfg.ReleasesURL)
+	runner.SetPanelAddress(cfg.Listen)
 	// Started by an update of itself? Then go on with the agents (or record that it failed).
 	runner.ResumeUpdate(ctx)
 	// Moves cut off by a restart cannot finish: fail them (giving switched sites back).

@@ -96,6 +96,8 @@ export interface ResellerLimits {
   sftp: boolean;
   ftp: boolean;
   git_apps: boolean;
+  /** The reseller may give their panel their own name, logo, color and domain. */
+  white_label: boolean;
 }
 
 export interface Reseller extends User {
@@ -107,6 +109,32 @@ export interface Reseller extends User {
   bandwidth_month: number;
   bandwidth_blocked: boolean;
   suspend_reason: string | null;
+}
+
+/** How the panel looks for this visitor: ekPanel's own, the panel's brand or a reseller's. */
+export interface Branding {
+  name: string;
+  /** "#rrggbb", or "" for ekPanel's colors. */
+  color: string;
+  logo_url: string | null;
+  /** False while the panel looks like ekPanel. */
+  custom: boolean;
+  url: string | null;
+  source_url: string;
+}
+
+/** White-label settings: the panel's (administrators) or a reseller's own. */
+export interface BrandSettings {
+  name: string;
+  color: string;
+  domain: string | null;
+  logo_url: string | null;
+  allowed: boolean;
+  domain_state: "" | "active" | "pending" | "failed" | "no_server";
+  domain_error?: string;
+  addresses: string[];
+  /** The panel's brand, which a reseller's color and missing settings fall back to. */
+  panel?: Branding;
 }
 
 /** Who owns a website, database or app; null means the administrators. */

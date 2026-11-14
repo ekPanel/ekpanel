@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"mime"
 	"net"
 	"net/http"
@@ -92,8 +93,23 @@ func Render(locale string, n store.Notification) Message {
 	if !ok {
 		e = catalogs["en"].Events[n.Event]
 	}
-	return Message{Event: n.Event, Severity: n.Severity, Title: fill(e.Title, n.Params), Body: fill(e.Body, n.Params),
+	params := withBrand(n.Params)
+	return Message{Event: n.Event, Severity: n.Severity, Title: fill(e.Title, params), Body: fill(e.Body, params),
 		Link: n.Link, Params: n.Params, At: n.CreatedAt}
+}
+
+// withBrand adds the panel's name, as the recipient sees it, to a notification's params.
+// Notifications from before white-label have none: they were ekPanel's.
+func withBrand(params map[string]string) map[string]string {
+	if params["brand"] != "" {
+		return params
+	}
+	p := maps.Clone(params)
+	if p == nil {
+		p = map[string]string{}
+	}
+	p["brand"] = "ekPanel"
+	return p
 }
 
 func (m Message) text(locale string) string {
@@ -103,7 +119,7 @@ func (m Message) text(locale string) string {
 		if !ok {
 			c = catalogs["en"]
 		}
-		t += "\n\n" + fill(c.Open, map[string]string{"link": m.Link})
+		t += "\n\n" + fill(c.Open, map[string]string{"link": m.Link, "brand": withBrand(m.Params)["brand"]})
 	}
 	return t
 }
@@ -157,10 +173,13 @@ func (n *Notifier) Seal(b []byte) []byte { return n.box.Seal(b) }
 
 // Event sends a notification to each user listed. path is a panel page such as
 // "/sites/<id>"; it becomes a link when the panel's address is known.
+//
+// Each user gets it under the name of the panel they see (white-label), with the link on
+// that panel's domain when it has one.
 func (n *Notifier) Event(ctx context.Context, users []string, event, severity string, params map[string]string, path string) {
-	link := ""
-	if s, err := n.Settings(ctx); err == nil && s.PanelURL != "" && path != "" {
-		link = strings.TrimRight(s.PanelURL, "/") + path
+	base := ""
+	if s, err := n.Settings(ctx); err == nil {
+		base = strings.TrimRight(s.PanelURL, "/")
 	}
 	seen := map[string]bool{}
 	for _, u := range users {
@@ -168,7 +187,22 @@ func (n *Notifier) Event(ctx context.Context, users []string, event, severity st
 			continue
 		}
 		seen[u] = true
-		if _, err := n.store.AddNotification(ctx, store.Notification{UserID: u, Event: event, Severity: severity, Params: params, Link: link}); err != nil {
+		p, addr := maps.Clone(params), base
+		if p == nil {
+			p = map[string]string{}
+		}
+		p["brand"] = "ekPanel"
+		if b, err := n.store.EffectiveBrand(ctx, &u, ""); err == nil {
+			p["brand"] = b.Name
+			if b.Domain != nil {
+				addr = "https://" + *b.Domain
+			}
+		}
+		link := ""
+		if addr != "" && path != "" {
+			link = addr + path
+		}
+		if _, err := n.store.AddNotification(ctx, store.Notification{UserID: u, Event: event, Severity: severity, Params: p, Link: link}); err != nil {
 			n.log.Error("add notification", "event", event, "user", u, "err", err)
 		}
 	}

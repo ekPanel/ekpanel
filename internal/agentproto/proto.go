@@ -267,6 +267,24 @@ type StateApplyParams struct {
 	Security *SecuritySpec `json:"security,omitempty"`
 	// NameServer is nil on servers that are not name servers.
 	NameServer *NameServerSpec `json:"name_server,omitempty"`
+	// Panel is set only for the server that runs the panel: the extra domains it answers
+	// for the panel itself (white-label). Nil leaves them as they are.
+	Panel *PanelSpec `json:"panel,omitempty"`
+}
+
+// PanelSpec is the panel's own domains beyond the one the installer set up, proxied by
+// Caddy to Upstream (the panel's local address) with their own certificates.
+type PanelSpec struct {
+	Upstream string   `json:"upstream"`
+	Domains  []string `json:"domains"`
+}
+
+// PanelResult says how the panel's domains were applied. Skipped are domains the
+// server's own Caddyfile already serves (the installer's --domain), left to it.
+type PanelResult struct {
+	OK      bool     `json:"ok"`
+	Error   string   `json:"error,omitempty"`
+	Skipped []string `json:"skipped,omitempty"`
 }
 
 // AppSpec is one Docker app: a Compose project named "ekpanel-<Name>" kept in
@@ -377,6 +395,7 @@ type StateApplyResult struct {
 	Mail       *MailResult       `json:"mail,omitempty"`
 	Security   *SecurityResult   `json:"security,omitempty"`
 	NameServer *NameServerResult `json:"name_server,omitempty"`
+	Panel      *PanelResult      `json:"panel,omitempty"`
 }
 
 type AppResult struct {

@@ -31,6 +31,8 @@ type ResellerLimits struct {
 	SFTP           bool     `json:"sftp"`
 	FTP            bool     `json:"ftp"`
 	GitApps        bool     `json:"git_apps"`
+	// WhiteLabel lets the reseller give their panel their own name, logo, color and domain.
+	WhiteLabel bool `json:"white_label"`
 }
 
 type Reseller struct {
@@ -48,20 +50,20 @@ type Reseller struct {
 
 const resellerLimitColumns = `max_customers, max_sites, max_databases, max_apps, max_cron_jobs, max_mail_domains, max_mailboxes,
 	disk_mb, bandwidth_gb, bandwidth_stop, memory_mb, cpu_percent, mailbox_quota_mb, php_versions, app_images,
-	server_ids::text[], sftp, ftp, git_apps`
+	server_ids::text[], sftp, ftp, git_apps, white_label`
 
 func scanResellerLimits(row pgx.Row) (ResellerLimits, error) {
 	var l ResellerLimits
 	err := row.Scan(&l.MaxCustomers, &l.MaxSites, &l.MaxDatabases, &l.MaxApps, &l.MaxCronJobs, &l.MaxMailDomains, &l.MaxMailboxes,
 		&l.DiskMB, &l.BandwidthGB, &l.BandwidthStop, &l.MemoryMB, &l.CPUPercent, &l.MailboxQuotaMB, &l.PHPVersions, &l.AppImages,
-		&l.ServerIDs, &l.SFTP, &l.FTP, &l.GitApps)
+		&l.ServerIDs, &l.SFTP, &l.FTP, &l.GitApps, &l.WhiteLabel)
 	return l, notFound(err)
 }
 
 func resellerLimitArgs(l ResellerLimits) []any {
 	return []any{l.MaxCustomers, l.MaxSites, l.MaxDatabases, l.MaxApps, l.MaxCronJobs, l.MaxMailDomains, l.MaxMailboxes,
 		l.DiskMB, l.BandwidthGB, l.BandwidthStop, l.MemoryMB, l.CPUPercent, l.MailboxQuotaMB, l.PHPVersions, l.AppImages,
-		l.ServerIDs, l.SFTP, l.FTP, l.GitApps}
+		l.ServerIDs, l.SFTP, l.FTP, l.GitApps, l.WhiteLabel}
 }
 
 // GetResellerLimits returns a reseller's limits.
@@ -156,8 +158,8 @@ func (s *Store) CreateReseller(ctx context.Context, n NewReseller) (Reseller, er
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO resellers (user_id, max_customers, max_sites, max_databases, max_apps, max_cron_jobs,
 			max_mail_domains, max_mailboxes, disk_mb, bandwidth_gb, bandwidth_stop, memory_mb, cpu_percent, mailbox_quota_mb,
-			php_versions, app_images, server_ids, sftp, ftp, git_apps)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::text[]::uuid[], $18, $19, $20)`,
+			php_versions, app_images, server_ids, sftp, ftp, git_apps, white_label)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::text[]::uuid[], $18, $19, $20, $21)`,
 		append([]any{id}, resellerLimitArgs(n.Limits)...)...); err != nil {
 		return Reseller{}, err
 	}
@@ -186,7 +188,7 @@ func (s *Store) UpdateReseller(ctx context.Context, id, email, name string, l Re
 	if _, err := tx.Exec(ctx, `UPDATE resellers SET max_customers = $2, max_sites = $3, max_databases = $4, max_apps = $5,
 			max_cron_jobs = $6, max_mail_domains = $7, max_mailboxes = $8, disk_mb = $9, bandwidth_gb = $10, bandwidth_stop = $11,
 			memory_mb = $12, cpu_percent = $13, mailbox_quota_mb = $14, php_versions = $15, app_images = $16,
-			server_ids = $17::text[]::uuid[], sftp = $18, ftp = $19, git_apps = $20, updated_at = now()
+			server_ids = $17::text[]::uuid[], sftp = $18, ftp = $19, git_apps = $20, white_label = $21, updated_at = now()
 		WHERE user_id = $1`, append([]any{id}, resellerLimitArgs(l)...)...); err != nil {
 		return Reseller{}, err
 	}

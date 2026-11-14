@@ -153,19 +153,25 @@ func (s *Server) handleUpdateReseller(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &req) || !s.validReseller(w, r, &req) {
 		return
 	}
+	before, _ := s.store.GetResellerLimits(r.Context(), urlID(r))
 	rs, err := s.store.UpdateReseller(r.Context(), urlID(r), req.Email, req.Name, req.Limits)
 	if err != nil {
 		s.writeResellerError(w, r, err)
 		return
 	}
 	s.audit(r, "reseller.updated", rs.Email, map[string]any{"reseller_id": rs.ID})
+	if before.WhiteLabel != rs.Limits.WhiteLabel {
+		s.reapplyResellerDomain(r, rs.ID) // their panel domain starts or stops answering
+	}
 	s.opts.Tasks.CheckBandwidth(r.Context(), rs.ID) // a new limit may block or unblock websites
 	s.writeReseller(w, r, rs.ID)
 }
 
 func (s *Server) handleDeleteReseller(w http.ResponseWriter, r *http.Request) {
 	rs, err := s.store.GetReseller(r.Context(), urlID(r))
+	var brand store.Brand
 	if err == nil {
+		brand, _ = s.store.GetBrand(r.Context(), &rs.ID)
 		err = s.store.DeleteReseller(r.Context(), rs.ID)
 	}
 	if err != nil {
@@ -173,6 +179,9 @@ func (s *Server) handleDeleteReseller(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, "reseller.deleted", rs.Email, map[string]any{"reseller_id": rs.ID})
+	if brand.Domain != nil {
+		s.reapplyPanelServer(r)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -289,5 +298,12 @@ func (s *Server) reapplyResellerCustomers(r *http.Request, id string) {
 				s.queueReconcile(r, id)
 			}
 		}
+	}
+}
+
+// reapplyResellerDomain has the panel's server pick up a reseller's panel domain, if any.
+func (s *Server) reapplyResellerDomain(r *http.Request, id string) {
+	if b, err := s.store.GetBrand(r.Context(), &id); err == nil && b.Domain != nil {
+		s.reapplyPanelServer(r)
 	}
 }

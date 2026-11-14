@@ -315,7 +315,11 @@ func (s *Server) handleTestChannel(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	m := notify.Render(u.Locale, store.Notification{Event: "test", Severity: "info", CreatedAt: time.Now()})
+	brand := "ekPanel"
+	if b, err := s.store.EffectiveBrand(r.Context(), &u.ID, ""); err == nil {
+		brand = b.Name
+	}
+	m := notify.Render(u.Locale, store.Notification{Event: "test", Severity: "info", Params: map[string]string{"brand": brand}, CreatedAt: time.Now()})
 	sendErr := s.opts.Notify.Send(ctx, c, m, u.Locale)
 	s.store.ChannelResult(r.Context(), c.ID, sendErr)
 	if sendErr != nil {

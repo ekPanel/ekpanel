@@ -108,6 +108,7 @@ func newTestPanel(t *testing.T, configure ...func(*api.Options, *store.Store)) *
 		f(&opts, st)
 	}
 	runner.SetRelease(opts.Version, opts.ReleasesURL)
+	runner.SetPanelAddress("127.0.0.1:8080")
 	done := make(chan struct{}, 2)
 	go func() { runner.Run(ctx, 2); done <- struct{}{} }()
 	go func() { notifier.Run(ctx); done <- struct{}{} }()

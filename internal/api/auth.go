@@ -405,7 +405,7 @@ func (s *Server) handleTOTPSetup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "totp_already_enabled", "two-factor authentication is already on")
 		return
 	}
-	secret, url, err := auth.NewTOTP("ekPanel", u.Email)
+	secret, url, err := auth.NewTOTP(s.brandName(r), u.Email)
 	if err != nil {
 		s.internalError(w, r, err)
 		return

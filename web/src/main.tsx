@@ -28,6 +28,7 @@ import { WordPressPage } from "./pages/WordPressPage";
 import { ServerSecurityPage } from "./pages/SecurityPage";
 import { CustomersPage, PackagesPage } from "./pages/CustomersPage";
 import { ResellersPage } from "./pages/ResellersPage";
+import { BrandingPage } from "./pages/BrandingPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { UpdatesPage } from "./pages/UpdatesPage";
 import { ImportPage } from "./pages/ImportPage";
@@ -115,6 +116,7 @@ const router = createBrowserRouter([
         children: [
           { path: "/customers", element: <CustomersPage /> },
           { path: "/packages", element: <PackagesPage /> },
+          { path: "/settings/branding", element: <BrandingPage /> },
         ],
       },
       {

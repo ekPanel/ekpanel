@@ -82,10 +82,10 @@
     },
     "login_new_ip": {
       "title": "New sign-in to your account",
-      "body": "Someone signed in to your ekPanel account from {{ip}}. If it was not you, change your password and sign out other devices."
+      "body": "Someone signed in to your {{brand}} account from {{ip}}. If it was not you, change your password and sign out other devices."
     },
     "test": {
-      "title": "Test notification from ekPanel",
+      "title": "Test notification from {{brand}}",
       "body": "This channel works. You will get notifications here."
     },
     "update_available": {
@@ -102,8 +102,8 @@
     },
     "recovery_code_used": {
       "title": "A recovery code signed in to your account",
-      "body": "Someone signed in to your ekPanel account from {{ip}} with a two-factor recovery code; {{left}} codes are left. If it was not you, change your password, make new recovery codes and sign out other devices."
+      "body": "Someone signed in to your {{brand}} account from {{ip}} with a two-factor recovery code; {{left}} codes are left. If it was not you, change your password, make new recovery codes and sign out other devices."
     }
   },
-  "open": "Open in ekPanel: {{link}}"
+  "open": "Open in {{brand}}: {{link}}"
 }

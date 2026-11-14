@@ -5,14 +5,17 @@ import { Fingerprint, KeyRound } from "lucide-react";
 import { api, ApiError, errorMessage, type User } from "../lib/api";
 import { useMe, useSetupStatus, useSignedIn } from "../lib/session";
 import { cancelled, getPasskey, passkeysSupported } from "../lib/passkeys";
-import { LanguageMenu, Logo, ThemeMenu } from "../components/AppShell";
+import { LanguageMenu, SourceLink, ThemeMenu } from "../components/AppShell";
+import { BrandMark } from "../components/Brand";
+import { useApplyBranding } from "../lib/brand";
 import { Button, ErrorAlert, Field, Spinner } from "../components/ui";
 
 function AuthLayout({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
+  const brand = useApplyBranding();
   return (
     <div className="flex min-h-full flex-col">
       <header className="flex items-center justify-between gap-3 px-4 py-4 sm:px-8">
-        <Logo />
+        {brand ? <BrandMark brand={brand} /> : <span className="h-8" aria-hidden />}
         <div className="flex items-center gap-2">
           <LanguageMenu />
           <ThemeMenu />
@@ -23,6 +26,7 @@ function AuthLayout({ title, subtitle, children }: { title: string; subtitle: st
           <h1 className="text-2xl font-bold tracking-tight text-balance">{title}</h1>
           <p className="mt-1.5 text-muted">{subtitle}</p>
           <div className="mt-8 rounded-2xl border border-line bg-surface p-6 sm:p-8">{children}</div>
+          <SourceLink className="mt-6 text-center" />
         </div>
       </main>
     </div>

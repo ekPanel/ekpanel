@@ -89,6 +89,8 @@ func (s *Server) router() chi.Router {
 		// Signed by the app's webhook secret instead of a session.
 		r.Post("/hooks/git/{id}", s.handleGitHook)
 		r.Get("/setup/status", s.handleSetupStatus)
+		r.Get("/branding", s.handleBranding)
+		r.Get("/branding/logo/{id}", s.handleBrandLogo)
 		r.Post("/setup", s.handleSetup)
 		r.Post("/auth/login", s.handleLogin)
 		r.Post("/auth/passkey/options", s.handlePasskeyLoginOptions)
@@ -262,6 +264,10 @@ func (s *Server) router() chi.Router {
 			r.Post("/customers/{id}/suspend", s.handleSuspendCustomer)
 			r.Post("/customers/{id}/unsuspend", s.handleUnsuspendCustomer)
 			r.Post("/owner-changes", s.handleChangeOwner)
+			r.Get("/brand", s.handleGetBrand)
+			r.Put("/brand", s.handleSaveBrand)
+			r.Put("/brand/logo", s.handleSetBrandLogo)
+			r.Delete("/brand/logo", s.handleDeleteBrandLogo)
 		})
 
 		r.Group(func(r chi.Router) {

@@ -277,7 +277,18 @@ func stateApply(ctx context.Context, sys *system, p agentproto.StateApplyParams)
 	if err := a.prepareWebmail(ctx, p.Mail); err != nil {
 		a.fail(webmailID, fmt.Errorf("webmail: %w", err))
 	}
+	var panelSkipped []string
+	if p.Panel != nil {
+		a.results[panelID] = &agentproto.SiteResult{ID: panelID, OK: true}
+		var err error
+		if panelSkipped, err = a.applyPanelDomains(*p.Panel); err != nil {
+			a.fail(panelID, fmt.Errorf("panel domains: %w", err))
+		}
+	}
 	a.finish(ctx)
+	if r := a.results[panelID]; r != nil {
+		res.Panel = &agentproto.PanelResult{OK: r.OK, Error: r.Error, Skipped: panelSkipped}
+	}
 	for i := range res.Sites {
 		res.Sites[i] = *a.results[res.Sites[i].ID]
 	}

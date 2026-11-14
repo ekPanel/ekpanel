@@ -1059,7 +1059,7 @@ DNS zones and certificates next):
 **4e. Resellers and white-label**
 - [x] Resellers: their own packages and customers within the limits an administrator gives
       them; they see only their customers (4e-3)
-- [ ] White-label: name, logo, colors and the panel's domain, per panel and per reseller
+- [x] White-label: name, logo, colors and the panel's domain, per panel and per reseller (4e-4)
 - [ ] Sub-users of an account with chosen permissions (only files, only email …)
 - [x] Passkeys (WebAuthn) besides passwords and two-factor codes; active sessions listed and
       ended from the panel (4e-1, with recovery codes and resetting someone's two-factor).
@@ -1158,6 +1158,51 @@ How 4e-3 works:
 - Found while trying it: collecting traffic by hand did not check bandwidth limits until the
   next quarter hour; it does now. A reseller whose images were limited could not make a
   package without apps.
+
+How 4e-4 works:
+- **A brand** is a name (up to 60 characters), a color (#rrggbb), a logo and a domain. The
+  panel has one (Admin → Branding), seen by everyone; a reseller has their own when an
+  administrator ticks "Own branding" in their limits (off by default), seen by them and their
+  customers. A reseller's name and logo go together (no logo: a letter tile, not the panel's
+  logo); their color and domain fall back to the panel's. Untick it and the panel's brand is
+  back; the reseller's settings stay.
+- **Which brand:** signed in, the account's (an administrator signed in as someone sees
+  theirs); signed out, the brand of the domain the panel was opened at. The server puts that
+  brand's title, icon and color into the page itself, so the first paint is already right; the
+  app shows no logo until the brand is known, rather than ekPanel's.
+- **The name** replaces ekPanel in the header, the browser tab, the texts (a `{{brand}}`
+  variable in both languages), notifications (each recipient gets their own brand's name, and
+  links on their brand's domain) and new authenticator entries. Texts about ekPanel the
+  software (updates, the agent, the setup page) keep its name.
+- **The color** becomes the accent of both themes, darkened or lightened until text in it keeps
+  4.5:1 against the page (one function in `theme-init.js`, used before the first paint, by the
+  app and by the page's preview). State colors stay.
+- **The logo** (PNG, JPEG, GIF or WebP, up to 2 MB) is decoded and written again as a PNG of at
+  most 1024×512, so only plain pixels are served (no SVG); its address carries a version and is
+  cached for a year.
+- **The domain** is claimed like a website's host name (no website, app or other brand can take
+  it). The agent on the panel's server writes them all into
+  `/etc/ekpanel/caddy/sites/panel-domains.caddy`, proxying to the panel's local address with
+  their own certificates (Caddy's internal one for .test, .localhost, .internal, .example and
+  .invalid); a domain the main Caddyfile already serves (the installer's `--domain`) is left to
+  it and always shows the panel's brand, and a reseller cannot take the panel's own address.
+  The Branding page shows the DNS records and the domain's state (active, being set up, failed,
+  no server). Passkeys belong to one address.
+- A "Source code" link stays at the bottom of the menu and of the sign-in page (AGPL).
+- Tried in the VM (Lima on the Mac, panel and agent installed by the installer from local
+  binaries): the panel's and a reseller's domains served by Caddy with internal certificates,
+  each with its own brand signed out (title, color and logo in the page itself) next to a
+  customer's website; the reseller's customer signed in at the reseller's domain and saw it
+  there and at the panel's address; unticking "Own branding" withdrew the domain (nothing
+  answered it) and the customer saw the panel's brand, ticking it brought it back; a domain
+  added to the main Caddyfile was left to it while Caddy's configuration stayed valid, and taken
+  over by the agent once the installer rewrote the Caddyfile. In a browser: the Branding page
+  for administrators and resellers, the reseller's switch and badge, both themes, Bangla.
+- Found while trying it: with no server for the panel, the domain read "being set up" instead
+  of "no server", and the panel would have queued a reconcile for no server; the app flashed
+  ekPanel's title and color before the brand loaded; the light preview drew its text in the dark
+  theme's color and the color unadjusted; the menu, longer by one item and the source link,
+  squeezed the logo on short windows (it scrolls now).
 
 **4f. Security center**
 - [ ] WAF: Coraza with the OWASP Core Rule Set in a Caddy that ekPanel builds and ships (with
