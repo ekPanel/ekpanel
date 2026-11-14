@@ -1215,6 +1215,48 @@ How 4e-4 works:
       change package and remove accounts, single sign-on into the panel
 - [ ] Built-in billing (Stripe, bKash, SSLCommerz): after the modules, if still wanted
 
+**4h. Taking over an aaPanel server in place** (decided 2026-11-14)
+
+A real aaPanel 8 server is to move to ekPanel, on the same machine (there is no second
+server): Ubuntu 24.04, 4 CPUs, 11 GB RAM, about 60 GB of 231 GB free. ekPanel must first handle
+everything on it; the move itself comes after. Read-only inventory taken 2026-11-14:
+- 32 sites: 14 PHP (Laravel, PHP 8.5, `try_files … /index.php` rewrites, one redirect, one
+  stopped), 12 Node projects (Next.js through `pnpm start <app>` / `npm start`, several on one
+  folder, some with `*.domain` wildcards), 3 Go projects (binaries in the site folder), 5 proxy
+  sites (domain lists to 127.0.0.1 ports, one with three paths to three ports, websockets)
+- MariaDB 11.8 (14 databases, mixed latin1/utf8mb3/utf8mb4) and aaPanel's own PostgreSQL 18
+  (2 databases); Redis on 6379 for Laravel; PHP extensions incl. ionCube, imagick, igbinary,
+  redis, yaml, zstd
+- Docker: 20 containers in 4 Compose projects (one built locally with buildx, from a folder
+  outside the sites; a mail server on ports 25/587; a DNS filter on the LAN address's port 53;
+  one with build contexts) and one standalone container with a named volume; a second,
+  rootless Docker daemon with its own stack; 30 GB of images (22 GB reclaimable)
+- Supervisor workers (a Go binary, `artisan horizon`), Laravel `schedule:run` cron, daily
+  restarts of Go projects, aaPanel backups to Google Drive, ufw rules incl. UDP and LAN-only
+  sources, Let's Encrypt and Cloudflare origin certificates
+
+What ekPanel needs (each tested in the VM, a Lima VM with aaPanel installed for the takeover):
+- [ ] **Service apps**: a command run as a systemd service from a folder (Node with a chosen
+      version and package manager, Go and other binaries, PHP workers), with its own user,
+      environment, memory and CPU limits, restart, logs, a port, domains and cron; also without a
+      domain (workers)
+- [ ] **Proxy sites**: domains to a local port or URL, several paths to several upstreams,
+      websockets, headers
+- [ ] **Wildcard domains** with DNS-01 certificates (Cloudflare and the built-in DNS), and
+      uploaded origin certificates on them
+- [ ] **Adopting what runs**: an existing MariaDB/MySQL or PostgreSQL server (by its root
+      credentials, any port or socket) as the server's database engine, existing databases and
+      users kept; existing Compose projects and containers by their folder and name, with build
+      contexts, without recreating them; Redis as a managed service
+- [ ] **Firewall rules** with protocol, port ranges and source addresses
+- [ ] **Backups to Google Drive** (restic through rclone), if wanted instead of S3
+- [ ] **aaPanel takeover**: reads aaPanel's own data (sites, domains, projects, databases,
+      cron jobs, certificates, Docker) on the same server, shows what it will do, then moves
+      folders by renaming (no copy, the disk has room for little more), switches nginx to Caddy
+      site by site, keeps ports that other things use (25, 53, 5672), stops aaPanel's services
+      and leaves its files until removed by hand; a dry run first, and a way back to aaPanel
+      until it is removed
+
 **Smaller things left from earlier phases** (taken along where they fit)
 - [ ] Database browser and import/export (4b or 4c)
 - [ ] Single-file restore and downloading a backup (4c)
