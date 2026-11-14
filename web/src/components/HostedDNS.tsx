@@ -6,6 +6,7 @@ import { Plus, Server as ServerIcon, Trash2 } from "lucide-react";
 import { api, errorMessage, type Server } from "../lib/api";
 import { useMe } from "../lib/session";
 import { Badge, Button, Card, Dialog, ErrorAlert, Field, Spinner } from "./ui";
+import { OwnerField } from "../pages/CustomersPage";
 
 export interface HostedRecord {
   id?: string;
@@ -99,7 +100,7 @@ export function HostedDNS() {
                     <Link to={`/dns/hosted/${z.id}`} className="font-semibold hover:text-accent" dir="ltr">
                       {z.name}
                     </Link>
-                    {admin && z.owner_name && <div className="text-xs text-muted">{z.owner_name}</div>}
+                    {(admin || me.data?.role === "reseller") && z.owner_name && <div className="text-xs text-muted">{z.owner_name}</div>}
                   </td>
                   <td className="px-4 py-3">
                     <ZoneStateBadge zone={z} />
@@ -135,6 +136,7 @@ function AddHostedZoneDialog({ onClose }: { onClose: () => void }) {
   const templates = useDNSTemplates();
   const [name, setName] = useState("");
   const [template, setTemplate] = useState("");
+  const [owner, setOwner] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const submit = async (e: FormEvent) => {
@@ -142,7 +144,7 @@ function AddHostedZoneDialog({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError("");
     try {
-      const z = await api.post<HostedZone>("/dns/hosted", { name, template_id: template });
+      const z = await api.post<HostedZone>("/dns/hosted", { name, template_id: template, owner_id: owner });
       qc.invalidateQueries({ queryKey: ["hosted-zones"] });
       navigate(`/dns/hosted/${z.id}`);
     } catch (err) {
@@ -156,6 +158,7 @@ function AddHostedZoneDialog({ onClose }: { onClose: () => void }) {
         <p className="text-sm text-muted">{t("hosted.add_hint")}</p>
         <ErrorAlert>{error}</ErrorAlert>
         <Field label={t("dns.col.domain")} value={name} onChange={(e) => setName(e.target.value)} placeholder="example.com" dir="ltr" required />
+        <OwnerField value={owner} onChange={setOwner} />
         {(templates.data?.length ?? 0) > 0 && (
           <label className="grid gap-1.5">
             <span className="text-sm font-medium">{t("hosted.template")}</span>

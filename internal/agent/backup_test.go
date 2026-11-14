@@ -200,3 +200,40 @@ func TestSnapshotsAndRestoreValidation(t *testing.T) {
 		}
 	}
 }
+
+// A rebuild restores the site's whole home folder, not only public_html.
+func TestRestoreWholeHome(t *testing.T) {
+	f := newFakeRestic(t)
+	backupSetup(context.Background(), f.system, agentproto.BackupSetupParams{RepoID: repoID, Kind: "local"})
+	home := f.path("/home/shop_ab12")
+	os.MkdirAll(home+"/public_html", 0o755)
+	os.WriteFile(home+"/public_html/index.html", []byte("fresh placeholder"), 0o644)
+	inner := f.exec
+	f.exec = func(ctx context.Context, c command) ([]byte, error) {
+		if c.name == "restic" && c.args[0] == "restore" {
+			if !strings.HasSuffix(c.args[1], ":"+home) {
+				t.Errorf("restore of %q, want the whole home", c.args[1])
+			}
+			target := argAfter(c.args, "--target")
+			os.MkdirAll(target+"/public_html", 0o755)
+			os.WriteFile(target+"/public_html/index.php", []byte("<?php"), 0o644)
+			os.MkdirAll(target+"/moodledata/files", 0o755)
+			os.WriteFile(target+"/moodledata/files/upload.bin", []byte("data"), 0o644)
+			return nil, nil
+		}
+		return inner(ctx, c)
+	}
+	site := &agentproto.BackupSite{ID: siteID, Name: "shop.example.com", User: "shop_ab12"}
+	if _, opErr := backupRestore(context.Background(), f.system, agentproto.BackupRestoreParams{RepoID: repoID, SnapshotID: "aaaa1111", Site: site, Mode: "home"}); opErr != nil {
+		t.Fatal(opErr)
+	}
+	if b, _ := os.ReadFile(home + "/moodledata/files/upload.bin"); string(b) != "data" {
+		t.Fatalf("data outside public_html not restored: %q", b)
+	}
+	if _, err := os.Stat(home + "/public_html/index.html"); err == nil {
+		t.Fatal("the fresh account's placeholder is still there")
+	}
+	if entries, _ := os.ReadDir(f.path("/home")); len(entries) != 1 {
+		t.Fatalf("the temporary restore folder was left: %v", entries)
+	}
+}

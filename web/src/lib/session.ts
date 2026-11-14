@@ -36,6 +36,7 @@ export function useSignedIn() {
     (user: User) => {
       qc.setQueryData(meKey, user);
       qc.setQueryData(["setup-status"], { needs_setup: false });
+      qc.invalidateQueries({ queryKey: ["branding"] }); // signed in, it follows the account
       if (user.locale && user.locale !== i18n.language) i18n.changeLanguage(user.locale);
     },
     [qc],

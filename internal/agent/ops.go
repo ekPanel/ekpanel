@@ -49,6 +49,44 @@ func opError(code, format string, a ...any) *agentproto.OpError {
 // Dispatch runs one operation requested by the panel.
 func Dispatch(ctx context.Context, op string, params json.RawMessage) (any, *agentproto.OpError) {
 	switch op {
+	case agentproto.OpImportInspect:
+		var p agentproto.ImportInspectParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return importInspect(ctx, realSystem, p)
+	case agentproto.OpImportApply:
+		var p agentproto.ImportApplyParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return importApply(ctx, realSystem, p)
+	case agentproto.OpImportList:
+		return importList(ctx, realSystem, struct{}{})
+	case agentproto.OpImportSiteInspect:
+		var p agentproto.ImportSiteInspectParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return importSiteInspect(ctx, realSystem, p)
+	case agentproto.OpImportSiteApply:
+		var p agentproto.ImportSiteApplyParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return importSiteApply(ctx, realSystem, p)
+	case agentproto.OpTransferFinish:
+		var p agentproto.TransferFinishParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return transferFinish(ctx, realSystem, p)
+	case agentproto.OpTransferDiscard:
+		var p agentproto.TransferDiscardParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return transferDiscard(realSystem, p)
 	case agentproto.OpSystemUpdate:
 		var p agentproto.SystemUpdateParams
 		if err := json.Unmarshal(params, &p); err != nil {
@@ -137,6 +175,12 @@ func Dispatch(ctx context.Context, op string, params json.RawMessage) (any, *age
 			return cronRun(ctx, realSystem, p)
 		}
 		return cronStatus(ctx, realSystem, p)
+	case agentproto.OpCronResults:
+		var p agentproto.CronResultsParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return cronResults(ctx, realSystem, p)
 	case agentproto.OpAccessLog:
 		return accessLogOp(ctx, realSystem, params)
 	case agentproto.OpTraffic:

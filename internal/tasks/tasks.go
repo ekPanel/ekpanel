@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
+	"net"
 	"slices"
 	"sync"
 	"time"
@@ -58,7 +60,34 @@ type Runner struct {
 	agentWait time.Duration
 	// stopping closes when the panel shuts down (set by Run).
 	stopping <-chan struct{}
+	// panelUpstream is the panel's local address, for its own domains (SetPanelAddress).
+	panelUpstream string
 }
+
+// SetPanelAddress tells the runner where the panel listens, so the server running it can
+// proxy the panel's white-label domains there.
+func (r *Runner) SetPanelAddress(listen string) {
+	host, port, err := net.SplitHostPort(listen)
+	if err != nil {
+		return
+	}
+	if ip := net.ParseIP(host); host == "" || (ip != nil && ip.IsUnspecified()) {
+		host = "127.0.0.1"
+	}
+	r.panelUpstream = net.JoinHostPort(host, port)
+}
+
+// PanelDomainsStatus is how the panel's server last applied the panel's own domains.
+type PanelDomainsStatus struct {
+	OK      bool      `json:"ok"`
+	Error   string    `json:"error,omitempty"`
+	Domains []string  `json:"domains"`
+	Skipped []string  `json:"skipped,omitempty"`
+	At      time.Time `json:"at"`
+}
+
+// PanelDomainsStatusKey is the setting that holds PanelDomainsStatus.
+const PanelDomainsStatusKey = "panel_domains_status"
 
 // SetSecrets lets the runner open sealed secrets, such as Git apps' deploy keys.
 func (r *Runner) SetSecrets(b *secretbox.Box) { r.secrets = b }
@@ -76,6 +105,12 @@ func (r *Runner) alert(ctx context.Context, owner *string, event, severity strin
 func New(st *store.Store, h *hub.Hub, log *slog.Logger) *Runner {
 	r := &Runner{store: st, hub: h, log: log, wake: make(chan struct{}, 1), handlers: map[string]Handler{}, vault: newVault(), agentWait: agentReturnWait}
 	r.handlers[KindServiceRestart] = r.serviceRestart
+	r.handlers[KindSiteMove] = r.moveSite
+	r.handlers[KindMoveCleanup] = r.cleanupMove
+	r.handlers[KindCustomerMove] = r.moveCustomer
+	r.handlers[KindSiteRebuild] = r.rebuildSite
+	r.handlers[KindImportCPanel] = r.importCPanel
+	r.handlers[KindImportSite] = r.importSite
 	r.handlers[KindUpdatePanel] = r.updatePanel
 	r.handlers[KindUpdateAgents] = r.updateAgents
 	r.handlers[KindServerReconcile] = r.serverReconcile
@@ -126,7 +161,7 @@ func (r *Runner) Run(ctx context.Context, workers int) {
 			r.work(ctx)
 		}()
 	}
-	wg.Add(8)
+	wg.Add(9)
 	go func() {
 		defer wg.Done()
 		r.driftLoop(ctx)
@@ -154,6 +189,10 @@ func (r *Runner) Run(ctx context.Context, workers int) {
 	go func() {
 		defer wg.Done()
 		r.usageLoop(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		r.cronWatchLoop(ctx)
 	}()
 	go func() {
 		defer wg.Done()
@@ -321,11 +360,17 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 	if err != nil {
 		return sum, err
 	}
+	// Sites moving away (or a failed move's half-made copy) are applied here too.
+	moving, err := r.movesOn(ctx, serverID, &sites)
+	if err != nil {
+		return sum, err
+	}
 	params := agentproto.StateApplyParams{Sites: make([]agentproto.SiteSpec, 0, len(sites))}
 	anyFTP := false
 	// Each customer with something here gets a slice with their package's limits. Things
 	// being deleted need no slice, so a customer's last delete also removes theirs.
 	packages := map[string]*store.Package{}
+	blocks := map[string]string{} // customer → why their websites and apps are blocked
 	owner := func(id *string, state string) (string, *store.Package, error) {
 		if id == nil || state == "deleting" {
 			return "", nil, nil
@@ -342,12 +387,22 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			return "", nil, err
 		}
 		packages[*id] = &p
+		switch {
+		case c.SuspendedAt != nil:
+			blocks[*id] = agentproto.BlockedSuspended
+		case (c.BandwidthBlocked && p.BandwidthStop) || c.ResellerBandwidthBlocked:
+			blocks[*id] = agentproto.BlockedBandwidth
+		}
 		return *id, &p, nil
 	}
 	for _, s := range sites {
 		spec := agentproto.SiteSpec{
 			ID: s.ID, Generation: s.Generation, Domain: s.Domain, Aliases: s.Aliases, Kind: s.Kind,
 			TLS: s.TLS, User: s.LinuxUser, Deleted: s.State == "deleting", Web: s.Web,
+		}
+		siteState := s.State
+		if m, ok := moving[s.ID]; ok && moveDeletes(m, serverID) {
+			spec.Deleted, siteState = true, "deleting"
 		}
 		if s.TLS == "custom" && s.TLSCert != nil && !spec.Deleted {
 			if r.secrets == nil {
@@ -366,7 +421,7 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		if s.SFTPPasswordHash != nil {
 			spec.SFTPPasswordHash = *s.SFTPPasswordHash
 		}
-		id, pkg, err := owner(s.OwnerID, s.State)
+		id, pkg, err := owner(s.OwnerID, siteState)
 		if err != nil {
 			return sum, err
 		}
@@ -374,7 +429,12 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		if pkg != nil && !pkg.SFTP {
 			spec.SFTPEnabled = false // the package no longer includes SFTP
 		}
-		if s.FTPEnabled && s.FTPPasswordHash != nil && (pkg == nil || pkg.FTP) {
+		spec.Blocked = blocks[id]
+		suspended := spec.Blocked == agentproto.BlockedSuspended
+		if suspended {
+			spec.SFTPEnabled = false
+		}
+		if s.FTPEnabled && s.FTPPasswordHash != nil && (pkg == nil || pkg.FTP) && !suspended {
 			spec.FTPEnabled, spec.FTPPasswordHash = true, *s.FTPPasswordHash
 			anyFTP = anyFTP || !spec.Deleted
 		}
@@ -394,19 +454,62 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			PasswordHash: d.PasswordHash, Deleted: d.State == "deleting",
 		})
 	}
+	// The databases of a moved copy that is being removed here (a site's, or databases moved
+	// on their own).
+	dbMoves, err := r.databaseMovesOn(ctx, serverID)
+	if err != nil {
+		return sum, err
+	}
+	withDBs := slices.Collect(maps.Values(moving))
+	withDBs = append(withDBs, dbMoves...)
+	movingDB := map[string]string{} // database ID → move ID
+	for _, m := range withDBs {
+		if !moveDeletes(m, serverID) {
+			continue
+		}
+		for _, d := range m.Databases {
+			if slices.ContainsFunc(dbs, func(x store.Database) bool { return x.ID == d.ID }) {
+				continue // it belongs here (again): never delete it
+			}
+			movingDB[d.ID] = m.ID
+			params.Databases = append(params.Databases, agentproto.DatabaseSpec{
+				ID: d.ID, Engine: d.Engine, Name: d.Name, User: d.Username, Deleted: true,
+			})
+		}
+	}
 	apps, err := r.store.ListApps(ctx, serverID)
+	if err != nil {
+		return sum, err
+	}
+	// An app moving away stays here stopped (its data untouched) until its old copy is
+	// removed; a failed move's half-made copy is removed with its data.
+	movingApps, copyingApps, err := r.appMovesOn(ctx, serverID, &apps)
 	if err != nil {
 		return sum, err
 	}
 	params.Apps = make([]agentproto.AppSpec, 0, len(apps))
 	for _, a := range apps {
-		id, _, err := owner(a.OwnerID, a.State)
+		appState := a.State
+		m, isMoving := movingApps[a.ID]
+		if isMoving && moveDeletes(m, serverID) {
+			appState = "deleting"
+		}
+		id, _, err := owner(a.OwnerID, appState)
 		if err != nil {
 			return sum, err
 		}
 		spec := AppSpec(a)
 		spec.Owner = id
-		if a.Kind == "git" && a.State != "deleting" {
+		spec.Blocked = blocks[id]
+		if isMoving || copyingApps[a.ID] || spec.Blocked == agentproto.BlockedSuspended {
+			spec.Stopped = true
+		}
+		if isMoving {
+			if appState == "deleting" {
+				spec.Deleted, spec.DeleteData = true, true
+			}
+		}
+		if a.Kind == "git" && appState != "deleting" {
 			if spec.KeepImages, err = r.store.KeptImages(ctx, a.ID); err != nil {
 				return sum, err
 			}
@@ -429,7 +532,7 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			return sum, err
 		}
 		spec := agentproto.CronSpec{ID: j.ID, Generation: j.Generation, Owner: id, Schedule: j.Schedule, Timezone: j.Timezone,
-			Command: j.Command, TimeoutSeconds: j.TimeoutSeconds, Enabled: j.Enabled, Deleted: deleted}
+			Command: j.Command, TimeoutSeconds: j.TimeoutSeconds, Enabled: j.Enabled && blocks[id] != agentproto.BlockedSuspended, Deleted: deleted}
 		if j.SiteID != nil && j.LinuxUser != nil {
 			spec.User = *j.LinuxUser
 		} else if j.Service != nil {
@@ -473,6 +576,13 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 	}
 	if params.NameServer, err = r.nameServerSpec(ctx, serverID); err != nil {
 		return sum, fmt.Errorf("name server: %w", err)
+	}
+	if srv, err := r.store.GetServer(ctx, serverID); err == nil && srv.PanelHost && r.panelUpstream != "" {
+		domains, err := r.store.PanelDomains(ctx)
+		if err != nil {
+			return sum, err
+		}
+		params.Panel = &agentproto.PanelSpec{Upstream: r.panelUpstream, Domains: domains}
 	}
 	if params.Firewall != nil {
 		params.Firewall.Mail = params.Mail != nil
@@ -525,7 +635,30 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 	for _, a := range apps {
 		wasError[a.ID] = a.State == "error"
 	}
+	// What moves left here is not the site's (or database's) own: record it on the move.
+	cleaned := map[string]string{} // move ID → error ("" when it worked)
+	movesByID := map[string]store.Move{}
+	for _, m := range moving {
+		movesByID[m.ID] = m
+	}
+	for _, m := range movingApps {
+		movesByID[m.ID] = m
+	}
+	for _, m := range dbMoves {
+		movesByID[m.ID] = m
+	}
+	for _, m := range movesByID {
+		if moveDeletes(m, serverID) {
+			cleaned[m.ID] = ""
+		}
+	}
 	for _, sr := range res.Sites {
+		if m, ok := moving[sr.ID]; ok {
+			if _, del := cleaned[m.ID]; del && !sr.OK {
+				cleaned[m.ID] = sr.Error
+			}
+			continue
+		}
 		if !sr.OK && !wasError[sr.ID] {
 			for _, s := range sites {
 				if s.ID == sr.ID && s.State != "deleting" {
@@ -543,6 +676,12 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		}
 	}
 	for _, dr := range res.Databases {
+		if moveID, ok := movingDB[dr.ID]; ok {
+			if !dr.OK && cleaned[moveID] == "" {
+				cleaned[moveID] = dr.Error
+			}
+			continue
+		}
 		if !dr.OK && !wasError[dr.ID] {
 			for _, d := range dbs {
 				if d.ID == dr.ID && d.State != "deleting" {
@@ -560,6 +699,12 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		}
 	}
 	for _, ar := range res.Apps {
+		if m, ok := movingApps[ar.ID]; ok {
+			if _, del := cleaned[m.ID]; del && !ar.OK {
+				cleaned[m.ID] = ar.Error
+			}
+			continue
+		}
 		if !ar.OK && !wasError[ar.ID] {
 			for _, a := range apps {
 				if a.ID == ar.ID && a.State != "deleting" {
@@ -605,6 +750,21 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 			sum.Failed++
 		}
 	}
+	if params.Panel != nil {
+		st := PanelDomainsStatus{OK: true, Domains: params.Panel.Domains, At: time.Now()}
+		switch {
+		case res.Panel == nil:
+			st.OK, st.Error = false, "the agent does not support the panel's own domains; update the agent"
+		default:
+			st.OK, st.Error, st.Skipped = res.Panel.OK, res.Panel.Error, res.Panel.Skipped
+		}
+		if err := r.store.SetSetting(ctx, PanelDomainsStatusKey, st); err != nil {
+			return sum, err
+		}
+		if !st.OK {
+			sum.Failed++
+		}
+	}
 	if params.NameServer != nil && res.NameServer == nil {
 		res.NameServer = &agentproto.NameServerResult{Error: "the agent does not support name servers; update the agent"}
 	}
@@ -615,6 +775,9 @@ func (r *Runner) Reconcile(ctx context.Context, serverID string) (ReconcileSumma
 		if res.NameServer.Error != "" {
 			sum.Failed++
 		}
+	}
+	for id, msg := range cleaned {
+		r.recordMoveCleanup(ctx, movesByID[id], serverID, msg)
 	}
 	if res.Firewall != nil {
 		st := store.FirewallStatus{Active: res.Firewall.Active, SSHPorts: res.Firewall.SSHPorts, Error: res.Firewall.Error, At: time.Now()}

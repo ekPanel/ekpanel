@@ -148,7 +148,8 @@ func (s *Server) handleAppTraffic(w http.ResponseWriter, r *http.Request) {
 	s.writeTraffic(w, r, "app", app.ID)
 }
 
-// handleCollectTraffic fetches traffic from a server now instead of at the next quarter hour.
+// handleCollectTraffic fetches traffic from a server now instead of at the next quarter
+// hour, and checks bandwidth limits with it as the quarter-hourly collection does.
 func (s *Server) handleCollectTraffic(w http.ResponseWriter, r *http.Request) {
 	id := serverID(r)
 	if _, err := s.store.GetServer(r.Context(), id); s.serverLookupFailed(w, r, err) {
@@ -158,5 +159,6 @@ func (s *Server) handleCollectTraffic(w http.ResponseWriter, r *http.Request) {
 		s.writeAgentError(w, r, err)
 		return
 	}
+	s.opts.Tasks.CheckBandwidth(r.Context())
 	w.WriteHeader(http.StatusNoContent)
 }

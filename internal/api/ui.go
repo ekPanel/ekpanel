@@ -1,6 +1,7 @@
 package api
 
 import (
+	"html"
 	"io/fs"
 	"net/http"
 	"path"
@@ -27,6 +28,7 @@ func (s *Server) uiHandler() http.Handler {
 		})
 	}
 	files := http.FileServerFS(ui)
+	index, _ := fs.ReadFile(ui, "index.html")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
 		if p != "" && p != "index.html" {
@@ -40,6 +42,26 @@ func (s *Server) uiHandler() http.Handler {
 			}
 		}
 		w.Header().Set("Cache-Control", "no-cache")
-		http.ServeFileFS(w, r, ui, "index.html")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(s.brandedIndex(r, index))
 	})
+}
+
+// brandedIndex puts the brand of the domain the panel was opened at into the page (its
+// title, icon and color), so the first paint already looks right. The app takes over from
+// there, with the signed-in account's brand.
+func (s *Server) brandedIndex(r *http.Request, index []byte) []byte {
+	e, err := s.hostBrand(r)
+	if err != nil || !e.Custom {
+		return index
+	}
+	page := strings.Replace(string(index), "<title>ekPanel</title>", "<title>"+html.EscapeString(e.Name)+"</title>", 1)
+	if e.LogoID != "" {
+		page = strings.Replace(page, `<link rel="icon" type="image/svg+xml" href="/favicon.svg" />`,
+			`<link rel="icon" type="image/png" href="`+html.EscapeString(logoURL(e.LogoID, e.LogoVersion))+`" />`, 1)
+	}
+	if e.Color != "" {
+		page = strings.Replace(page, "</title>", "</title>\n    <meta name=\"ekpanel-brand-color\" content=\""+html.EscapeString(e.Color)+"\" />", 1)
+	}
+	return []byte(page)
 }

@@ -33,8 +33,7 @@ func (s *Server) getCFAccount(r *http.Request, id string) (store.CloudflareAccou
 	if err != nil {
 		return a, err
 	}
-	u := currentUser(r)
-	if (u.Role == "admin" && a.OwnerID != nil) || (u.Role != "admin" && (a.OwnerID == nil || *a.OwnerID != u.ID)) {
+	if (isAdmin(r) && a.OwnerID != nil) || (!isAdmin(r) && !s.visible(r, a.OwnerID)) {
 		return store.CloudflareAccount{}, store.ErrNotFound
 	}
 	return a, nil
@@ -42,7 +41,7 @@ func (s *Server) getCFAccount(r *http.Request, id string) (store.CloudflareAccou
 
 func (s *Server) getZone(r *http.Request, id string) (store.DNSZone, error) {
 	z, err := s.store.GetZone(r.Context(), id)
-	if err == nil && !visible(r, z.OwnerID) {
+	if err == nil && !s.visible(r, z.OwnerID) {
 		return store.DNSZone{}, store.ErrNotFound
 	}
 	return z, err
@@ -121,6 +120,10 @@ func (s *Server) handleConnectCloudflare(w http.ResponseWriter, r *http.Request)
 		a.Name = a.Name[:100]
 	}
 	u := currentUser(r)
+	if u.Role == "reseller" {
+		writeError(w, http.StatusForbidden, "not_for_resellers", "sign in as the customer to connect their Cloudflare account")
+		return
+	}
 	if u.Role != "admin" {
 		a.OwnerID = &u.ID
 	}

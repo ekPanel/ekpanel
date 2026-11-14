@@ -207,7 +207,7 @@ func (s *Server) handleAgentConnect(w http.ResponseWriter, r *http.Request) {
 			}
 		case env.Type == agentproto.TypeResponse:
 			ac.deliver(env)
-		case env.Type == agentproto.TypeStreamData || env.Type == agentproto.TypeStreamClose:
+		case env.Type == agentproto.TypeStreamData || env.Type == agentproto.TypeStreamClose || env.Type == agentproto.TypeStreamCredit:
 			ac.deliverStream(env)
 		}
 		if err != nil {
@@ -325,13 +325,14 @@ func (a *agentConn) closeAll() {
 const streamBuffer = 512
 
 type agentStream struct {
-	id     string
-	conn   *agentConn
-	out    chan []byte
-	mu     sync.Mutex // guards ended, so data is never pushed into a closed channel
-	ended  bool
-	reason string
-	result json.RawMessage
+	id      string
+	conn    *agentConn
+	out     chan []byte
+	credits chan int   // credit from the agent (transfers); never closed
+	mu      sync.Mutex // guards ended, so data is never pushed into a closed channel
+	ended   bool
+	reason  string
+	result  json.RawMessage
 }
 
 func (st *agentStream) Output() <-chan []byte { return st.out }
@@ -390,6 +391,16 @@ func (st *agentStream) Write(ctx context.Context, data []byte) error {
 	return nil
 }
 
+func (st *agentStream) Credit(ctx context.Context, n int) error {
+	return st.send(ctx, agentproto.Envelope{Type: agentproto.TypeStreamCredit, Credit: n})
+}
+
+func (st *agentStream) Credits() <-chan int { return st.credits }
+
+func (st *agentStream) CloseWrite(ctx context.Context) error {
+	return st.send(ctx, agentproto.Envelope{Type: agentproto.TypeStreamClose, Reason: "eof"})
+}
+
 func (st *agentStream) Resize(ctx context.Context, cols, rows int) error {
 	return st.send(ctx, agentproto.Envelope{Type: agentproto.TypeStreamResize, Cols: cols, Rows: rows})
 }
@@ -410,7 +421,7 @@ func (a *agentConn) Disconnect(reason string) {
 
 func (a *agentConn) OpenStream(ctx context.Context, op string, params func(id string) any) (hub.Stream, error) {
 	id := "s" + strconv.FormatUint(a.nextID.Add(1), 10)
-	st := &agentStream{id: id, conn: a, out: make(chan []byte, streamBuffer)}
+	st := &agentStream{id: id, conn: a, out: make(chan []byte, streamBuffer), credits: make(chan int, 64)}
 	a.mu.Lock()
 	if a.closed {
 		a.mu.Unlock()
@@ -439,6 +450,22 @@ func (a *agentConn) deliverStream(env agentproto.Envelope) {
 	}
 	if env.Type == agentproto.TypeStreamClose {
 		st.end(env.Reason, env.Result)
+		return
+	}
+	if env.Type == agentproto.TypeStreamCredit {
+		// Credit adds up; if the reader is behind, fold it into one value.
+		for n := env.Credit; n > 0; {
+			select {
+			case st.credits <- n:
+				n = 0
+			default:
+				select {
+				case old := <-st.credits:
+					n += old
+				default:
+				}
+			}
+		}
 		return
 	}
 	if !st.push(env.Data) {

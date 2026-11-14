@@ -425,8 +425,9 @@ limits are measured and enforced by the panel, real filesystem quotas come later
       customer's other requests kept working; 50% CPU gave 2.0 s of CPU for two 4-second loops;
       container placed in the slice; package change applied live; 60 MB in a 50 MB package
       blocked writes and new databases
-- [ ] Moving an existing website, database or app to another owner: later
-- [ ] Suspending a customer; email to new customers: with notifications (2c)
+- [x] Moving an existing website, database or app to another owner (4e-2)
+- [x] Suspending a customer (4e-2)
+- [ ] Email to new customers with their sign-in details
 - [ ] SFTP uploads are not stopped by the disk limit (the panel's own file actions are)
 
 **2b. Cron jobs — done**
@@ -474,8 +475,8 @@ limits are measured and enforced by the panel, real filesystem quotas come later
       request log; PHP warnings shown; a link to /etc/shadow returned nothing; customers'
       webhooks to 127.0.0.1 and 169.254.169.254 refused; a webhook on the server received a
       signed test, and "offline" 3 minutes after stopping the agent, then "back online"
-- [ ] Bandwidth limits in packages: later (the numbers are now there)
-- [ ] Cron job failures do not alert yet (the panel does not watch job results)
+- [x] Bandwidth limits in packages (4e-2)
+- [x] Cron job failures alert (4e-2: the panel reads job results every 5 minutes)
 
 **2d. Web terminal — done**
 - [x] A root shell on any server for administrators, and a shell inside a running container of
@@ -904,26 +905,304 @@ How 4b works (decided 2026-11-09):
   endpoint.
 
 **4c. Moving between servers**
-- [ ] Move a website (files, databases, cron, settings), an app or a database to another
-      ekPanel server: copy, switch DNS (hosted or Cloudflare) and the certificate, then remove
-      the old copy after a check
-- [ ] Restore a backup onto another server; move a whole customer
-- [ ] Server-to-server copy over the agents' own connection, not public SSH
+- [x] Move a website (files, databases, cron, settings) to another ekPanel server: copy,
+      switch DNS (hosted or Cloudflare) and the certificate, then remove the old copy after a
+      check. Tried with two VMs: a PHP site with a MariaDB database (Bangla text) and a 20 MB
+      file moved in about 90 s (most of it installing PHP and MariaDB on the new server), same
+      certificate, files, owners and ACLs; the old copy served until it was removed
+- [x] Move an app. Tried with two VMs: an nginx app with a data volume (a page and a 5 MB
+      file owned by uid 101) moved in 45 s with Docker installed on the way; same data and
+      owners, the old copy stopped until removed
+- [x] Move a database on its own (dump, switch, load; the old copy stays until removed).
+      Websites and apps on the old server keep using their old copy: the dialog says to move
+      the website with its database instead
+- [ ] App moves, later: fetch the app's page after the move; carry a Git app's kept builds
+      too (rollbacks to earlier releases need them; until then, deploy again); remove an image
+      already loaded on the target when the copy fails; a token scope per kind of move
+      Apps (decided 2026-11-09): the app is stopped on the source while its Docker volumes are
+      copied (tars with numeric owners, which mean the same inside containers everywhere); a
+      Git app's current image goes along (`docker save` into `docker load`), so nothing is
+      rebuilt. The target gets the app with a free port of its own, starts it on empty volumes,
+      stops it, puts the copied data in and starts it again; the check is that it starts
+      (its page is not fetched yet). The old copy stays stopped (its data untouched) until it is
+      removed; a failed move starts it again. Apps with pull request previews, and previews
+      themselves, do not move.
+- [ ] Moves: check the target's free disk space first (it needs about twice the home folder
+      plus the databases), and suggest the databases a site really uses (WordPress's
+      wp-config.php, the PHP app installer's records) instead of all of the owner's
+- [x] Move a whole customer: everything they have on one server, one thing at a time (the
+      first website takes all their databases along), checked before it starts, stopping at
+      the first failure
+- [x] Restore a backup onto another server, for a server that is gone. Tried with two VMs and
+      an S3 storage (SeaweedFS): the site and its database backed up from one server, that
+      server stopped, the storage connected on the other with the recovery key, and the site
+      rebuilt there in 10 s with the same files, owners, ACLs and data. As decided (2026-11-09):
+      only for S3 storage (a local repository is on the lost server). The panel gives the new
+      server the repository (setup with the same password and keys), moves the site's and its
+      databases' records there without copying (like a switch), reconciles, restores the
+      files (the account name is the same, so the paths in the snapshot match) and each
+      database from its newest snapshot, then the DNS follows. Built differently in one way:
+      the storage is connected on the new server as its own repository (Backups → Add with
+      the recovery key), so scheduled backups go on from there
+- [x] Server-to-server copy over the agents' own connection, not public SSH
+
+How 4c works (decided 2026-11-09; websites first, then databases alone, apps, backups and
+whole customers):
+- **Copy over the agents' connections.** The panel opens an export stream on the source agent
+  and an import stream on the target, and passes the bytes between them with flow control:
+  the source sends only as many chunks as the panel allows, the target says when it has
+  written each one, so a slow side never fills memory or holds up other work. The data is
+  gzip in simple frames: the site's home folder (a tar with owners and ACLs), a dump of each
+  chosen database, the site's certificates from Caddy's storage, and the byte count at the end
+  (gzip adds its own checksum).
+  The target keeps it in `/srv/ekpanel/incoming/<move>/` until it is used.
+- **The switch.** The certificates go straight into the target's Caddy storage, so HTTPS works
+  at once. The site and its databases then belong to the target (one database transaction);
+  the target is reconciled (account, PHP pool, web server, databases with the same password
+  hashes), the files and dumps are put in place, and the site is checked through the local
+  web server. Records the panel manages (built-in DNS or Cloudflare) follow by themselves;
+  otherwise the page says which address to point the domain to. Cron jobs move with the site.
+- **The old copy keeps serving** until someone removes it from the move's page (that deletes
+  the old account, files and databases on the source). Changes made on the old copy after the
+  copy started are not carried over, which the page says before the move.
+- **Failures:** before the switch nothing changes on the source; after it, the site goes back
+  to the source and the target's half-made copy is removed. Moves are kept in a `moves` table
+  and shown on the site's page.
 
 **4d. Importers**
-- [ ] cPanel backups (cpmove): accounts, files, MySQL databases and users, mail accounts and
-      mail, DNS zones, cron jobs, SSL certificates
-- [ ] aaPanel sites and databases; plain WordPress from another host (files and database)
-- [ ] Coolify applications and services (Compose and environment)
-- [ ] A report of what was imported and what was not
+- [x] cPanel backups (cpmove): websites with their files, MySQL databases with their users
+      and password hashes, cron jobs, and a report. Tried in the VM: a PHP 8.2 site with a
+      MySQL database, a parked domain, a symlink and a cron job, read and imported from the
+      page in 5 s (51 s when PHP 8.2 had to be installed); the site served its database's
+      Bangla text with the old password unchanged
+- [x] cPanel email and DNS zones: mailboxes with their passwords and quotas, forwarders,
+      the catch-all and every message with its folders and marks; zones on ekPanel's name
+      servers without what ekPanel makes itself. Tried in the VM: 34 messages in 4 folders
+      copied in, IMAP sign-in with the old cPanel password worked, the zone kept its
+      verification TXT, CAA and outside CNAME and got ekPanel's MX, SPF and DKIM
+- [x] SSL certificates: not imported, on purpose; new ones are issued once a domain points
+      here, and an imported one would not renew
+- [x] aaPanel sites and databases; plain WordPress from another host (files and database):
+      one importer for a website archive from anywhere. Tried in the VM: a WordPress zip with
+      its dump inside and a remote DB_HOST came up on its old password with DB_HOST
+      localhost, the dump not published; an aaPanel site and database backup pair was found
+      by its names and imported with a new database password shown once
+- [x] Coolify applications and services (Compose and environment). Tried in the VM with a
+      real Coolify v4: an nginx image app with its variables and volume, a Nixpacks Node app
+      (built here with Railpack after its first deploy), the one-click Uptime Kuma service and
+      a custom Compose service all ran; a PostgreSQL database was listed, not imported
+- [x] A report of what was imported and what was not (cPanel; the others will add to it)
+
+How the cPanel import works (decided 2026-11-09; websites, files, MySQL and cron first; mail,
+DNS zones and certificates next):
+- **The archive** (`cpmove-<user>.tar.gz`, from WHM's "Transfer or Restore a cPanel Account" or
+  `/scripts/pkgacct`) is copied to the target server's `/srv/ekpanel/imports/`; the agent only
+  reads files there. It is read in one pass, the home folder too (`homedir.tar` inside, or a
+  `homedir/` folder).
+- **Inspect** shows what is in it: the main domain, addon domains and subdomains with their
+  document roots and PHP versions, parked domains (they become extra domains of the main
+  website), each MySQL database with the user that can use it and that user's password hash,
+  cron jobs, and what is not imported yet (mail accounts, DNS zones, certificates).
+- **Import** makes the chosen websites (PHP, each with its own account) and databases in the
+  panel, for an administrator or a customer (inside their package's limits), then the agent
+  puts each document root's files into its website and loads each dump. Databases keep their
+  names, users and password hashes, so `wp-config.php` and other settings keep working. Cron
+  jobs go to the main website with `/home/<cPanel user>/` changed to its new home and
+  cPanel's PHP binaries changed to the website's version (`php8.2`).
+- **Paths in files:** small text files (configuration and code, up to 1 MB) that name
+  `/home/<cPanel user>/…` get the new place (a document root becomes its website's
+  `public_html`); paths stored in databases stay as they were.
+- **The report** lists what was imported and what was not, as codes the UI puts into words.
+- **Email** (when the server has email): each mailbox of etc/<domain>/passwd with its
+  SHA-512 crypt hash from shadow (an older MD5 hash cannot be kept: a new password, in the
+  report) and its quota; va/<domain> gives forwarders (one with a mailbox's address makes
+  the mailbox forward a copy), the catch-all, and lines to programs or :fail:, which are only
+  reported. The agent copies every Maildir message into Stalwart through JMAP as the
+  administrator (blob upload, then Email/import in batches of 50), with its folder (Maildir++
+  names, IMAP UTF-7 decoded; Sent, Drafts, Trash, Junk and Archive map to the roles), marks
+  and arrival time. Deleted messages stay out; mdbox mailboxes are made empty and reported.
+- **DNS zones** (when ekPanel's name servers are set up) are made as hosted zones keeping
+  everything but SOA and the domain's NS, cPanel's own names (cpanel, webmail, autodiscover …),
+  the websites' A/AAAA/CNAME and, with the email here, its MX, SPF, DKIM, DMARC and TLS-RPT:
+  kept records would stand in the way of the ones ekPanel makes. Records still pointing at
+  the old server, and an MX at the domain when its email stays behind, are reported.
+- Found while trying it: enabling email failed once on a fresh server, because Roundcube's
+  SQLite driver makes its tables when it opens the file and initdb then finds them; that
+  now counts as done.
+- **A website archive** (decided 2026-11-09: aaPanel and "WordPress from another host" are
+  both a website's files plus a dump, so one importer covers them and any other host): a
+  .zip, .tar.gz or .tar in the import folder, with a .sql(.gz) next to it or inside. The
+  agent finds the website folder (the shallowest with wp-config.php, else with an index
+  page), tells WordPress, PHP or static, and guesses the domain (aaPanel's
+  web_<domain>_<date>.tar.gz, the folder, or example.com.zip). WordPress keeps its database
+  password: the agent sends only the MySQL native hash of DB_PASSWORD, the database is made
+  with it, and wp-config.php gets the name, user and DB_HOST localhost. Other databases get
+  a new password, shown once in the answer (never stored in the task). A dump inside the
+  website folder is loaded, never published; aaPanel's open_basedir in .user.ini goes.
+- **Coolify** (decided 2026-11-09): through Coolify's API with a token given for the one
+  request (never stored; the panel calls Coolify, redirects not followed). Image apps,
+  Git apps (Nixpacks and static built with Railpack here) and Compose apps of Docker Compose
+  applications and services, with variables (Coolify's SERVICE_* ones too), the first domain
+  and port, and volume paths; the volumes' data, databases, file mounts and one-domain-more
+  are left to the administrator and reported. Coolify's raw Compose files use named volumes
+  without declaring them; the import declares them.
+- Found while trying it: an app whose Compose file Compose no longer accepts could not be
+  deleted (`down` failed on the file); its containers and networks now go by the project's
+  label.
+- **Links in the archive** are kept only when they stay inside the website, and every file
+  is written through the home folder's `os.Root`, so a chain of links (each harmless alone)
+  cannot lead the agent's root-owned writes into another account.
+- Found while trying it: Caddy's `php_fastcgi` served `index.php` for a folder that has only
+  an `index.html` (an addon domain's folder inside `public_html`); PHP websites now serve it,
+  and redirect such a folder to its trailing slash, as Apache does.
 
 **4e. Resellers and white-label**
-- [ ] Resellers: their own packages and customers within the limits an administrator gives
-      them; they see only their customers
-- [ ] White-label: name, logo, colors and the panel's domain, per panel and per reseller
+- [x] Resellers: their own packages and customers within the limits an administrator gives
+      them; they see only their customers (4e-3)
+- [x] White-label: name, logo, colors and the panel's domain, per panel and per reseller (4e-4)
 - [ ] Sub-users of an account with chosen permissions (only files, only email …)
-- [ ] Passkeys (WebAuthn) besides passwords and two-factor codes; active sessions listed and
-      ended from the panel
+- [x] Passkeys (WebAuthn) besides passwords and two-factor codes; active sessions listed and
+      ended from the panel (4e-1, with recovery codes and resetting someone's two-factor).
+      Passkeys are tested with a virtual authenticator (go test); in a browser on a local panel,
+      recovery codes and sessions were tried, not adding a passkey with a real device
+
+Order (decided 2026-11-09): **4e-1 account security** (recovery codes, resetting someone's
+two-factor, sessions, passkeys), **4e-2 customers** (suspending, moving a website, database or
+app to another owner, alerts for failed cron jobs, bandwidth limits), **4e-3 resellers**,
+**4e-4 white-label**, **4e-5 sub-users**. Each is tried in the VM and documented before the next.
+
+How 4e-1 works:
+- **Recovery codes:** turning two-factor on makes ten one-time codes (shown once, kept as
+  SHA-256 hashes). The sign-in's code field takes one instead of the app's code; it is used up,
+  the audit log and a notification say so. New codes replace the old set (password asked).
+- **Losing two-factor:** an administrator resets a customer's two-factor from the customers
+  page; for an administrator's own account, `ekpanel reset-2fa EMAIL` on the panel's server
+  (root shell) does it. Both are in the audit log.
+- **Sessions:** the account page lists signed-in browsers (address, browser, started, last
+  seen, this one marked) and ends any of them; "sign out everywhere else" stays.
+- **Passkeys (WebAuthn, go-webauthn):** added from the account page after giving the password
+  again; named, listed with their last use, removed. "Sign in with a passkey" uses a
+  discoverable credential with user verification, so it counts as both factors (no password,
+  no code). The relying party is the panel's host name as the browser reaches it (passkeys
+  need HTTPS, or localhost); a passkey made on one address does not work on another.
+
+How 4e-2 works:
+- **Suspending a customer** (administrators, with a reason only they see): the customer
+  cannot sign in (password, passkey or API token; their sessions end), websites and app
+  addresses answer with a "suspended" page (503), apps stop, cron jobs pause, SFTP and FTP
+  are off, mailboxes cannot sign in (mail still arrives). Files, databases and mail stay.
+  Administrators can still "sign in as" the customer. Unsuspending puts everything back.
+  Both are in the audit log.
+- **Changing the owner** of websites, databases, apps, email domains and DNS zones
+  (administrators): one or more at a time, to another customer or to the administrators.
+  The new owner's package is checked (counts, disk space, servers) first. Cron jobs,
+  backups and this month's traffic go with a website or app; nothing moves on the server
+  except the customer slice its processes run in.
+- **Bandwidth limits:** a package can have a monthly limit (GB, by calendar month in UTC).
+  At 90% and 100% the customer and the administrators are told. If the package says so,
+  websites and app addresses answer with a "bandwidth used up" page (503) until the next
+  month or a larger package; the check runs after each traffic collection (15 minutes) and
+  at once when a package or a customer's package changes.
+- **Failed cron jobs:** every 5 minutes the panel reads the last run of each enabled job
+  (one `systemctl show` per server); a run that failed or timed out alerts the owner and the
+  administrators once, and again only after a run has succeeded in between.
+- Tried in the VM: a suspended customer's website answered 503 with the page, their app's
+  container stopped, the cron timer was disabled and IMAP sign-in refused while a message
+  sent to the mailbox still arrived; unsuspending brought all back. 1.1 GB served by a
+  website of a 1 GB package switched it to the bandwidth page; 2 GB lifted it within 15
+  seconds. A job exiting with 3 gave one "Cron job failed". Owner change moved a website
+  (with its cron job), an app and an email domain, and the app limit refused a third app.
+- Found while trying it: an owner change was refused for a website whose move to another
+  server had finished but whose old copy was not removed yet; only copying and switching
+  block it now.
+
+How 4e-3 works:
+- **A reseller** is an account an administrator makes (Admin → Resellers) with limits:
+  totals over all their customers (customers, websites, databases, apps, cron jobs, email
+  domains, mailboxes, disk space, bandwidth a month with an optional stop), the most one
+  package may give (memory, CPU, mailbox size) and what packages may offer (PHP versions,
+  images, servers, SFTP, FTP, Git apps).
+- **Totals count what customers have**, not what their packages promise (decided
+  2026-11-13): a reseller may sell more than they have, as hosts do, and new things are
+  refused once a total is reached ("the reseller's account allows no more websites"). The
+  same check runs for administrators acting for those customers, imports and owner changes.
+- **Packages** belong to the administrators or to one reseller; a reseller's package can
+  give no more than the reseller has (a limited size cannot be "no limit"; images matter only
+  with apps, the mailbox size only with mailboxes). Names are unique per reseller.
+- **What a reseller sees and does:** their customers and their customers' websites,
+  databases, apps, email, DNS zones and cron jobs (everything else reads as not found);
+  creating those for a customer (they own nothing themselves: their own website is a
+  customer of theirs); their own packages; adding, changing, suspending, signing in as and
+  deleting their customers; resetting their passwords and two-factor; changing the owner
+  between their customers. Not: servers, backups, security, imports, updates, the audit log,
+  connecting Cloudflare for a customer (sign in as them for that).
+- **Suspending a reseller** suspends all their customers with them (sign-in and websites);
+  customers suspended on their own stay so when the reseller is unsuspended. A reseller
+  cannot lift a suspension an administrator made.
+- **Bandwidth:** the reseller's customers' traffic is added up; at 90% and 100% the reseller
+  and the administrators are told, and with the stop every customer's websites and apps show
+  the "bandwidth used up" page. A reseller also hears about their customers' alerts.
+- **Administrators** see every customer with their reseller, can show one reseller's
+  customers, move a customer to another reseller or to themselves (Edit; the new reseller's
+  limits are checked with everything the customer has), and sign in as a reseller. A
+  reseller with customers cannot be deleted; deleting one removes their packages.
+- Tried in the VM: a reseller with a total of 2 websites made a customer's website, another
+  customer made one, and a third was refused; suspending the reseller turned both websites
+  into the "suspended" page (503) and refused the reseller's and both customers' sign-in; a
+  customer an administrator suspended stayed suspended after the reseller was unsuspended
+  and the reseller could not lift it. 1.06 GB served by the two customers' websites (600 MB
+  and 457 MB, each under their own 1 GB package) stopped both with the bandwidth page and
+  told the reseller; 5 GB brought them back within 2 seconds. An owner change moved a website
+  between the reseller's customers and kept it serving; deleting the reseller was refused
+  while they had customers, then removed them and their package.
+- Found while trying it: collecting traffic by hand did not check bandwidth limits until the
+  next quarter hour; it does now. A reseller whose images were limited could not make a
+  package without apps.
+
+How 4e-4 works:
+- **A brand** is a name (up to 60 characters), a color (#rrggbb), a logo and a domain. The
+  panel has one (Admin → Branding), seen by everyone; a reseller has their own when an
+  administrator ticks "Own branding" in their limits (off by default), seen by them and their
+  customers. A reseller's name and logo go together (no logo: a letter tile, not the panel's
+  logo); their color and domain fall back to the panel's. Untick it and the panel's brand is
+  back; the reseller's settings stay.
+- **Which brand:** signed in, the account's (an administrator signed in as someone sees
+  theirs); signed out, the brand of the domain the panel was opened at. The server puts that
+  brand's title, icon and color into the page itself, so the first paint is already right; the
+  app shows no logo until the brand is known, rather than ekPanel's.
+- **The name** replaces ekPanel in the header, the browser tab, the texts (a `{{brand}}`
+  variable in both languages), notifications (each recipient gets their own brand's name, and
+  links on their brand's domain) and new authenticator entries. Texts about ekPanel the
+  software (updates, the agent, the setup page) keep its name.
+- **The color** becomes the accent of both themes, darkened or lightened until text in it keeps
+  4.5:1 against the page (one function in `theme-init.js`, used before the first paint, by the
+  app and by the page's preview). State colors stay.
+- **The logo** (PNG, JPEG, GIF or WebP, up to 2 MB) is decoded and written again as a PNG of at
+  most 1024×512, so only plain pixels are served (no SVG); its address carries a version and is
+  cached for a year.
+- **The domain** is claimed like a website's host name (no website, app or other brand can take
+  it). The agent on the panel's server writes them all into
+  `/etc/ekpanel/caddy/sites/panel-domains.caddy`, proxying to the panel's local address with
+  their own certificates (Caddy's internal one for .test, .localhost, .internal, .example and
+  .invalid); a domain the main Caddyfile already serves (the installer's `--domain`) is left to
+  it and always shows the panel's brand, and a reseller cannot take the panel's own address.
+  The Branding page shows the DNS records and the domain's state (active, being set up, failed,
+  no server). Passkeys belong to one address.
+- A "Source code" link stays at the bottom of the menu and of the sign-in page (AGPL).
+- Tried in the VM (Lima on the Mac, panel and agent installed by the installer from local
+  binaries): the panel's and a reseller's domains served by Caddy with internal certificates,
+  each with its own brand signed out (title, color and logo in the page itself) next to a
+  customer's website; the reseller's customer signed in at the reseller's domain and saw it
+  there and at the panel's address; unticking "Own branding" withdrew the domain (nothing
+  answered it) and the customer saw the panel's brand, ticking it brought it back; a domain
+  added to the main Caddyfile was left to it while Caddy's configuration stayed valid, and taken
+  over by the agent once the installer rewrote the Caddyfile. In a browser: the Branding page
+  for administrators and resellers, the reseller's switch and badge, both themes, Bangla.
+- Found while trying it: with no server for the panel, the domain read "being set up" instead
+  of "no server", and the panel would have queued a reconcile for no server; the app flashed
+  ekPanel's title and color before the brand loaded; the light preview drew its text in the dark
+  theme's color and the color unadjusted; the menu, longer by one item and the source link,
+  squeezed the logo on short windows (it scrolls now).
 
 **4f. Security center**
 - [ ] WAF: Coraza with the OWASP Core Rule Set in a Caddy that ekPanel builds and ships (with
@@ -939,17 +1218,18 @@ How 4b works (decided 2026-11-09):
 **Smaller things left from earlier phases** (taken along where they fit)
 - [ ] Database browser and import/export (4b or 4c)
 - [ ] Single-file restore and downloading a backup (4c)
-- [ ] Suspending a customer, bandwidth limits in packages, alerts for failed cron jobs (4e)
+- [x] Suspending a customer, bandwidth limits in packages, alerts for failed cron jobs (4e-2)
 - [ ] DNS-01 wildcard certificates through Cloudflare or the built-in DNS (4a or later)
-- [ ] Moving a website, database or app to another owner (4e)
+- [x] Moving a website, database or app to another owner (4e-2: "Change owner", with email
+      domains and DNS zones)
 - [ ] Not yet tried for real: the Cloudflare API, outside mail delivery (need an account,
       a domain and a server with port 25)
 
 **Found while writing the documentation** (2026-11-09)
 - [x] A second server needs Caddy, `acl`, the Caddyfile import, a systemd unit and a
       readable /etc/ekpanel; the agent sets up none of these (4a: `install.sh --agent`)
-- [ ] Two-factor sign-in has no recovery codes, and administrators cannot reset someone's
-      two-factor (4e)
+- [x] Two-factor sign-in has no recovery codes, and administrators cannot reset someone's
+      two-factor (4e-1: ten recovery codes; customers page and `ekpanel reset-2fa`)
 - [ ] The email page asks to add DNS records by hand for domains on ekPanel's own name
       servers, although ekPanel adds them there itself
 - [ ] Backups taken before a staging push or pull are never cleaned up; a failed WordPress
@@ -962,4 +1242,7 @@ How 4b works (decided 2026-11-09):
 - [x] 4a. Releases and updates; the signing key is in the `release` environment
 - [x] v0.1.0, the first release, published 2026-11-09 (signature, checksums and attestation checked)
 - [x] 4b. API tokens, OpenAPI and ekctl (Terraform later in phase 4)
-- [ ] 4c. Moving between servers
+- [x] 4c. Moving between servers (websites, apps, databases, whole customers, and rebuilding
+      a website from a backup on another server)
+- [x] 4d. Importers (cPanel with email and DNS, website archives for aaPanel and any host,
+      Coolify)

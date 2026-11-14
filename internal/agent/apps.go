@@ -62,6 +62,9 @@ func validateApp(ap agentproto.AppSpec) error {
 	if ap.Owner != "" && !uuidRE.MatchString(ap.Owner) {
 		return errors.New("invalid owner")
 	}
+	if !validBlocked(ap.Blocked) {
+		return fmt.Errorf("unknown block %q", ap.Blocked)
+	}
 	if ap.Deleted {
 		return nil
 	}
@@ -498,12 +501,15 @@ func (a *applier) ensureApp(ctx context.Context, ap agentproto.AppSpec) error {
 	return a.writeAppCaddy(ap, ports)
 }
 
-var appCaddyTemplate = template.Must(template.New("app").Parse(
+var appCaddyTemplate = template.Must(template.New("app").Parse(blockedTemplate +
 	`# Managed by ekPanel (app {{.ID}}). Changes here are overwritten.
 {{.Domain}} {
 {{- if .Internal}}
 	tls internal
 {{- end}}
+{{- if .Blocked}}
+{{- template "blocked" .}}
+{{- else}}
 	encode zstd gzip
 	reverse_proxy{{range .Ports}} 127.0.0.1:{{.}}{{end}}
 {{- if gt (len .Ports) 1}} {
@@ -513,6 +519,7 @@ var appCaddyTemplate = template.Must(template.New("app").Parse(
 		lb_try_interval 20ms
 		fail_duration 30s
 	}
+{{- end}}
 {{- end}}
 	log {
 		output file /var/log/caddy/app-{{.ID}}.log {
@@ -535,7 +542,8 @@ func (a *applier) writeAppCaddy(ap agentproto.AppSpec, ports []int) error {
 	if ports == nil {
 		ports = []int{ap.HostPort}
 	}
-	appCaddyTemplate.Execute(&buf, map[string]any{"ID": ap.ID, "Domain": ap.Domain, "Internal": ap.TLS == "internal", "Ports": ports})
+	appCaddyTemplate.Execute(&buf, map[string]any{"ID": ap.ID, "Domain": ap.Domain, "Internal": ap.TLS == "internal", "Ports": ports,
+		"Blocked": ap.Blocked != "", "BlockedPage": blockedPages[ap.Blocked]})
 	changed, prev, err := a.writeIfChanged(path, buf.Bytes())
 	if err != nil {
 		return err
@@ -579,7 +587,11 @@ func (a *applier) removeApp(ctx context.Context, ap agentproto.AppSpec) error {
 	}
 	if _, err := os.Stat(a.sys.path(appDir(ap.Name) + "/" + appComposeFile)); err == nil {
 		if _, err := compose(ctx, a.sys, ap.Name, st.Env, args...); err != nil {
-			return err
+			// A Compose file Compose no longer accepts must not keep the app from going:
+			// its containers and networks carry the project's label.
+			if err := a.removeProject(ctx, ap.Name); err != nil {
+				return err
+			}
 		}
 	}
 	if ap.Kind == "git" {
@@ -606,6 +618,27 @@ func (a *applier) removeApp(ctx context.Context, ap agentproto.AppSpec) error {
 	}
 	// Keep the data, but mark the folder so a new app with this name does not take it over.
 	return os.Rename(a.sys.path(appDir(ap.Name)+"/"+appStateFile), a.sys.path(appDir(ap.Name)+"/"+appStateFile+".deleted"))
+}
+
+// removeProject removes an app's containers and networks by the Compose project label,
+// without its Compose file.
+func (a *applier) removeProject(ctx context.Context, name string) error {
+	label := "label=com.docker.compose.project=" + appProject(name)
+	out, err := a.sys.run(ctx, "docker", "ps", "--all", "--quiet", "--filter", label)
+	if err != nil {
+		return err
+	}
+	if ids := strings.Fields(string(out)); len(ids) > 0 {
+		if _, err := a.sys.run(ctx, "docker", append([]string{"rm", "--force"}, ids...)...); err != nil {
+			return err
+		}
+	}
+	if out, err := a.sys.run(ctx, "docker", "network", "ls", "--quiet", "--filter", label); err == nil {
+		if ids := strings.Fields(string(out)); len(ids) > 0 {
+			a.sys.run(ctx, "docker", append([]string{"network", "rm"}, ids...)...)
+		}
+	}
+	return nil
 }
 
 // removeAppOrphans drops the web configuration of apps the panel no longer knows.

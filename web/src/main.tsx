@@ -27,8 +27,11 @@ import { MailDomainPage, MailPage } from "./pages/MailPage";
 import { WordPressPage } from "./pages/WordPressPage";
 import { ServerSecurityPage } from "./pages/SecurityPage";
 import { CustomersPage, PackagesPage } from "./pages/CustomersPage";
+import { ResellersPage } from "./pages/ResellersPage";
+import { BrandingPage } from "./pages/BrandingPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { UpdatesPage } from "./pages/UpdatesPage";
+import { ImportPage } from "./pages/ImportPage";
 import { TokensPage } from "./pages/TokensPage";
 import { AppTerminalPage, ServerTerminalPage } from "./pages/TerminalPage";
 
@@ -61,6 +64,12 @@ function SignedIn() {
 function AdminOnly() {
   const me = useMe();
   return me.data?.role === "admin" ? <Outlet /> : <Navigate to="/" replace />;
+}
+
+// Administrators and resellers manage customers and packages (a reseller only their own).
+function ManagesCustomers() {
+  const me = useMe();
+  return me.data?.role === "admin" || me.data?.role === "reseller" ? <Outlet /> : <Navigate to="/" replace />;
 }
 
 function NotFound() {
@@ -103,10 +112,17 @@ const router = createBrowserRouter([
       { path: "/apps/:id", element: <AppDetailPage /> },
       { path: "/apps/:id/terminal", element: <AppTerminalPage /> },
       {
-        element: <AdminOnly />,
+        element: <ManagesCustomers />,
         children: [
           { path: "/customers", element: <CustomersPage /> },
           { path: "/packages", element: <PackagesPage /> },
+          { path: "/settings/branding", element: <BrandingPage /> },
+        ],
+      },
+      {
+        element: <AdminOnly />,
+        children: [
+          { path: "/resellers", element: <ResellersPage /> },
           { path: "/backups", element: <BackupsPage /> },
           { path: "/backups/:id", element: <BackupRepoPage /> },
           { path: "/security", element: <ServerSecurityPage /> },
@@ -115,6 +131,7 @@ const router = createBrowserRouter([
           { path: "/servers/:id/terminal", element: <ServerTerminalPage /> },
           { path: "/audit", element: <AuditPage /> },
           { path: "/settings/updates", element: <UpdatesPage /> },
+          { path: "/import", element: <ImportPage /> },
         ],
       },
       { path: "*", element: <NotFound /> },

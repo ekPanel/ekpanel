@@ -38,6 +38,11 @@ func (s *Server) validPackage(w http.ResponseWriter, r *http.Request, l *store.P
 		return fail("invalid_package", "the CPU limit must be at least 5%")
 	case l.MailboxQuotaMB != nil && (*l.MailboxQuotaMB < 1 || *l.MailboxQuotaMB > agentproto.MaxMailboxQuotaMB):
 		return fail("invalid_package", "the mailbox size must be at least 1 MB")
+	case l.BandwidthGB != nil && (*l.BandwidthGB < 1 || *l.BandwidthGB > 1<<20):
+		return fail("invalid_package", "the bandwidth must be at least 1 GB")
+	}
+	if l.BandwidthGB == nil {
+		l.BandwidthStop = false
 	}
 	if l.PHPVersions == nil {
 		l.PHPVersions = []string{}
@@ -73,6 +78,81 @@ func (s *Server) validPackage(w http.ResponseWriter, r *http.Request, l *store.P
 	return true
 }
 
+// getPackage returns a package the signed-in user may manage: a reseller only their own.
+func (s *Server) getPackage(r *http.Request, id string) (store.Package, error) {
+	p, err := s.store.GetPackage(r.Context(), id)
+	if err == nil && isReseller(r) && (p.ResellerID == nil || *p.ResellerID != currentUser(r).ID) {
+		return store.Package{}, store.ErrNotFound
+	}
+	return p, err
+}
+
+// packageFitsReseller checks a reseller's package against what the reseller was given: no
+// count above theirs, no unlimited or larger size where theirs is limited, and only the PHP
+// versions, images, servers and features they have. Images matter only for a package with
+// apps, and the mailbox size only for one with mailboxes.
+func (s *Server) packageFitsReseller(w http.ResponseWriter, r *http.Request, l *store.PackageLimits, resellerID *string) bool {
+	if resellerID == nil {
+		return true
+	}
+	rl, err := s.store.GetResellerLimits(r.Context(), *resellerID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return false
+	}
+	within := func(limit, v *int) bool { return limit == nil || (v != nil && *v <= *limit) }
+	subset := func(limit, v []string) bool {
+		if len(limit) == 0 {
+			return true
+		}
+		return len(v) > 0 && !slices.ContainsFunc(v, func(x string) bool { return !slices.Contains(limit, x) })
+	}
+	field := ""
+	switch {
+	case l.MaxSites > rl.MaxSites:
+		field = "max_sites"
+	case l.MaxDatabases > rl.MaxDatabases:
+		field = "max_databases"
+	case l.MaxApps > rl.MaxApps:
+		field = "max_apps"
+	case l.MaxCronJobs > rl.MaxCronJobs:
+		field = "max_cron_jobs"
+	case l.MaxMailDomains > rl.MaxMailDomains:
+		field = "max_mail_domains"
+	case l.MaxMailboxes > rl.MaxMailboxes:
+		field = "max_mailboxes"
+	case !within(rl.DiskMB, l.DiskMB):
+		field = "disk_mb"
+	case !within(rl.BandwidthGB, l.BandwidthGB):
+		field = "bandwidth_gb"
+	case !within(rl.MemoryMB, l.MemoryMB):
+		field = "memory_mb"
+	case !within(rl.CPUPercent, l.CPUPercent):
+		field = "cpu_percent"
+	case l.MaxMailboxes > 0 && !within(rl.MailboxQuotaMB, l.MailboxQuotaMB):
+		field = "mailbox_quota_mb"
+	case !subset(rl.PHPVersions, l.PHPVersions):
+		field = "php_versions"
+	case !subset(rl.ServerIDs, l.ServerIDs):
+		field = "server_ids"
+	case l.MaxApps > 0 && len(rl.AppImages) > 0 && (len(l.AppImages) == 0 ||
+		slices.ContainsFunc(l.AppImages, func(img string) bool { return !imagesAllow(rl.AppImages, img) })):
+		field = "app_images"
+	case l.SFTP && !rl.SFTP:
+		field = "sftp"
+	case l.FTP && !rl.FTP:
+		field = "ftp"
+	case l.GitApps && !rl.GitApps:
+		field = "git_apps"
+	}
+	if field != "" {
+		writeErrorData(w, http.StatusBadRequest, "package_over_reseller", "the package gives more than the reseller's account allows",
+			map[string]any{"field": field})
+		return false
+	}
+	return true
+}
+
 func (s *Server) writePackageError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, store.ErrPackageNameTaken):
@@ -93,8 +173,9 @@ func urlID(r *http.Request) string {
 	return nilUUID
 }
 
+// handleListPackages lists every package for administrators, and a reseller's own for them.
 func (s *Server) handleListPackages(w http.ResponseWriter, r *http.Request) {
-	list, err := s.store.ListPackages(r.Context())
+	list, err := s.store.ListPackages(r.Context(), ownerScope(r))
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -104,10 +185,14 @@ func (s *Server) handleListPackages(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreatePackage(w http.ResponseWriter, r *http.Request) {
 	var l store.PackageLimits
-	if !readJSON(w, r, &l) || !s.validPackage(w, r, &l) {
+	var reseller *string
+	if isReseller(r) {
+		reseller = &currentUser(r).ID
+	}
+	if !readJSON(w, r, &l) || !s.validPackage(w, r, &l) || !s.packageFitsReseller(w, r, &l, reseller) {
 		return
 	}
-	p, err := s.store.CreatePackage(r.Context(), l)
+	p, err := s.store.CreatePackage(r.Context(), l, reseller)
 	if err != nil {
 		s.writePackageError(w, r, err)
 		return
@@ -117,7 +202,7 @@ func (s *Server) handleCreatePackage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
-	p, err := s.store.GetPackage(r.Context(), urlID(r))
+	p, err := s.getPackage(r, urlID(r))
 	if err != nil {
 		s.writePackageError(w, r, err)
 		return
@@ -129,21 +214,30 @@ func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
 // resources they already have over a lowered count limit stay.
 func (s *Server) handleUpdatePackage(w http.ResponseWriter, r *http.Request) {
 	var l store.PackageLimits
-	if !readJSON(w, r, &l) || !s.validPackage(w, r, &l) {
+	if !readJSON(w, r, &l) {
 		return
 	}
-	p, err := s.store.UpdatePackage(r.Context(), urlID(r), l)
+	before, err := s.getPackage(r, urlID(r))
+	if err != nil {
+		s.writePackageError(w, r, err)
+		return
+	}
+	if !s.validPackage(w, r, &l) || !s.packageFitsReseller(w, r, &l, before.ResellerID) {
+		return
+	}
+	p, err := s.store.UpdatePackage(r.Context(), before.ID, l)
 	if err != nil {
 		s.writePackageError(w, r, err)
 		return
 	}
 	s.audit(r, "package.updated", p.Name, map[string]any{"package_id": p.ID})
 	s.reapplyCustomersOf(r, p.ID)
+	s.opts.Tasks.CheckBandwidth(r.Context()) // a new limit may block or unblock websites
 	writeJSON(w, http.StatusOK, p)
 }
 
 func (s *Server) handleDeletePackage(w http.ResponseWriter, r *http.Request) {
-	p, err := s.store.GetPackage(r.Context(), urlID(r))
+	p, err := s.getPackage(r, urlID(r))
 	if err == nil {
 		err = s.store.DeletePackage(r.Context(), p.ID)
 	}
@@ -175,6 +269,9 @@ type customerRequest struct {
 	Name      string `json:"name"`
 	PackageID string `json:"package_id"`
 	Locale    string `json:"locale"`
+	// For administrators: the reseller whose customer this is ("" for the administrators';
+	// left out, it stays as it is). Resellers' customers are always their own.
+	ResellerID *string `json:"reseller_id"`
 }
 
 // customerWithPassword carries a new password; it is shown only this once.
@@ -196,7 +293,37 @@ func (s *Server) writeCustomerError(w http.ResponseWriter, r *http.Request, err 
 	}
 }
 
-func (s *Server) validCustomer(w http.ResponseWriter, r *http.Request, req *customerRequest) bool {
+// getCustomer returns a customer the signed-in user may manage: a reseller only their own.
+func (s *Server) getCustomer(r *http.Request, id string) (store.Customer, error) {
+	c, err := s.store.GetCustomer(r.Context(), id)
+	if err == nil && isReseller(r) && (c.ResellerID == nil || *c.ResellerID != currentUser(r).ID) {
+		return store.Customer{}, store.ErrNotFound
+	}
+	return c, err
+}
+
+// customerReseller decides whose customer a new or changed customer is: a reseller's own;
+// for administrators, the reseller named in the request (current when left out).
+func (s *Server) customerReseller(w http.ResponseWriter, r *http.Request, req *customerRequest, current *string) (*string, bool) {
+	switch {
+	case isReseller(r):
+		return &currentUser(r).ID, true
+	case req.ResellerID == nil:
+		return current, true
+	case *req.ResellerID == "":
+		return nil, true
+	}
+	u, err := s.store.UserByID(r.Context(), urlSafeID(*req.ResellerID))
+	if err != nil || u.Role != "reseller" {
+		writeError(w, http.StatusBadRequest, "reseller_not_found", "choose a reseller")
+		return nil, false
+	}
+	return &u.ID, true
+}
+
+// validCustomer checks the account and that the package belongs to the customer's reseller
+// (or to the administrators, for theirs).
+func (s *Server) validCustomer(w http.ResponseWriter, r *http.Request, req *customerRequest, reseller *string) bool {
 	email, name, ok := validateAccount(w, req.Email, req.Name, strings.Repeat("x", auth.MinPasswordLength))
 	if !ok {
 		return false
@@ -206,15 +333,41 @@ func (s *Server) validCustomer(w http.ResponseWriter, r *http.Request, req *cust
 		writeError(w, http.StatusBadRequest, "package_not_found", "choose a package")
 		return false
 	}
-	if _, err := s.store.GetPackage(r.Context(), req.PackageID); err != nil {
+	p, err := s.store.GetPackage(r.Context(), req.PackageID)
+	if err != nil || (p.ResellerID == nil) != (reseller == nil) || (reseller != nil && *p.ResellerID != *reseller) {
 		writeError(w, http.StatusBadRequest, "package_not_found", "choose a package")
 		return false
 	}
 	return true
 }
 
+// resellerHasRoom checks that a reseller may have one more customer.
+func (s *Server) resellerHasRoom(w http.ResponseWriter, r *http.Request, reseller string) bool {
+	l, err := s.store.GetResellerLimits(r.Context(), reseller)
+	if err != nil {
+		s.internalError(w, r, err)
+		return false
+	}
+	list, err := s.store.CustomersOfReseller(r.Context(), reseller)
+	if err != nil {
+		s.internalError(w, r, err)
+		return false
+	}
+	if len(list) >= l.MaxCustomers {
+		writeError(w, http.StatusConflict, "reseller_limit_customer", "the reseller's account allows no more customers")
+		return false
+	}
+	return true
+}
+
+// handleListCustomers lists every customer for administrators (or one reseller's, with
+// ?reseller_id=), and a reseller's own for them.
 func (s *Server) handleListCustomers(w http.ResponseWriter, r *http.Request) {
-	list, err := s.store.ListCustomers(r.Context())
+	filter := ownerScope(r)
+	if id := r.URL.Query().Get("reseller_id"); isAdmin(r) && id != "" {
+		filter = urlSafeID(id)
+	}
+	list, err := s.store.ListCustomers(r.Context(), filter)
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -225,7 +378,11 @@ func (s *Server) handleListCustomers(w http.ResponseWriter, r *http.Request) {
 // handleCreateCustomer makes the account with a generated password, returned only once.
 func (s *Server) handleCreateCustomer(w http.ResponseWriter, r *http.Request) {
 	var req customerRequest
-	if !readJSON(w, r, &req) || !s.validCustomer(w, r, &req) {
+	if !readJSON(w, r, &req) {
+		return
+	}
+	reseller, ok := s.customerReseller(w, r, &req, nil)
+	if !ok || !s.validCustomer(w, r, &req, reseller) || (reseller != nil && !s.resellerHasRoom(w, r, *reseller)) {
 		return
 	}
 	password := auth.NewDatabasePassword()
@@ -239,18 +396,18 @@ func (s *Server) handleCreateCustomer(w http.ResponseWriter, r *http.Request) {
 		locale = currentUser(r).Locale
 	}
 	c, err := s.store.CreateCustomer(r.Context(), store.NewCustomer{
-		Email: req.Email, Name: req.Name, PasswordHash: hash, Locale: locale, PackageID: req.PackageID,
+		Email: req.Email, Name: req.Name, PasswordHash: hash, Locale: locale, PackageID: req.PackageID, ResellerID: reseller,
 	})
 	if err != nil {
 		s.writeCustomerError(w, r, err)
 		return
 	}
-	s.audit(r, "customer.created", c.Email, map[string]any{"customer_id": c.ID, "package_id": req.PackageID})
+	s.audit(r, "customer.created", c.Email, map[string]any{"customer_id": c.ID, "package_id": req.PackageID, "reseller_id": reseller})
 	writeJSON(w, http.StatusCreated, customerWithPassword{Customer: c, Password: password})
 }
 
 func (s *Server) handleGetCustomer(w http.ResponseWriter, r *http.Request) {
-	c, err := s.store.GetCustomer(r.Context(), urlID(r))
+	c, err := s.getCustomer(r, urlID(r))
 	if err != nil {
 		s.writeCustomerError(w, r, err)
 		return
@@ -260,22 +417,43 @@ func (s *Server) handleGetCustomer(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUpdateCustomer(w http.ResponseWriter, r *http.Request) {
 	var req customerRequest
-	if !readJSON(w, r, &req) || !s.validCustomer(w, r, &req) {
+	if !readJSON(w, r, &req) {
 		return
 	}
-	before, err := s.store.GetCustomer(r.Context(), urlID(r))
+	before, err := s.getCustomer(r, urlID(r))
 	if err != nil {
 		s.writeCustomerError(w, r, err)
 		return
 	}
-	c, err := s.store.UpdateCustomer(r.Context(), before.ID, req.Email, req.Name, req.PackageID)
+	reseller, ok := s.customerReseller(w, r, &req, before.ResellerID)
+	if !ok || !s.validCustomer(w, r, &req, reseller) {
+		return
+	}
+	moved := !sameID(reseller, before.ResellerID)
+	if moved && reseller != nil {
+		// Everything the customer has now counts for the new reseller.
+		servers, err := s.store.ServersOfOwner(r.Context(), before.ID)
+		if err != nil {
+			s.internalError(w, r, err)
+			return
+		}
+		if !s.resellerHasRoom(w, r, *reseller) || !s.resellerAllowsFor(w, r, *reseller, before.Usage, servers...) {
+			return
+		}
+	}
+	c, err := s.store.UpdateCustomer(r.Context(), before.ID, req.Email, req.Name, req.PackageID, reseller)
 	if err != nil {
 		s.writeCustomerError(w, r, err)
 		return
 	}
-	s.audit(r, "customer.updated", c.Email, map[string]any{"customer_id": c.ID, "package_id": req.PackageID})
-	if *before.PackageID != req.PackageID {
+	s.audit(r, "customer.updated", c.Email, map[string]any{"customer_id": c.ID, "package_id": req.PackageID, "reseller_id": reseller})
+	if *before.PackageID != req.PackageID || moved {
 		s.reapplyOwner(r, c.ID)
+		check := []string{c.ID}
+		if before.ResellerID != nil {
+			check = append(check, *before.ResellerID)
+		}
+		s.opts.Tasks.CheckBandwidth(r.Context(), check...)
 	}
 	writeJSON(w, http.StatusOK, c)
 }
@@ -293,7 +471,7 @@ func (s *Server) reapplyOwner(r *http.Request, ownerID string) {
 }
 
 func (s *Server) handleResetCustomerPassword(w http.ResponseWriter, r *http.Request) {
-	c, err := s.store.GetCustomer(r.Context(), urlID(r))
+	c, err := s.getCustomer(r, urlID(r))
 	if err != nil {
 		s.writeCustomerError(w, r, err)
 		return
@@ -312,7 +490,7 @@ func (s *Server) handleResetCustomerPassword(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *Server) handleDeleteCustomer(w http.ResponseWriter, r *http.Request) {
-	c, err := s.store.GetCustomer(r.Context(), urlID(r))
+	c, err := s.getCustomer(r, urlID(r))
 	if err == nil {
 		err = s.store.DeleteCustomer(r.Context(), c.ID)
 	}
@@ -338,26 +516,39 @@ func (s *Server) setReturnCookie(w http.ResponseWriter, token string, maxAge int
 }
 
 func (s *Server) handleImpersonate(w http.ResponseWriter, r *http.Request) {
-	admin := currentUser(r)
-	if admin.ImpersonatorID != nil {
+	if currentUser(r).ImpersonatorID != nil {
 		writeError(w, http.StatusConflict, "already_impersonating", "go back to your own account first")
 		return
 	}
-	c, err := s.store.GetCustomer(r.Context(), urlID(r))
+	c, err := s.getCustomer(r, urlID(r))
 	if err != nil {
 		s.writeCustomerError(w, r, err)
 		return
+	}
+	if s.impersonate(w, r, c.User) {
+		s.audit(r, "customer.impersonated", c.Email, map[string]any{"customer_id": c.ID})
+		writeJSON(w, http.StatusOK, c.User)
+	}
+}
+
+// impersonate starts a session as someone else (an administrator as a customer or a
+// reseller, a reseller as their customer), keeping the caller's own session for going back.
+func (s *Server) impersonate(w http.ResponseWriter, r *http.Request, c store.User) bool {
+	admin := currentUser(r)
+	if admin.ImpersonatorID != nil {
+		writeError(w, http.StatusConflict, "already_impersonating", "go back to your own account first")
+		return false
 	}
 	// Only from the administrator's own browser session (never with an API token): the
 	// cookie kept for going back must be that session.
 	if _, ok := r.Context().Value(sessionHashKey).([]byte); !ok || currentToken(r) != nil {
 		writeError(w, http.StatusForbidden, "token_not_allowed", "this needs a signed-in session; API tokens cannot do it")
-		return
+		return false
 	}
 	own, err := r.Cookie(s.cookieName())
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "unauthenticated", "sign in first")
-		return
+		return false
 	}
 	token := auth.NewToken()
 	ua := r.UserAgent()
@@ -366,13 +557,12 @@ func (s *Server) handleImpersonate(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.store.CreateImpersonationSession(r.Context(), auth.HashToken(token), c.ID, admin.ID, clientIP(r), ua); err != nil {
 		s.internalError(w, r, err)
-		return
+		return false
 	}
 	ttl := int(store.ImpersonationTTL.Seconds())
 	s.setReturnCookie(w, own.Value, ttl)
 	s.setSessionCookie(w, token, ttl)
-	s.audit(r, "customer.impersonated", c.Email, map[string]any{"customer_id": c.ID})
-	writeJSON(w, http.StatusOK, c.User)
+	return true
 }
 
 // handleEndImpersonation signs out of the customer's account and back into the
@@ -448,14 +638,26 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 
 type myUsage struct {
 	Package *store.Package `json:"package"`
-	Usage   store.Usage    `json:"usage"`
+	// For a reseller: their limits and what all their customers have.
+	Reseller *store.Reseller `json:"reseller,omitempty"`
+	Usage    store.Usage     `json:"usage"`
 	// Bytes served by the customer's websites and apps this month (UTC).
 	BandwidthMonth int64 `json:"bandwidth_month"`
 }
 
-// handleMyUsage shows a customer their package and what they use of it.
+// handleMyUsage shows a customer their package and what they use of it, and a reseller
+// their limits and what their customers use.
 func (s *Server) handleMyUsage(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
+	if u.Role == "reseller" {
+		rs, err := s.store.GetReseller(r.Context(), u.ID)
+		if err != nil {
+			s.internalError(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, myUsage{Reseller: &rs, Usage: rs.Usage, BandwidthMonth: rs.BandwidthMonth})
+		return
+	}
 	if u.Role != "customer" {
 		writeJSON(w, http.StatusOK, myUsage{})
 		return
@@ -490,7 +692,7 @@ type customerServerView struct {
 }
 
 func (s *Server) customerServers(w http.ResponseWriter, r *http.Request) {
-	pkg, err := s.packageFor(r, &currentUser(r).ID)
+	of, err := s.offerFor(r)
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -502,7 +704,7 @@ func (s *Server) customerServers(w http.ResponseWriter, r *http.Request) {
 	}
 	out := []customerServerView{}
 	for _, srv := range list {
-		if srv.EnrolledAt == nil || (len(pkg.ServerIDs) > 0 && !slices.Contains(pkg.ServerIDs, srv.ID)) {
+		if srv.EnrolledAt == nil || (len(of.ServerIDs) > 0 && !slices.Contains(of.ServerIDs, srv.ID)) {
 			continue
 		}
 		online, _ := s.hub.Latest(srv.ID)
@@ -523,3 +725,6 @@ func (s *Server) handleMeasureUsage(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// sameID reports whether two optional IDs are the same (both nil counts).
+func sameID(a, b *string) bool { return (a == nil && b == nil) || (a != nil && b != nil && *a == *b) }

@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -314,7 +315,11 @@ func (s *Server) handleTestChannel(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	m := notify.Render(u.Locale, store.Notification{Event: "test", Severity: "info", CreatedAt: time.Now()})
+	brand := "ekPanel"
+	if b, err := s.store.EffectiveBrand(r.Context(), &u.ID, ""); err == nil {
+		brand = b.Name
+	}
+	m := notify.Render(u.Locale, store.Notification{Event: "test", Severity: "info", Params: map[string]string{"brand": brand}, CreatedAt: time.Now()})
 	sendErr := s.opts.Notify.Send(ctx, c, m, u.Locale)
 	s.store.ChannelResult(r.Context(), c.ID, sendErr)
 	if sendErr != nil {
@@ -407,6 +412,15 @@ func (s *Server) handleSetNotifySettings(w http.ResponseWriter, r *http.Request)
 
 // checkNewSignIn tells a user when they sign in from an address not seen in 90 days. It
 // must run before this sign-in is written to the audit log.
+// notifyRecoveryCodeUsed tells the account a recovery code signed it in, and how many are left.
+func (s *Server) notifyRecoveryCodeUsed(r *http.Request, u *store.User, left int) {
+	if s.opts.Notify == nil {
+		return
+	}
+	s.opts.Notify.Event(context.WithoutCancel(r.Context()), []string{u.ID}, "recovery_code_used", "warning",
+		map[string]string{"ip": clientIP(r), "left": strconv.Itoa(left)}, "/settings/security")
+}
+
 func (s *Server) checkNewSignIn(r *http.Request, u *store.User) {
 	if s.opts.Notify == nil {
 		return

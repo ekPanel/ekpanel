@@ -89,7 +89,7 @@ func (s *Store) ListDatabases(ctx context.Context, serverID string) ([]Database,
 // ListDatabasesOf is ListDatabases for one owner only, unless ownerID is empty.
 func (s *Store) ListDatabasesOf(ctx context.Context, serverID, ownerID string) ([]Database, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+databaseColumns+databaseFrom+`
-		WHERE ($1 = '' OR d.server_id::text = $1) AND ($2 = '' OR d.owner_id::text = $2) ORDER BY d.name`, serverID, ownerID)
+		WHERE ($1 = '' OR d.server_id::text = $1) AND ($2 = '' OR `+ownedBy("d.owner_id", "$2")+`) ORDER BY d.name`, serverID, ownerID)
 	if err != nil {
 		return nil, err
 	}

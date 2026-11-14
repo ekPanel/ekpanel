@@ -2,13 +2,14 @@ import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, ArchiveRestore, Bell, Boxes, CircleArrowUp, CloudCog, Database, Gauge, Globe, KeyRound, Languages, LogOut, Mail, Menu, Monitor, Moon, Newspaper, Package, ScrollText, Search, Server, ShieldCheck, ShieldHalf, Sun, Users, X } from "lucide-react";
+import { Activity, ArchiveRestore, Bell, Boxes, CircleArrowUp, CloudCog, Database, Gauge, Globe, Import, KeyRound, Languages, LogOut, Mail, Menu, Monitor, Moon, Newspaper, Package, Palette, ScrollText, Search, Server, ShieldCheck, ShieldHalf, Store, Sun, Users, X } from "lucide-react";
 import { api, type User } from "../lib/api";
 import { meKey } from "../lib/session";
 import { useTheme, type Theme } from "../lib/theme";
 import { languages } from "../i18n";
 import { CommandPalette } from "./CommandPalette";
-import { Logo } from "./Brand";
+import { BrandMark, Logo } from "./Brand";
+import { useApplyBranding, useBranding } from "../lib/brand";
 
 export { Logo };
 import { TaskTray } from "./Tasks";
@@ -37,7 +38,7 @@ function NavItem({ to, icon, children }: { to: string; icon: ReactNode; children
 function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => void }) {
   const { t } = useTranslation();
   return (
-    <nav className="grid content-start gap-1 p-3" onClick={onNavigate} aria-label={t("nav.main")}>
+    <nav className="grid min-h-0 flex-1 content-start gap-1 overflow-y-auto p-3" onClick={onNavigate} aria-label={t("nav.main")}>
       <NavItem to="/" icon={<Gauge />}>{t("nav.dashboard")}</NavItem>
       <NavItem to="/sites" icon={<Globe />}>{t("nav.sites")}</NavItem>
       <NavItem to="/wordpress" icon={<Newspaper />}>WordPress</NavItem>
@@ -45,6 +46,14 @@ function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => void }) 
       <NavItem to="/apps" icon={<Boxes />}>{t("nav.apps")}</NavItem>
       <NavItem to="/mail" icon={<Mail />}>{t("nav.mail")}</NavItem>
       <NavItem to="/dns" icon={<CloudCog />}>{t("nav.dns")}</NavItem>
+      {user.role === "reseller" && (
+        <>
+          <p className="px-3 pt-5 pb-1 text-xs font-semibold tracking-wider text-muted uppercase">{t("nav.reseller")}</p>
+          <NavItem to="/customers" icon={<Users />}>{t("nav.customers")}</NavItem>
+          <NavItem to="/packages" icon={<Package />}>{t("nav.packages")}</NavItem>
+          <NavItem to="/settings/branding" icon={<Palette />}>{t("nav.branding")}</NavItem>
+        </>
+      )}
       {user.role === "admin" && (
         <>
           <NavItem to="/backups" icon={<ArchiveRestore />}>{t("nav.backups")}</NavItem>
@@ -53,7 +62,10 @@ function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => void }) 
           <p className="px-3 pt-5 pb-1 text-xs font-semibold tracking-wider text-muted uppercase">{t("nav.admin")}</p>
           <NavItem to="/customers" icon={<Users />}>{t("nav.customers")}</NavItem>
           <NavItem to="/packages" icon={<Package />}>{t("nav.packages")}</NavItem>
+          <NavItem to="/resellers" icon={<Store />}>{t("nav.resellers")}</NavItem>
+          <NavItem to="/import" icon={<Import />}>{t("nav.import")}</NavItem>
           <NavItem to="/audit" icon={<ScrollText />}>{t("nav.audit")}</NavItem>
+          <NavItem to="/settings/branding" icon={<Palette />}>{t("nav.branding")}</NavItem>
           <NavItem to="/settings/updates" icon={<CircleArrowUp />}>{t("nav.updates")}</NavItem>
         </>
       )}
@@ -61,7 +73,22 @@ function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => void }) 
       <NavItem to="/settings/security" icon={<ShieldCheck />}>{t("nav.security")}</NavItem>
       <NavItem to="/settings/notifications" icon={<Bell />}>{t("nav.notifications")}</NavItem>
       <NavItem to="/settings/tokens" icon={<KeyRound />}>{t("nav.tokens")}</NavItem>
+      <SourceLink className="px-3 pt-6" />
     </nav>
+  );
+}
+
+/** Where the panel's source code is: offered to everyone who uses it (AGPL), also under
+ * another brand. */
+export function SourceLink({ className }: { className?: string }) {
+  const { t } = useTranslation();
+  const brand = useBranding();
+  return (
+    <p className={cx("text-xs text-muted", className)}>
+      <a href={brand.source_url} target="_blank" rel="noreferrer" className="hover:text-ink hover:underline">
+        {t("brand.source")}
+      </a>
+    </p>
   );
 }
 
@@ -131,6 +158,7 @@ export function AppShell({ user }: { user: User }) {
   const location = useLocation();
   const [drawer, setDrawer] = useState(false);
   const [palette, setPalette] = useState(false);
+  const brand = useApplyBranding();
 
   useEffect(() => setDrawer(false), [location.pathname]);
   useEffect(() => {
@@ -149,6 +177,7 @@ export function AppShell({ user }: { user: User }) {
       await api.post("/auth/logout");
     } finally {
       qc.setQueryData(meKey, null);
+      // The branding goes too: signed out, it follows the domain again.
       qc.removeQueries({ predicate: (q) => q.queryKey[0] !== "me" && q.queryKey[0] !== "setup-status" });
       navigate("/login");
     }
@@ -165,8 +194,8 @@ export function AppShell({ user }: { user: User }) {
     <div className="flex min-h-full">
       {/* Sidebar: fixed column on desktop, slide-over drawer on phones */}
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-e border-line bg-sunk lg:flex">
-        <div className="flex h-16 items-center px-5">
-          <Logo />
+        <div className="flex h-16 shrink-0 items-center px-5">
+          {brand ? <BrandMark brand={brand} /> : <span className="h-8" aria-hidden />}
         </div>
         <Sidebar user={user} />
       </aside>
@@ -174,8 +203,8 @@ export function AppShell({ user }: { user: User }) {
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setDrawer(false)} />
           <aside className="absolute inset-y-0 start-0 flex w-72 max-w-[85vw] flex-col bg-sunk shadow-xl">
-            <div className="flex h-16 items-center justify-between px-5">
-              <Logo />
+            <div className="flex h-16 shrink-0 items-center justify-between px-5">
+              {brand ? <BrandMark brand={brand} /> : <span className="h-8" aria-hidden />}
               <button onClick={() => setDrawer(false)} className="rounded-md p-1 text-muted" aria-label={t("common.close")}>
                 <X className="size-5" />
               </button>

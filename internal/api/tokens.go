@@ -25,6 +25,7 @@ const tokenPrefix = "ekp_"
 var (
 	TokenScopes    = []string{"read", "sites", "databases", "apps", "dns", "mail", "backups", "servers", "customers", "settings"}
 	customerScopes = []string{"read", "sites", "databases", "apps", "dns", "mail", "settings"}
+	resellerScopes = []string{"read", "sites", "databases", "apps", "dns", "mail", "customers", "settings"}
 )
 
 // routeScopes maps the first segment of an API path to the scopes that allow it. A segment
@@ -32,6 +33,8 @@ var (
 var routeScopes = map[string][]string{
 	"sites":         {"sites"},
 	"wordpress":     {"sites"},
+	"moves":         {"sites", "apps", "databases"},
+	"imports":       {"sites"},
 	"php-apps":      {"sites"},
 	"php-versions":  {"sites"},
 	"cron":          {"sites", "apps"},
@@ -44,7 +47,10 @@ var routeScopes = map[string][]string{
 	"servers":       {"servers"},
 	"customers":     {"customers"},
 	"packages":      {"customers"},
+	"owner-changes": {"customers"},
+	"resellers":     {"customers"},
 	"settings":      {"settings"},
+	"brand":         {"settings"},
 	"updates":       {"settings"},
 	"audit":         {"settings"},
 	"notifications": {"settings"},
@@ -54,6 +60,7 @@ var routeScopes = map[string][]string{
 	"health":       {},
 	"openapi.json": {},
 	"setup":        {},
+	"branding":     {},
 }
 
 // tokenScopeFor returns the scopes that allow a request with a token, and whether a token
@@ -68,7 +75,7 @@ func tokenScopeFor(method, path string) (scopes []string, ok bool) {
 	}
 	// Nor anything that makes a browser session: signing in as a customer would give a
 	// session without the token's limits.
-	if slices.Contains(parts, "terminal") || slices.Contains(parts, "impersonate") {
+	if slices.Contains(parts, "terminal") || slices.Contains(parts, "impersonate") || slices.Contains(parts, "2fa") {
 		return nil, false
 	}
 	scopes, ok = routeScopes[parts[0]]
@@ -119,6 +126,10 @@ func (s *Server) tokenAuth(w http.ResponseWriter, r *http.Request) (*http.Reques
 	}
 	if err != nil {
 		s.internalError(w, r, err)
+		return r, false
+	}
+	if u.SuspendedAt != nil {
+		writeSuspended(w)
 		return r, false
 	}
 	scopes, allowed := tokenScopeFor(r.Method, r.URL.Path)
@@ -174,8 +185,11 @@ func (s *Server) handleCreateToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	allowed := TokenScopes
-	if u.Role != "admin" {
+	switch u.Role {
+	case "customer":
 		allowed = customerScopes
+	case "reseller":
+		allowed = resellerScopes
 	}
 	scopes := []string{}
 	for _, sc := range req.Scopes {

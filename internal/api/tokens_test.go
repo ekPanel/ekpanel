@@ -108,6 +108,7 @@ func TestAPITokens(t *testing.T) {
 		{"POST", "/api/v1/auth/logout"},
 		{"GET", "/api/v1/servers/" + serverID + "/terminal"},
 		{"POST", "/api/v1/customers/00000000-0000-0000-0000-000000000000/impersonate"},
+		{"POST", "/api/v1/customers/00000000-0000-0000-0000-000000000000/2fa/reset"},
 	} {
 		if st := call(rw.Token, c.method, c.path, map[string]any{}, &e); st != http.StatusForbidden || e.Code != "token_not_allowed" {
 			t.Errorf("%s %s: %d %s", c.method, c.path, st, e.Code)

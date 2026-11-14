@@ -54,6 +54,12 @@ type Server struct {
 
 	setupMu    sync.Mutex
 	setupToken string
+
+	// passkeyCeremonies are the passkey challenges handed out and not answered yet.
+	passkeyCeremonies ceremonies
+
+	// importPlans keeps recent backup inspections, so an import does not read the archive again.
+	importPlans sync.Map
 }
 
 func New(st *store.Store, h *hub.Hub, log *slog.Logger, opts Options) *Server {
@@ -83,8 +89,12 @@ func (s *Server) router() chi.Router {
 		// Signed by the app's webhook secret instead of a session.
 		r.Post("/hooks/git/{id}", s.handleGitHook)
 		r.Get("/setup/status", s.handleSetupStatus)
+		r.Get("/branding", s.handleBranding)
+		r.Get("/branding/logo/{id}", s.handleBrandLogo)
 		r.Post("/setup", s.handleSetup)
 		r.Post("/auth/login", s.handleLogin)
+		r.Post("/auth/passkey/options", s.handlePasskeyLoginOptions)
+		r.Post("/auth/passkey/login", s.handlePasskeyLogin)
 
 		r.Group(func(r chi.Router) {
 			r.Use(requireUser)
@@ -98,16 +108,24 @@ func (s *Server) router() chi.Router {
 			r.With(notImpersonating).Post("/auth/2fa/enable", s.handleTOTPEnable)
 			r.With(notImpersonating).Post("/auth/2fa/disable", s.handleTOTPDisable)
 			r.With(notImpersonating).Post("/auth/sessions/revoke-others", s.handleRevokeOtherSessions)
+			r.With(notImpersonating).Get("/auth/sessions", s.handleListSessions)
+			r.With(notImpersonating).Get("/auth/passkeys", s.handleListPasskeys)
+			r.With(notImpersonating).Post("/auth/passkeys/options", s.handlePasskeyOptions)
+			r.With(notImpersonating).Post("/auth/passkeys", s.handleAddPasskey)
+			r.With(notImpersonating).Delete("/auth/passkeys/{id}", s.handleDeletePasskey)
+			r.With(notImpersonating).Delete("/auth/sessions/{id}", s.handleEndSession)
+			r.With(notImpersonating).Get("/auth/2fa/recovery-codes", s.handleRecoveryCodesLeft)
+			r.With(notImpersonating).Post("/auth/2fa/recovery-codes", s.handleNewRecoveryCodes)
 			// API tokens are managed only in a browser session (a token cannot reach these).
 			r.With(notImpersonating).Get("/tokens", s.handleListTokens)
 			r.With(notImpersonating).Post("/tokens", s.handleCreateToken)
 			r.With(notImpersonating).Delete("/tokens/{id}", s.handleDeleteToken)
 		})
 
-		// Administrators and customers. Handlers show customers only what they own and
-		// check their package's limits.
+		// Administrators, resellers and customers. Handlers show customers only what they own,
+		// resellers what their customers own, and check packages' and resellers' limits.
 		r.Group(func(r chi.Router) {
-			r.Use(requireRole("admin", "customer"))
+			r.Use(requireRole("admin", "reseller", "customer"))
 			r.Get("/me/usage", s.handleMyUsage)
 			r.Get("/notifications", s.handleListNotifications)
 			r.Post("/notifications/read", s.handleReadNotifications)
@@ -227,14 +245,9 @@ func (s *Server) router() chi.Router {
 			r.Get("/cron/{id}/status", s.handleCronStatus)
 		})
 
+		// Administrators and resellers: packages and customers (a reseller's own only).
 		r.Group(func(r chi.Router) {
-			r.Use(requireRole("admin"))
-			r.Get("/updates", s.handleGetUpdates)
-			r.Post("/updates/check", s.handleCheckUpdates)
-			r.With(notImpersonating).Post("/updates/panel", s.handleUpdatePanel)
-			r.With(notImpersonating).Post("/updates/agents", s.handleUpdateAgents)
-			r.Get("/settings/notifications", s.handleGetNotifySettings)
-			r.Put("/settings/notifications", s.handleSetNotifySettings)
+			r.Use(requireRole("admin", "reseller"))
 			r.Get("/packages", s.handleListPackages)
 			r.Post("/packages", s.handleCreatePackage)
 			r.Get("/packages/{id}", s.handleGetPackage)
@@ -246,7 +259,51 @@ func (s *Server) router() chi.Router {
 			r.Put("/customers/{id}", s.handleUpdateCustomer)
 			r.Delete("/customers/{id}", s.handleDeleteCustomer)
 			r.Post("/customers/{id}/password", s.handleResetCustomerPassword)
+			r.With(notImpersonating).Post("/customers/{id}/2fa/reset", s.handleResetCustomerTOTP)
 			r.Post("/customers/{id}/impersonate", s.handleImpersonate)
+			r.Post("/customers/{id}/suspend", s.handleSuspendCustomer)
+			r.Post("/customers/{id}/unsuspend", s.handleUnsuspendCustomer)
+			r.Post("/owner-changes", s.handleChangeOwner)
+			r.Get("/brand", s.handleGetBrand)
+			r.Put("/brand", s.handleSaveBrand)
+			r.Put("/brand/logo", s.handleSetBrandLogo)
+			r.Delete("/brand/logo", s.handleDeleteBrandLogo)
+		})
+
+		r.Group(func(r chi.Router) {
+			r.Use(requireRole("admin"))
+			r.Get("/resellers", s.handleListResellers)
+			r.Post("/resellers", s.handleCreateReseller)
+			r.Get("/resellers/{id}", s.handleGetReseller)
+			r.Put("/resellers/{id}", s.handleUpdateReseller)
+			r.Delete("/resellers/{id}", s.handleDeleteReseller)
+			r.Post("/resellers/{id}/password", s.handleResetResellerPassword)
+			r.With(notImpersonating).Post("/resellers/{id}/2fa/reset", s.handleResetResellerTOTP)
+			r.Post("/resellers/{id}/impersonate", s.handleImpersonateReseller)
+			r.Post("/resellers/{id}/suspend", s.handleSuspendReseller)
+			r.Post("/resellers/{id}/unsuspend", s.handleUnsuspendReseller)
+			r.Post("/sites/{id}/move", s.handleMoveSite)
+			r.Post("/sites/{id}/rebuild", s.handleRebuildSite)
+			r.Get("/sites/{id}/moves", s.handleSiteMoves)
+			r.Post("/customers/{id}/move", s.handleMoveCustomer)
+			r.Post("/databases/{id}/move", s.handleMoveDatabase)
+			r.Get("/databases/{id}/moves", s.handleDatabaseMoves)
+			r.Post("/apps/{id}/move", s.handleMoveApp)
+			r.Get("/apps/{id}/moves", s.handleAppMoves)
+			r.Post("/moves/{id}/cleanup", s.handleMoveCleanup)
+			r.Post("/imports/inspect", s.handleInspectImport)
+			r.Post("/imports", s.handleImport)
+			r.Get("/imports/files", s.handleImportFiles)
+			r.Post("/imports/site/inspect", s.handleInspectSiteArchive)
+			r.Post("/imports/site", s.handleImportSiteArchive)
+			r.Post("/imports/coolify/inspect", s.handleInspectCoolify)
+			r.Post("/imports/coolify", s.handleImportCoolify)
+			r.Get("/updates", s.handleGetUpdates)
+			r.Post("/updates/check", s.handleCheckUpdates)
+			r.With(notImpersonating).Post("/updates/panel", s.handleUpdatePanel)
+			r.With(notImpersonating).Post("/updates/agents", s.handleUpdateAgents)
+			r.Get("/settings/notifications", s.handleGetNotifySettings)
+			r.Put("/settings/notifications", s.handleSetNotifySettings)
 			r.Post("/servers", s.handleCreateServer)
 			r.Get("/servers/{id}", s.handleGetServer)
 			r.Delete("/servers/{id}", s.handleDeleteServer)

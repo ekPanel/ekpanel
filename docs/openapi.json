@@ -536,6 +536,86 @@
         "x-ekpanel-scope": "read or apps"
       }
     },
+    "/api/v1/apps/{id}/move": {
+      "post": {
+        "operationId": "postAppsIdMove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Move app",
+        "tags": [
+          "apps"
+        ],
+        "x-ekpanel-scope": "apps"
+      }
+    },
+    "/api/v1/apps/{id}/moves": {
+      "get": {
+        "operationId": "getAppsIdMoves",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "App moves",
+        "tags": [
+          "apps"
+        ],
+        "x-ekpanel-scope": "read or apps"
+      }
+    },
     "/api/v1/apps/{id}/previews": {
       "get": {
         "operationId": "getAppsIdPreviews",
@@ -966,6 +1046,74 @@
         "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
       }
     },
+    "/api/v1/auth/2fa/recovery-codes": {
+      "get": {
+        "operationId": "getAuth2faRecoveryCodes",
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "How many two-factor recovery codes are left",
+        "tags": [
+          "account"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      },
+      "post": {
+        "operationId": "postAuth2faRecoveryCodes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Make new two-factor recovery codes",
+        "tags": [
+          "account"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
     "/api/v1/auth/2fa/setup": {
       "post": {
         "operationId": "postAuth2faSetup",
@@ -1224,6 +1372,234 @@
         "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
       }
     },
+    "/api/v1/auth/passkey/login": {
+      "post": {
+        "operationId": "postAuthPasskeyLogin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Sign in with a passkey",
+        "tags": [
+          "account"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
+    "/api/v1/auth/passkey/options": {
+      "post": {
+        "operationId": "postAuthPasskeyOptions",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Start signing in with a passkey",
+        "tags": [
+          "account"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
+    "/api/v1/auth/passkeys": {
+      "get": {
+        "operationId": "getAuthPasskeys",
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "List passkeys",
+        "tags": [
+          "account"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      },
+      "post": {
+        "operationId": "postAuthPasskeys",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Add passkey",
+        "tags": [
+          "account"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
+    "/api/v1/auth/passkeys/options": {
+      "post": {
+        "operationId": "postAuthPasskeysOptions",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Start adding a passkey (asks for the password)",
+        "tags": [
+          "account"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
+    "/api/v1/auth/passkeys/{id}": {
+      "delete": {
+        "operationId": "deleteAuthPasskeysId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Delete passkey",
+        "tags": [
+          "account"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
     "/api/v1/auth/password": {
       "post": {
         "operationId": "postAuthPassword",
@@ -1264,6 +1640,36 @@
         "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
       }
     },
+    "/api/v1/auth/sessions": {
+      "get": {
+        "operationId": "getAuthSessions",
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "List sessions",
+        "tags": [
+          "account"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
     "/api/v1/auth/sessions/revoke-others": {
       "post": {
         "operationId": "postAuthSessionsRevokeOthers",
@@ -1298,6 +1704,46 @@
           }
         ],
         "summary": "Revoke other sessions",
+        "tags": [
+          "account"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
+    "/api/v1/auth/sessions/{id}": {
+      "delete": {
+        "operationId": "deleteAuthSessionsId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "End session",
         "tags": [
           "account"
         ],
@@ -1596,6 +2042,182 @@
           "backups"
         ],
         "x-ekpanel-scope": "read or backups"
+      }
+    },
+    "/api/v1/brand": {
+      "get": {
+        "operationId": "getBrand",
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Your white-label settings (the panel's, for administrators)",
+        "tags": [
+          "brand"
+        ],
+        "x-ekpanel-scope": "read or settings"
+      },
+      "put": {
+        "operationId": "putBrand",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Set your panel's name, color and domain",
+        "tags": [
+          "brand"
+        ],
+        "x-ekpanel-scope": "settings"
+      }
+    },
+    "/api/v1/brand/logo": {
+      "delete": {
+        "operationId": "deleteBrandLogo",
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Remove your panel's logo",
+        "tags": [
+          "brand"
+        ],
+        "x-ekpanel-scope": "settings"
+      },
+      "put": {
+        "operationId": "putBrandLogo",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Upload your panel's logo (PNG, JPEG, GIF or WebP, sent as application/octet-stream)",
+        "tags": [
+          "brand"
+        ],
+        "x-ekpanel-scope": "settings"
+      }
+    },
+    "/api/v1/branding": {
+      "get": {
+        "operationId": "getBranding",
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "The panel's name, color and logo for you (or, signed out, for the domain it was opened at)",
+        "tags": [
+          "branding"
+        ],
+        "x-ekpanel-scope": "any"
+      }
+    },
+    "/api/v1/branding/logo/{id}": {
+      "get": {
+        "operationId": "getBrandingLogoId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "A brand's logo (PNG)",
+        "tags": [
+          "branding"
+        ],
+        "x-ekpanel-scope": "any"
       }
     },
     "/api/v1/catalog": {
@@ -2076,6 +2698,56 @@
         "x-ekpanel-scope": "customers"
       }
     },
+    "/api/v1/customers/{id}/2fa/reset": {
+      "post": {
+        "operationId": "postCustomersId2faReset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Turn off a customer's two-factor sign-in",
+        "tags": [
+          "customers"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
     "/api/v1/customers/{id}/impersonate": {
       "post": {
         "operationId": "postCustomersIdImpersonate",
@@ -2126,6 +2798,51 @@
         "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
       }
     },
+    "/api/v1/customers/{id}/move": {
+      "post": {
+        "operationId": "postCustomersIdMove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Move customer",
+        "tags": [
+          "customers"
+        ],
+        "x-ekpanel-scope": "customers"
+      }
+    },
     "/api/v1/customers/{id}/password": {
       "post": {
         "operationId": "postCustomersIdPassword",
@@ -2165,6 +2882,96 @@
           }
         },
         "summary": "Reset customer password",
+        "tags": [
+          "customers"
+        ],
+        "x-ekpanel-scope": "customers"
+      }
+    },
+    "/api/v1/customers/{id}/suspend": {
+      "post": {
+        "operationId": "postCustomersIdSuspend",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Suspend customer",
+        "tags": [
+          "customers"
+        ],
+        "x-ekpanel-scope": "customers"
+      }
+    },
+    "/api/v1/customers/{id}/unsuspend": {
+      "post": {
+        "operationId": "postCustomersIdUnsuspend",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Unsuspend customer",
         "tags": [
           "customers"
         ],
@@ -2291,6 +3098,86 @@
           }
         },
         "summary": "Get database",
+        "tags": [
+          "databases"
+        ],
+        "x-ekpanel-scope": "read or databases"
+      }
+    },
+    "/api/v1/databases/{id}/move": {
+      "post": {
+        "operationId": "postDatabasesIdMove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Move database",
+        "tags": [
+          "databases"
+        ],
+        "x-ekpanel-scope": "databases"
+      }
+    },
+    "/api/v1/databases/{id}/moves": {
+      "get": {
+        "operationId": "getDatabasesIdMoves",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Database moves",
         "tags": [
           "databases"
         ],
@@ -3530,6 +4417,241 @@
         ]
       }
     },
+    "/api/v1/imports": {
+      "post": {
+        "operationId": "postImports",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Import websites, databases, email, cron jobs and DNS zones from a cPanel backup",
+        "tags": [
+          "imports"
+        ],
+        "x-ekpanel-scope": "sites"
+      }
+    },
+    "/api/v1/imports/coolify": {
+      "post": {
+        "operationId": "postImportsCoolify",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Make apps of Coolify applications and services",
+        "tags": [
+          "imports"
+        ],
+        "x-ekpanel-scope": "sites"
+      }
+    },
+    "/api/v1/imports/coolify/inspect": {
+      "post": {
+        "operationId": "postImportsCoolifyInspect",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "List the applications, services and databases of a Coolify instance",
+        "tags": [
+          "imports"
+        ],
+        "x-ekpanel-scope": "sites"
+      }
+    },
+    "/api/v1/imports/files": {
+      "get": {
+        "operationId": "getImportsFiles",
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "The backups and archives in a server's import folder",
+        "tags": [
+          "imports"
+        ],
+        "x-ekpanel-scope": "read or sites"
+      }
+    },
+    "/api/v1/imports/inspect": {
+      "post": {
+        "operationId": "postImportsInspect",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Read a cPanel backup on a server: its websites, databases and cron jobs",
+        "tags": [
+          "imports"
+        ],
+        "x-ekpanel-scope": "sites"
+      }
+    },
+    "/api/v1/imports/site": {
+      "post": {
+        "operationId": "postImportsSite",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Import a website, and its database, from an archive",
+        "tags": [
+          "imports"
+        ],
+        "x-ekpanel-scope": "sites"
+      }
+    },
+    "/api/v1/imports/site/inspect": {
+      "post": {
+        "operationId": "postImportsSiteInspect",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Read a website archive (any host, aaPanel) on a server",
+        "tags": [
+          "imports"
+        ],
+        "x-ekpanel-scope": "sites"
+      }
+    },
     "/api/v1/mail/domains": {
       "get": {
         "operationId": "getMailDomains",
@@ -4040,6 +5162,51 @@
         "x-ekpanel-scope": "any"
       }
     },
+    "/api/v1/moves/{id}/cleanup": {
+      "post": {
+        "operationId": "postMovesIdCleanup",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Move cleanup",
+        "tags": [
+          "moves"
+        ],
+        "x-ekpanel-scope": "sites or apps or databases"
+      }
+    },
     "/api/v1/notifications": {
       "get": {
         "operationId": "getNotifications",
@@ -4306,6 +5473,41 @@
         ]
       }
     },
+    "/api/v1/owner-changes": {
+      "post": {
+        "operationId": "postOwnerChanges",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Change owner",
+        "tags": [
+          "owner-changes"
+        ],
+        "x-ekpanel-scope": "customers"
+      }
+    },
     "/api/v1/packages": {
       "get": {
         "operationId": "getPackages",
@@ -4523,6 +5725,410 @@
           "sites"
         ],
         "x-ekpanel-scope": "read or sites"
+      }
+    },
+    "/api/v1/resellers": {
+      "get": {
+        "operationId": "getResellers",
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "List resellers",
+        "tags": [
+          "resellers"
+        ],
+        "x-ekpanel-scope": "read or customers"
+      },
+      "post": {
+        "operationId": "postResellers",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Create reseller",
+        "tags": [
+          "resellers"
+        ],
+        "x-ekpanel-scope": "customers"
+      }
+    },
+    "/api/v1/resellers/{id}": {
+      "delete": {
+        "operationId": "deleteResellersId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Delete reseller",
+        "tags": [
+          "resellers"
+        ],
+        "x-ekpanel-scope": "customers"
+      },
+      "get": {
+        "operationId": "getResellersId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Get reseller",
+        "tags": [
+          "resellers"
+        ],
+        "x-ekpanel-scope": "read or customers"
+      },
+      "put": {
+        "operationId": "putResellersId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Update reseller",
+        "tags": [
+          "resellers"
+        ],
+        "x-ekpanel-scope": "customers"
+      }
+    },
+    "/api/v1/resellers/{id}/2fa/reset": {
+      "post": {
+        "operationId": "postResellersId2faReset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Reset reseller two-factor",
+        "tags": [
+          "resellers"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
+    "/api/v1/resellers/{id}/impersonate": {
+      "post": {
+        "operationId": "postResellersIdImpersonate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Impersonate reseller",
+        "tags": [
+          "resellers"
+        ],
+        "x-ekpanel-token": "API tokens cannot use this; it needs a signed-in session"
+      }
+    },
+    "/api/v1/resellers/{id}/password": {
+      "post": {
+        "operationId": "postResellersIdPassword",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Reset reseller password",
+        "tags": [
+          "resellers"
+        ],
+        "x-ekpanel-scope": "customers"
+      }
+    },
+    "/api/v1/resellers/{id}/suspend": {
+      "post": {
+        "operationId": "postResellersIdSuspend",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Suspend reseller",
+        "tags": [
+          "resellers"
+        ],
+        "x-ekpanel-scope": "customers"
+      }
+    },
+    "/api/v1/resellers/{id}/unsuspend": {
+      "post": {
+        "operationId": "postResellersIdUnsuspend",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Unsuspend reseller",
+        "tags": [
+          "resellers"
+        ],
+        "x-ekpanel-scope": "customers"
       }
     },
     "/api/v1/servers": {
@@ -6693,6 +8299,131 @@
           }
         },
         "summary": "Site malware action",
+        "tags": [
+          "sites"
+        ],
+        "x-ekpanel-scope": "sites"
+      }
+    },
+    "/api/v1/sites/{id}/move": {
+      "post": {
+        "operationId": "postSitesIdMove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Move site",
+        "tags": [
+          "sites"
+        ],
+        "x-ekpanel-scope": "sites"
+      }
+    },
+    "/api/v1/sites/{id}/moves": {
+      "get": {
+        "operationId": "getSitesIdMoves",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Site moves",
+        "tags": [
+          "sites"
+        ],
+        "x-ekpanel-scope": "read or sites"
+      }
+    },
+    "/api/v1/sites/{id}/rebuild": {
+      "post": {
+        "operationId": "postSitesIdRebuild",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Rebuild site",
         "tags": [
           "sites"
         ],

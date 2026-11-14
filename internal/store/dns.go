@@ -46,7 +46,7 @@ func (s *Store) GetCloudflareAccount(ctx context.Context, id string) (Cloudflare
 // ListCloudflareAccounts lists the accounts of one owner ("" for administrators').
 func (s *Store) ListCloudflareAccounts(ctx context.Context, ownerID string) ([]CloudflareAccount, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+cfAccountColumns+` FROM cloudflare_accounts c
-		WHERE ($1 = '' AND c.owner_id IS NULL) OR c.owner_id::text = $1 ORDER BY lower(c.name)`, ownerID)
+		WHERE ($1 = '' AND c.owner_id IS NULL) OR ($1 <> '' AND `+ownedBy("c.owner_id", "$1")+`) ORDER BY lower(c.name)`, ownerID)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (s *Store) GetZone(ctx context.Context, id string) (DNSZone, error) {
 // ListZones lists zones, all of them or one owner's ("" for administrators' when owned).
 func (s *Store) ListZones(ctx context.Context, all bool, ownerID string) ([]DNSZone, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+zoneColumns+zoneFrom+`
-		WHERE $1 OR ($2 = '' AND z.owner_id IS NULL) OR z.owner_id::text = $2 ORDER BY z.name`, all, ownerID)
+		WHERE $1 OR ($2 = '' AND z.owner_id IS NULL) OR ($2 <> '' AND `+ownedBy("z.owner_id", "$2")+`) ORDER BY z.name`, all, ownerID)
 	if err != nil {
 		return nil, err
 	}

@@ -10,6 +10,7 @@ import { Badge, Button, Card, CopyButton, Dialog, ErrorAlert, Field, Spinner } f
 
 const adminScopes = ["read", "sites", "databases", "apps", "dns", "mail", "backups", "servers", "customers", "settings"];
 const customerScopes = ["read", "sites", "databases", "apps", "dns", "mail", "settings"];
+const resellerScopes = ["read", "sites", "databases", "apps", "dns", "mail", "customers", "settings"];
 const expiries = [30, 90, 365, 0];
 
 /** Account → API tokens: keys for scripts and the ekctl CLI. */
@@ -122,15 +123,15 @@ export function TokensPage() {
           <p className="text-muted">{t("tokens.how_cli")}</p>
         </Card>
       </div>
-      {adding && <AddTokenDialog onClose={() => setAdding(false)} admin={me.data?.role === "admin"} />}
+      {adding && <AddTokenDialog onClose={() => setAdding(false)} role={me.data?.role ?? "customer"} />}
     </>
   );
 }
 
-function AddTokenDialog({ onClose, admin }: { onClose: () => void; admin: boolean }) {
+function AddTokenDialog({ onClose, role }: { onClose: () => void; role: "admin" | "reseller" | "customer" }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const scopes = admin ? adminScopes : customerScopes;
+  const scopes = role === "admin" ? adminScopes : role === "reseller" ? resellerScopes : customerScopes;
   const [name, setName] = useState("");
   const [chosen, setChosen] = useState<string[]>(["read"]);
   const [days, setDays] = useState(90);

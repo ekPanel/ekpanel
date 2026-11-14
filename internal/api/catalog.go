@@ -15,20 +15,16 @@ type catalogEntry struct {
 
 // handleCatalog lists the one-click services. Customers see whether their package allows each.
 func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
-	var pkg *store.Package
-	if u := currentUser(r); u.Role == "customer" {
-		p, err := s.packageFor(r, &u.ID)
-		if err != nil {
-			s.internalError(w, r, err)
-			return
-		}
-		pkg = p
+	of, err := s.offerFor(r)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
 	}
 	list := []catalogEntry{}
 	for _, t := range catalog.All() {
 		allowed := true
 		for _, image := range t.Images {
-			if pkg != nil && !imageAllowed(pkg, image) {
+			if of != nil && !imagesAllow(of.AppImages, image) {
 				allowed = false
 			}
 		}

@@ -72,6 +72,8 @@ type Envelope struct {
 	Cols   int    `json:"cols,omitempty"`
 	Rows   int    `json:"rows,omitempty"`
 	Reason string `json:"reason,omitempty"`
+	// Credit lets the other side send this many more chunks (TypeStreamCredit).
+	Credit int `json:"credit,omitempty"`
 }
 
 // OpError is a failed operation. Code is stable (the UI translates it); Message is detail.
@@ -90,6 +92,8 @@ const (
 	ErrFailed        = "failed"
 	ErrNoSystemd     = "no_systemd" // the server (or container) does not run systemd
 	ErrWrongKey      = "wrong_recovery_key"
+	ErrNoImportFile  = "import_not_found"  // no such archive in ImportDir
+	ErrNotCPanel     = "not_cpanel_backup" // the archive cannot be read as a cPanel backup
 )
 
 // Hello is the first message on every connection: static facts about the server.
@@ -225,6 +229,9 @@ type SiteSpec struct {
 	FTPPasswordHash string `json:"ftp_password_hash,omitempty"` // SHA-512 crypt
 
 	Web SiteWeb `json:"web"`
+	// Blocked makes the site answer every request with a page saying why (503) instead of
+	// serving it: BlockedSuspended or BlockedBandwidth.
+	Blocked string `json:"blocked,omitempty"`
 	// With TLS "custom": the uploaded certificate chain and its key, in PEM.
 	CertPEM string `json:"cert_pem,omitempty"`
 	KeyPEM  string `json:"key_pem,omitempty"`
@@ -260,6 +267,24 @@ type StateApplyParams struct {
 	Security *SecuritySpec `json:"security,omitempty"`
 	// NameServer is nil on servers that are not name servers.
 	NameServer *NameServerSpec `json:"name_server,omitempty"`
+	// Panel is set only for the server that runs the panel: the extra domains it answers
+	// for the panel itself (white-label). Nil leaves them as they are.
+	Panel *PanelSpec `json:"panel,omitempty"`
+}
+
+// PanelSpec is the panel's own domains beyond the one the installer set up, proxied by
+// Caddy to Upstream (the panel's local address) with their own certificates.
+type PanelSpec struct {
+	Upstream string   `json:"upstream"`
+	Domains  []string `json:"domains"`
+}
+
+// PanelResult says how the panel's domains were applied. Skipped are domains the
+// server's own Caddyfile already serves (the installer's --domain), left to it.
+type PanelResult struct {
+	OK      bool     `json:"ok"`
+	Error   string   `json:"error,omitempty"`
+	Skipped []string `json:"skipped,omitempty"`
 }
 
 // AppSpec is one Docker app: a Compose project named "ekpanel-<Name>" kept in
@@ -287,7 +312,9 @@ type AppSpec struct {
 	// past the firewall, so it is off unless the user chose it.
 	PublicPorts bool `json:"public_ports,omitempty"`
 	Stopped     bool `json:"stopped,omitempty"`
-	Deleted     bool `json:"deleted,omitempty"`
+	// Blocked: the app's address answers with a page saying why (503), as for websites.
+	Blocked string `json:"blocked,omitempty"`
+	Deleted bool   `json:"deleted,omitempty"`
 	// KeepImages are the builds of a Git app kept for rollbacks; the agent removes others.
 	KeepImages []string `json:"keep_images,omitempty"`
 	DeleteData bool     `json:"delete_data,omitempty"` // with Deleted: remove volumes and the app folder too
@@ -305,6 +332,12 @@ type EnvVar struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }
+
+// Why a website or app is blocked.
+const (
+	BlockedSuspended = "suspended"
+	BlockedBandwidth = "bandwidth"
+)
 
 // AppServiceName is the Compose service of an image app.
 const AppServiceName = "app"
@@ -362,6 +395,7 @@ type StateApplyResult struct {
 	Mail       *MailResult       `json:"mail,omitempty"`
 	Security   *SecurityResult   `json:"security,omitempty"`
 	NameServer *NameServerResult `json:"name_server,omitempty"`
+	Panel      *PanelResult      `json:"panel,omitempty"`
 }
 
 type AppResult struct {
@@ -632,6 +666,27 @@ const (
 
 type CronParams struct {
 	ID string `json:"id"`
+}
+
+// OpCronResults reads the last finished run of many jobs at once, for alerts.
+const OpCronResults = "cron.results"
+
+type CronResultsParams struct {
+	IDs []string `json:"ids"`
+}
+
+// CronResult is a job's last run that has finished; jobs never run, still running, or not
+// on the server are left out.
+type CronResult struct {
+	ID       string    `json:"id"`
+	Started  time.Time `json:"started"`
+	Ended    time.Time `json:"ended"`
+	Result   string    `json:"result"` // systemd's: success, exit-code, timeout, signal…
+	ExitCode int       `json:"exit_code"`
+}
+
+type CronResultsResult struct {
+	Jobs []CronResult `json:"jobs"`
 }
 
 type CronStatusResult struct {

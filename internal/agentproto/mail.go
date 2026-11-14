@@ -49,6 +49,8 @@ type MailboxSpec struct {
 	ForwardTo []string   `json:"forward_to,omitempty"`
 	KeepCopy  bool       `json:"keep_copy"`
 	AutoReply *AutoReply `json:"auto_reply,omitempty"`
+	// Locked mailboxes cannot sign in (their owner is suspended); mail still arrives.
+	Locked bool `json:"locked,omitempty"`
 }
 
 // AutoReply answers incoming mail, once a day per sender, between the dates (if any).
@@ -130,6 +132,9 @@ var (
 	mailIDRE    = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 	sha512RE    = regexp.MustCompile(`^\$6\$(rounds=[0-9]{4,9}\$)?[./A-Za-z0-9]{1,16}\$[./A-Za-z0-9]{86}$`)
 )
+
+// ValidSHA512Crypt reports whether h is a SHA-512 crypt hash, as mailboxes keep passwords.
+func ValidSHA512Crypt(h string) bool { return sha512RE.MatchString(h) }
 
 // ValidMailHost reports whether h is a valid host or domain name for mail.
 func ValidMailHost(h string) bool { return len(h) <= 253 && mailHostRE.MatchString(h) }

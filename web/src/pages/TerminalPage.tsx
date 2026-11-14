@@ -55,12 +55,11 @@ function ConfirmCard({ onDone }: { onDone: () => void }) {
         />
         {me.data?.totp_enabled && (
           <Field
-            label={t("security.code")}
+            label={t("login.code_or_recovery")}
             value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-            inputMode="numeric"
+            onChange={(e) => setCode(e.target.value.replace(/[^0-9A-Za-z -]/g, "").slice(0, 12))}
             autoComplete="one-time-code"
-            maxLength={6}
+            spellCheck={false}
             required
           />
         )}

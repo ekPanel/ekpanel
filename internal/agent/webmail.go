@@ -215,8 +215,12 @@ func webmailDatabase(ctx context.Context, sys *system, phpVersion string) error 
 	marker := webmailData + "/db/version"
 	php := "php" + phpVersion
 	if _, err := os.Stat(sys.path(db)); err != nil {
+		// Roundcube's SQLite driver makes the tables itself when it opens a new file, so
+		// initdb can find them there already: that is the database made, not a failure.
 		if _, err := sys.run(ctx, "runuser", "-u", webmailUser, "--", php, roundcubeDir+"/bin/initdb.sh", "--dir="+roundcubeDir+"/SQL"); err != nil {
-			return fmt.Errorf("create the webmail database: %w", err)
+			if _, statErr := os.Stat(sys.path(db)); statErr != nil || !strings.Contains(err.Error(), "already exists") {
+				return fmt.Errorf("create the webmail database: %w", err)
+			}
 		}
 	} else if b, _ := os.ReadFile(sys.path(marker)); strings.TrimSpace(string(b)) != roundcubeVersion {
 		args := []string{"-u", webmailUser, "--", php, roundcubeDir + "/bin/updatedb.sh", "--package=roundcube", "--dir=" + roundcubeDir + "/SQL"}
