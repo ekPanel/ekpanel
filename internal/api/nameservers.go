@@ -131,7 +131,7 @@ func (s *Server) handleSetNameServers(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) getHostedZone(r *http.Request) (store.HostedZone, error) {
 	z, err := s.store.GetHostedZone(r.Context(), chi.URLParam(r, "id"))
-	if err == nil && !visible(r, z.OwnerID) {
+	if err == nil && !s.visible(r, z.OwnerID) {
 		return store.HostedZone{}, store.ErrNotFound
 	}
 	return z, err
@@ -197,10 +197,14 @@ func (s *Server) handleCreateHostedZone(w http.ResponseWriter, r *http.Request) 
 	}
 	u := currentUser(r)
 	var owner *string
-	if u.Role == "admin" {
+	if u.Role != "customer" {
+		if u.Role == "reseller" && req.OwnerID == "" {
+			writeError(w, http.StatusBadRequest, "customer_required", "choose the customer this is for")
+			return
+		}
 		if req.OwnerID != "" {
-			c, err := s.store.UserByID(r.Context(), req.OwnerID)
-			if err != nil || c.Role != "customer" {
+			c, err := s.store.UserByID(r.Context(), urlSafeID(req.OwnerID))
+			if err != nil || c.Role != "customer" || (u.Role == "reseller" && (c.ResellerID == nil || *c.ResellerID != u.ID)) {
 				writeError(w, http.StatusBadRequest, "customer_not_found", "no such customer")
 				return
 			}
@@ -208,8 +212,10 @@ func (s *Server) handleCreateHostedZone(w http.ResponseWriter, r *http.Request) 
 		}
 	} else {
 		owner = &u.ID
+	}
+	if u.Role != "admin" {
 		// Customers keep zones only for the domains of their own websites and apps.
-		hosts, err := s.store.OwnerHostnames(r.Context(), u.ID)
+		hosts, err := s.store.OwnerHostnames(r.Context(), *owner)
 		if err != nil {
 			s.internalError(w, r, err)
 			return
@@ -232,12 +238,9 @@ func (s *Server) handleCreateHostedZone(w http.ResponseWriter, r *http.Request) 
 		s.internalError(w, r, err)
 		return
 	}
-	for _, z := range zones {
-		inside := strings.HasSuffix(name, "."+z.Name) || strings.HasSuffix(z.Name, "."+name)
-		if inside && (owner == nil) != (z.OwnerID == nil) || inside && owner != nil && z.OwnerID != nil && *owner != *z.OwnerID {
-			writeError(w, http.StatusConflict, "zone_overlaps", "this domain is inside, or contains, another account's zone "+z.Name)
-			return
-		}
+	if z := zoneOverlap(zones, name, owner); z != nil {
+		writeError(w, http.StatusConflict, "zone_overlaps", "this domain is inside, or contains, another account's zone "+z.Name)
+		return
 	}
 	var records []agentproto.HostedRecord
 	if req.TemplateID != "" {
@@ -264,6 +267,18 @@ func (s *Server) handleCreateHostedZone(w http.ResponseWriter, r *http.Request) 
 	s.audit(r, "dns.hosted_zone_added", z.Name, map[string]any{"zone_id": z.ID, "template_id": req.TemplateID})
 	s.queueNameServers(r)
 	writeJSON(w, http.StatusCreated, z)
+}
+
+// zoneOverlap returns another account's zone that name is inside of, or that is inside name:
+// such a zone would take over part of their domain.
+func zoneOverlap(zones []store.HostedZone, name string, owner *string) *store.HostedZone {
+	for i, z := range zones {
+		inside := strings.HasSuffix(name, "."+z.Name) || strings.HasSuffix(z.Name, "."+name)
+		if inside && (owner == nil) != (z.OwnerID == nil) || inside && owner != nil && z.OwnerID != nil && *owner != *z.OwnerID {
+			return &zones[i]
+		}
+	}
+	return nil
 }
 
 // absoluteName turns "@", "" or "www" into a name in zone, as zone files do; names in the

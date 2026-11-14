@@ -48,7 +48,8 @@ i18n.use(initReactI18next).init({
   resources: { en: { translation: en }, bn: { translation: bn } },
   lng: detectLanguage(),
   fallbackLng: "en",
-  interpolation: { escapeValue: false }, // React already escapes
+  // React already escapes. {{brand}} is the panel's name (white-label), set by useApplyBranding.
+  interpolation: { escapeValue: false, defaultVariables: { brand: "ekPanel" } },
 });
 
 applyToDocument(i18n.language);

@@ -156,7 +156,7 @@ func (s *Store) ListSites(ctx context.Context, serverID string) ([]Site, error) 
 // ListSitesOf is ListSites for one owner only, unless ownerID is empty.
 func (s *Store) ListSitesOf(ctx context.Context, serverID, ownerID string) ([]Site, error) {
 	return collectSites(s.pool.Query(ctx, `SELECT `+siteColumns+siteFrom+`
-		WHERE ($1 = '' OR st.server_id::text = $1) AND ($2 = '' OR st.owner_id::text = $2) ORDER BY st.domain`,
+		WHERE ($1 = '' OR st.server_id::text = $1) AND ($2 = '' OR `+ownedBy("st.owner_id", "$2")+`) ORDER BY st.domain`,
 		serverID, ownerID))
 }
 
@@ -337,4 +337,13 @@ func (s *Store) LinuxUserTaken(ctx context.Context, name string) (bool, error) {
 	var taken bool
 	err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM sites WHERE linux_user = $1)`, name).Scan(&taken)
 	return taken, err
+}
+
+// HostnamesTaken returns which of the names a site or app already uses.
+func (s *Store) HostnamesTaken(ctx context.Context, names []string) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `SELECT hostname FROM site_hostnames WHERE hostname = ANY($1) ORDER BY hostname`, names)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowTo[string])
 }

@@ -156,7 +156,7 @@ func (s *Store) GetHostedZone(ctx context.Context, id string) (HostedZone, error
 // ListHostedZones lists every zone (all), or one owner's ("" for the administrators').
 func (s *Store) ListHostedZones(ctx context.Context, all bool, ownerID string) ([]HostedZone, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+hostedZoneColumns+hostedZoneFrom+`
-		WHERE $1 OR ($2 = '' AND z.owner_id IS NULL) OR z.owner_id::text = $2 ORDER BY z.name`, all, ownerID)
+		WHERE $1 OR ($2 = '' AND z.owner_id IS NULL) OR ($2 <> '' AND `+ownedBy("z.owner_id", "$2")+`) ORDER BY z.name`, all, ownerID)
 	if err != nil {
 		return nil, err
 	}

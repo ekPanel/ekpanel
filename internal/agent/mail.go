@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"ekpanel/internal/agentproto"
+	"ekpanel/internal/auth"
 )
 
 // Email runs on Stalwart, one pinned version downloaded from its releases and checked
@@ -611,8 +612,20 @@ func (m *mailer) ensureMailbox(ctx context.Context, dom swDomain, domain string,
 	if mb.QuotaMB > 0 {
 		quotas["maxDiskQuota"] = int64(mb.QuotaMB) << 20
 	}
-	credentials := map[string]any{"0": map[string]any{"@type": "Password", "secret": mb.PasswordHash}}
-	pwHash := hashOf(mb.PasswordHash)
+	secret, pwHash := mb.PasswordHash, hashOf(mb.PasswordHash)
+	if mb.Locked {
+		// A hash of a random password nobody knows: signing in fails, mail still arrives.
+		// The stored marker keeps it from being replaced on every apply.
+		pwHash = "locked"
+		if m.st.Passwords[addr] != pwHash {
+			h, err := auth.MailPasswordHash(auth.NewToken())
+			if err != nil {
+				return err
+			}
+			secret = h
+		}
+	}
+	credentials := map[string]any{"0": map[string]any{"@type": "Password", "secret": secret}}
 	a, ok := m.accounts[addr]
 	if !ok {
 		id, err := m.c.create(ctx, "x:Account", map[string]any{"@type": "User", "name": mb.Name, "domainId": dom.ID,

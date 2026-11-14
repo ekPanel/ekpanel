@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { ArchiveRestore, Bell, Boxes, CircleArrowUp, CloudCog, CornerDownLeft, Database as DatabaseIcon, Gauge, Globe, KeyRound, LayoutGrid, Package as PackageIcon, Plus, ScrollText, Search, Server as ServerIcon, ShieldCheck, Users } from "lucide-react";
+import { ArchiveRestore, Bell, Boxes, CircleArrowUp, CloudCog, CornerDownLeft, Database as DatabaseIcon, Gauge, Globe, Import, KeyRound, LayoutGrid, Package as PackageIcon, Palette, Plus, ScrollText, Search, Server as ServerIcon, ShieldCheck, Store, Users } from "lucide-react";
 import { api, type Database, type Server, type Site, type User } from "../lib/api";
 import { cx } from "./ui";
 
@@ -74,15 +74,26 @@ export function CommandPalette({ open, onClose, user }: { open: boolean; onClose
     for (const s of sites.data ?? []) {
       list.push({ id: "w-" + s.id, group: t("nav.sites"), label: s.domain_display, hint: s.server_name, icon: <Globe />, run: go(`/sites/${s.id}`) });
     }
+    if (user.role === "reseller") {
+      list.push(
+        { id: "customers", group: pages, label: t("nav.customers"), icon: <Users />, run: go("/customers") },
+        { id: "packages", group: pages, label: t("nav.packages"), icon: <PackageIcon />, run: go("/packages") },
+        { id: "branding", group: pages, label: t("nav.branding"), icon: <Palette />, run: go("/settings/branding") },
+        { id: "add-customer", group: t("palette.actions"), label: t("customers.add"), icon: <Plus />, run: go("/customers?add=1") },
+      );
+    }
     if (isAdmin) {
       list.push(
         { id: "customers", group: pages, label: t("nav.customers"), icon: <Users />, run: go("/customers") },
+        { id: "resellers", group: pages, label: t("nav.resellers"), icon: <Store />, run: go("/resellers") },
         { id: "packages", group: pages, label: t("nav.packages"), icon: <PackageIcon />, run: go("/packages") },
         { id: "add-customer", group: t("palette.actions"), label: t("customers.add"), icon: <Plus />, run: go("/customers?add=1") },
         { id: "backups", group: pages, label: t("nav.backups"), icon: <ArchiveRestore />, run: go("/backups") },
         { id: "servers", group: pages, label: t("nav.servers"), icon: <ServerIcon />, run: go("/servers") },
         { id: "audit", group: pages, label: t("nav.audit"), icon: <ScrollText />, run: go("/audit") },
         { id: "updates", group: pages, label: t("nav.updates"), icon: <CircleArrowUp />, run: go("/settings/updates") },
+        { id: "branding", group: pages, label: t("nav.branding"), icon: <Palette />, run: go("/settings/branding") },
+        { id: "import", group: pages, label: t("nav.import"), icon: <Import />, run: go("/import") },
         { id: "add-backup", group: t("palette.actions"), label: t("backups.add"), icon: <Plus />, run: go("/backups?add=1") },
         { id: "add-server", group: t("palette.actions"), label: t("servers.add"), icon: <Plus />, run: go("/servers?add=1") },
       );
@@ -94,7 +105,7 @@ export function CommandPalette({ open, onClose, user }: { open: boolean; onClose
     list.push({ id: "notifications", group: pages, label: t("nav.notifications"), icon: <Bell />, run: go("/settings/notifications") });
     list.push({ id: "tokens", group: pages, label: t("nav.tokens"), icon: <KeyRound />, run: go("/settings/tokens") });
     return list;
-  }, [t, isAdmin, servers.data, sites.data, databases.data, navigate, onClose]);
+  }, [t, isAdmin, user.role, servers.data, sites.data, databases.data, navigate, onClose]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase();

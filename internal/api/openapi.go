@@ -23,6 +23,12 @@ import (
 // summaryOverrides replaces summaries that do not read well when made from a handler name.
 var summaryOverrides = map[string]string{
 	"GET /api/v1/health":                                "Check that the panel is running (and its version)",
+	"GET /api/v1/branding":                              "The panel's name, color and logo for you (or, signed out, for the domain it was opened at)",
+	"GET /api/v1/branding/logo/{id}":                    "A brand's logo (PNG)",
+	"GET /api/v1/brand":                                 "Your white-label settings (the panel's, for administrators)",
+	"PUT /api/v1/brand":                                 "Set your panel's name, color and domain",
+	"PUT /api/v1/brand/logo":                            "Upload your panel's logo (PNG, JPEG, GIF or WebP, sent as application/octet-stream)",
+	"DELETE /api/v1/brand/logo":                         "Remove your panel's logo",
 	"GET /api/v1/auth/me":                               "The signed-in user",
 	"GET /api/v1/me/usage":                              "Your usage against your package's limits",
 	"POST /api/v1/hooks/git/{id}":                       "Webhook from a Git host: deploy an app (signed with the app's webhook secret)",
@@ -48,6 +54,19 @@ var summaryOverrides = map[string]string{
 	"PUT /api/v1/sites/{id}/wordpress/auto":             "Set WordPress automatic updates",
 	"POST /api/v1/sites/{id}/wordpress/copy":            "Copy between a site and its staging copy",
 	"POST /api/v1/dns/zones/{id}/ssl":                   "Set the zone's Cloudflare SSL mode",
+	"POST /api/v1/imports/inspect":                      "Read a cPanel backup on a server: its websites, databases and cron jobs",
+	"POST /api/v1/imports":                              "Import websites, databases, email, cron jobs and DNS zones from a cPanel backup",
+	"GET /api/v1/imports/files":                         "The backups and archives in a server's import folder",
+	"POST /api/v1/imports/site/inspect":                 "Read a website archive (any host, aaPanel) on a server",
+	"POST /api/v1/imports/site":                         "Import a website, and its database, from an archive",
+	"POST /api/v1/imports/coolify/inspect":              "List the applications, services and databases of a Coolify instance",
+	"POST /api/v1/imports/coolify":                      "Make apps of Coolify applications and services",
+	"POST /api/v1/auth/passkey/options":                 "Start signing in with a passkey",
+	"POST /api/v1/auth/passkey/login":                   "Sign in with a passkey",
+	"POST /api/v1/auth/passkeys/options":                "Start adding a passkey (asks for the password)",
+	"GET /api/v1/auth/2fa/recovery-codes":               "How many two-factor recovery codes are left",
+	"POST /api/v1/auth/2fa/recovery-codes":              "Make new two-factor recovery codes",
+	"POST /api/v1/customers/{id}/2fa/reset":             "Turn off a customer's two-factor sign-in",
 }
 
 // tagNames gives a few path segments a nicer tag.

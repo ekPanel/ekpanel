@@ -138,7 +138,8 @@ func TestCreatePHPSite(t *testing.T) {
 	}
 	caddy := f.read(t, caddySitePath(siteID))
 	for _, want := range []string{"example.com, www.example.com {", "root * /home/example_ab12/public_html",
-		"php_fastcgi unix//run/php/ekpanel-" + siteID + "-php8.4.sock", "respond @hidden 404"} {
+		"php_fastcgi unix//run/php/ekpanel-" + siteID + "-php8.4.sock", "respond @hidden 404",
+		"try_files {path} {path}/index.php {path}/index.html index.php", "redir @dirIndex {path}/ 308"} {
 		if !strings.Contains(caddy, want) {
 			t.Errorf("caddy config lacks %q:\n%s", want, caddy)
 		}

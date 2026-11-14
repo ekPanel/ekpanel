@@ -60,16 +60,32 @@
       "title": "Disk space used up",
       "body": "{{customer}} uses {{used}} of {{limit}}. Files and new websites cannot be added until some space is freed."
     },
+    "bandwidth_warning": {
+      "title": "Bandwidth almost used up",
+      "body": "{{customer}} has used {{used}} of {{limit}} this month."
+    },
+    "bandwidth_full": {
+      "title": "Bandwidth used up",
+      "body": "{{customer}} has used {{used}} of {{limit}} this month. The websites keep working; the package allows going over."
+    },
+    "bandwidth_stopped": {
+      "title": "Bandwidth used up: websites stopped",
+      "body": "{{customer}} has used {{used}} of {{limit}} this month. Websites and apps show a \"bandwidth used up\" page until next month or a larger package."
+    },
+    "cron_failed": {
+      "title": "Cron job {{name}} failed",
+      "body": "The last run of {{name}} ({{target}}) failed: {{result}}. You will be told again only after it has worked in between."
+    },
     "task_failed": {
       "title": "A task failed: {{task}}",
       "body": "{{message}}"
     },
     "login_new_ip": {
       "title": "New sign-in to your account",
-      "body": "Someone signed in to your ekPanel account from {{ip}}. If it was not you, change your password and sign out other devices."
+      "body": "Someone signed in to your {{brand}} account from {{ip}}. If it was not you, change your password and sign out other devices."
     },
     "test": {
-      "title": "Test notification from ekPanel",
+      "title": "Test notification from {{brand}}",
       "body": "This channel works. You will get notifications here."
     },
     "update_available": {
@@ -83,7 +99,11 @@
     "update_failed": {
       "title": "Update to ekPanel {{version}} failed",
       "body": "{{message}}\n\nThe panel keeps running its current version. Settings → Updates has the details."
+    },
+    "recovery_code_used": {
+      "title": "A recovery code signed in to your account",
+      "body": "Someone signed in to your {{brand}} account from {{ip}} with a two-factor recovery code; {{left}} codes are left. If it was not you, change your password, make new recovery codes and sign out other devices."
     }
   },
-  "open": "Open in ekPanel: {{link}}"
+  "open": "Open in {{brand}}: {{link}}"
 }

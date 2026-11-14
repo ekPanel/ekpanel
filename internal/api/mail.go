@@ -50,12 +50,13 @@ func (s *Server) handleListMailServers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !isAdmin(r) {
-		place, ok := s.resolveOwner(w, r, "")
-		if !ok {
+		of, err := s.offerFor(r)
+		if err != nil {
+			s.internalError(w, r, err)
 			return
 		}
 		list = slices.DeleteFunc(list, func(m store.MailServer) bool {
-			return len(place.Package.ServerIDs) > 0 && !slices.Contains(place.Package.ServerIDs, m.ServerID)
+			return len(of.ServerIDs) > 0 && !slices.Contains(of.ServerIDs, m.ServerID)
 		})
 		for i := range list {
 			list[i].Message, list[i].Domains = nil, 0
@@ -162,7 +163,7 @@ type mailDomainRequest struct {
 
 func (s *Server) getMailDomain(r *http.Request, id string) (store.MailDomain, error) {
 	d, err := s.store.GetMailDomain(r.Context(), id)
-	if err == nil && !visible(r, d.OwnerID) {
+	if err == nil && !s.visible(r, d.OwnerID) {
 		return store.MailDomain{}, store.ErrNotFound
 	}
 	return d, err
@@ -268,7 +269,7 @@ func (s *Server) handleGetMailDomain(w http.ResponseWriter, r *http.Request) {
 		s.internalError(w, r, err)
 		return
 	}
-	if z := tasks.ZoneFor(d.Domain, d.OwnerID, zones); z != nil && visible(r, z.OwnerID) {
+	if z := tasks.ZoneFor(d.Domain, d.OwnerID, zones); z != nil && s.visible(r, z.OwnerID) {
 		out.Zone = z
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -448,6 +449,9 @@ func (s *Server) handleCreateMailbox(w http.ResponseWriter, r *http.Request) {
 		}
 		if usage.Mailboxes >= pkg.MaxMailboxes {
 			writeError(w, http.StatusConflict, "limit_reached_mailbox", "the package allows no more of these")
+			return
+		}
+		if !s.resellerAllows(w, r, d.OwnerID, store.Usage{Mailboxes: 1}) {
 			return
 		}
 	}

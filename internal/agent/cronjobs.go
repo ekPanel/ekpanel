@@ -331,3 +331,48 @@ func cronStatus(ctx context.Context, sys *system, p agentproto.CronParams) (*age
 	}
 	return res, nil
 }
+
+// cronResults reads the last finished run of each job in one systemctl call. Unknown ids,
+// jobs never run and jobs still running are left out.
+func cronResults(ctx context.Context, sys *system, p agentproto.CronResultsParams) (any, *agentproto.OpError) {
+	if len(p.IDs) > 5000 {
+		return nil, opError(agentproto.ErrInvalidParams, "too many jobs")
+	}
+	args := []string{"show", "--timestamp=unix", "-p", "Id", "-p", "ActiveState", "-p", "Result",
+		"-p", "ExecMainStartTimestamp", "-p", "ExecMainExitTimestamp", "-p", "ExecMainStatus"}
+	byUnit := map[string]string{}
+	for _, id := range p.IDs {
+		if !uuidRE.MatchString(id) {
+			return nil, opError(agentproto.ErrInvalidParams, "invalid job id")
+		}
+		if _, err := os.Stat(sys.path(systemdDir + "/" + cronUnit(id) + ".service")); err != nil {
+			continue
+		}
+		byUnit[cronUnit(id)+".service"] = id
+		args = append(args, cronUnit(id)+".service")
+	}
+	res := agentproto.CronResultsResult{Jobs: []agentproto.CronResult{}}
+	if len(byUnit) == 0 {
+		return res, nil
+	}
+	out, err := sys.run(ctx, "systemctl", args...)
+	if err != nil {
+		return nil, opError(agentproto.ErrFailed, "%v", err)
+	}
+	for block := range strings.SplitSeq(string(out), "\n\n") {
+		v := showValues([]byte(block))
+		id, ok := byUnit[v["Id"]]
+		if !ok || v["ActiveState"] == "activating" {
+			continue
+		}
+		start, err1 := strconv.ParseInt(strings.TrimPrefix(v["ExecMainStartTimestamp"], "@"), 10, 64)
+		end, err2 := strconv.ParseInt(strings.TrimPrefix(v["ExecMainExitTimestamp"], "@"), 10, 64)
+		if err1 != nil || err2 != nil || start <= 0 || end <= 0 {
+			continue
+		}
+		code, _ := strconv.Atoi(v["ExecMainStatus"])
+		res.Jobs = append(res.Jobs, agentproto.CronResult{ID: id, Started: time.Unix(start, 0).UTC(), Ended: time.Unix(end, 0).UTC(),
+			Result: v["Result"], ExitCode: code})
+	}
+	return res, nil
+}

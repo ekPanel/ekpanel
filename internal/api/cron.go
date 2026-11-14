@@ -101,7 +101,7 @@ func (s *Server) writeCronError(w http.ResponseWriter, r *http.Request, err erro
 
 func (s *Server) getCron(r *http.Request) (store.CronJob, error) {
 	j, err := s.store.GetCronJob(r.Context(), urlID(r))
-	if err == nil && !visible(r, j.OwnerID) {
+	if err == nil && !s.visible(r, j.OwnerID) {
 		return store.CronJob{}, store.ErrNotFound
 	}
 	return j, err
@@ -153,6 +153,10 @@ func (s *Server) handleCreateCron(w http.ResponseWriter, r *http.Request) {
 		}
 		if app.State == "deleting" {
 			writeError(w, http.StatusConflict, "app_not_ready", "this app is being deleted")
+			return
+		}
+		if app.Kind == "service" {
+			writeError(w, http.StatusBadRequest, "service_app_cron", "a service app has no cron jobs of its own; add them to its website, with cd into the app's folder")
 			return
 		}
 		n.ServerID, n.AppID, ownerID = app.ServerID, &app.ID, app.OwnerID

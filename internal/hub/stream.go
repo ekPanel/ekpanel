@@ -17,6 +17,13 @@ type Stream interface {
 	Write(ctx context.Context, data []byte) error
 	Resize(ctx context.Context, cols, rows int) error
 	Close()
+	// Flow control for transfers (agentproto.TypeStreamCredit): Credit lets the agent send n
+	// more chunks; Credits delivers the credit the agent grants the panel.
+	Credit(ctx context.Context, n int) error
+	Credits() <-chan int
+	// CloseWrite ends the panel's input (reason "eof") but keeps the stream open for the
+	// agent's answer.
+	CloseWrite(ctx context.Context) error
 }
 
 // Streamer is implemented by agent connections that can open streams.

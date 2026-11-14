@@ -58,6 +58,54 @@ type appRequest struct {
 	// Previews deploys each pull request to the branch at <name>.<preview_domain>.
 	Previews      bool   `json:"previews"`
 	PreviewDomain string `json:"preview_domain"`
+	// Service apps: a command run from a folder of the website site_id. container_port is
+	// a port the program insists on; without one, the panel chooses a port (given to the
+	// program as PORT) when the app has a domain or listens is set.
+	SiteID         string `json:"site_id"`
+	Directory      string `json:"directory"`
+	Command        string `json:"command"`
+	BuildCommand   string `json:"build_command"`
+	Runtime        string `json:"runtime"`
+	RuntimeVersion string `json:"runtime_version"`
+	Listens        bool   `json:"listens"`
+}
+
+// serviceDirRE is a folder inside a website's home folder, without a leading "/".
+var serviceDirRE = regexp.MustCompile(`^[A-Za-z0-9._@+-]+(/[A-Za-z0-9._@+-]+)*$`)
+
+// serviceSettings validates a service app's own settings.
+func serviceSettings(req appRequest, set *store.AppSettings) (code, msg string) {
+	dir := strings.Trim(strings.TrimSpace(req.Directory), "/")
+	command, build := strings.TrimSpace(req.Command), strings.TrimSpace(req.BuildCommand)
+	switch {
+	case !isUUID(req.SiteID):
+		return "site_required", "choose the website whose folder the app runs from"
+	case dir != "" && (!serviceDirRE.MatchString(dir) || slices.Contains(strings.Split(dir, "/"), "..") || len(dir) > 1024):
+		return "invalid_directory", "enter a folder inside the website, such as app or apps/api"
+	case command == "" || len(command) > 4096 || strings.ContainsAny(command, "\x00\r\n"):
+		return "invalid_command", "enter the command that starts the app, on one line"
+	case len(build) > 4096 || strings.ContainsAny(build, "\x00\r\n"):
+		return "invalid_command", "the build command must be one line"
+	}
+	switch req.Runtime {
+	case "":
+		if req.RuntimeVersion != "" {
+			return "invalid_runtime", "a version needs a runtime"
+		}
+	case "node":
+		if !slices.Contains(agentproto.NodeVersions, req.RuntimeVersion) {
+			return "invalid_runtime", "choose Node.js " + strings.Join(agentproto.NodeVersions, ", ")
+		}
+		v := req.RuntimeVersion
+		set.RuntimeVersion = &v
+	default:
+		return "invalid_runtime", "the runtime is Node.js or none"
+	}
+	set.SiteID, set.Directory, set.Command, set.Runtime = &req.SiteID, &dir, &command, req.Runtime
+	if build != "" {
+		set.BuildCommand = &build
+	}
+	return "", ""
 }
 
 // customerAppRules applies a package to an app: customers run only images the package
@@ -75,6 +123,8 @@ func customerAppRules(w http.ResponseWriter, pkg *store.Package, kind string, se
 			}
 		}
 		return true
+	case kind == "service":
+		return true // only administrators reach this (serviceByAdmin)
 	case kind == "git" && pkg.GitApps:
 		return true
 	case kind == "git":
@@ -151,6 +201,18 @@ func appSettings(w http.ResponseWriter, kind string, req appRequest) (store.AppS
 		if len(set.Volumes) > maxVolumes {
 			return fail("invalid_volume", "keep at most 20 folders")
 		}
+	case "service":
+		if code, msg := serviceSettings(req, &set); code != "" {
+			return fail(code, msg)
+		}
+		set.PublicPorts = false
+		if req.ContainerPort != nil && (*req.ContainerPort < 1024 || *req.ContainerPort > 65535) {
+			return fail("invalid_port", "a service's port must be between 1024 and 65535")
+		}
+		if req.ContainerPort == nil && (req.Listens || strings.TrimSpace(req.Domain) != "") {
+			auto := 0 // the panel chooses
+			req.ContainerPort = &auto
+		}
 	case "compose":
 		if strings.TrimSpace(req.Compose) == "" || len(req.Compose) > maxComposeBytes {
 			return fail("invalid_compose", "paste a Compose file of up to 256 KB")
@@ -161,7 +223,10 @@ func appSettings(w http.ResponseWriter, kind string, req appRequest) (store.AppS
 		return fail("invalid_app_kind", "an app runs an image or a Compose file")
 	}
 
-	if req.ContainerPort != nil {
+	if req.ContainerPort != nil && kind == "service" {
+		service := agentproto.AppServiceName
+		set.ContainerPort, set.Service = req.ContainerPort, &service
+	} else if req.ContainerPort != nil {
 		if *req.ContainerPort < 1 || *req.ContainerPort > 65535 {
 			return fail("invalid_port", "the container port must be between 1 and 65535")
 		}
@@ -239,6 +304,8 @@ func (s *Server) writeAppStoreError(w http.ResponseWriter, r *http.Request, err 
 		writeError(w, http.StatusConflict, "hostname_taken", taken.Error())
 	case errors.Is(err, store.ErrAppNameTaken):
 		writeError(w, http.StatusConflict, "app_name_taken", err.Error())
+	case errors.Is(err, store.ErrPortTaken):
+		writeError(w, http.StatusConflict, "port_taken", err.Error())
 	case errors.Is(err, store.ErrNotFound):
 		writeError(w, http.StatusNotFound, "app_not_found", "no app with that ID")
 	default:
@@ -259,6 +326,7 @@ func (s *Server) handleListApps(w http.ResponseWriter, r *http.Request) {
 	}
 	for i := range list {
 		withAppDisplay(&list[i])
+		list[i].BuildLog = nil // on the app's own page only
 	}
 	writeJSON(w, http.StatusOK, list)
 }
@@ -311,8 +379,14 @@ func (s *Server) handleCreateApp(w http.ResponseWriter, r *http.Request) {
 	if s.serverLookupFailed(w, r, err) {
 		return
 	}
+	if req.Kind == "service" && !serviceByAdmin(w, r) {
+		return
+	}
 	place, ok := s.resolveOwner(w, r, req.OwnerID)
 	if !ok || !customerAppRules(w, place.Package, req.Kind, set, tpl) || !s.allowNew(w, r, place, "app", srv.ID) {
+		return
+	}
+	if req.Kind == "service" && !s.serviceFits(w, r, srv.ID, "", place.OwnerID, set) {
 		return
 	}
 	u := currentUser(r)
@@ -360,6 +434,9 @@ func (s *Server) handleUpdateApp(w http.ResponseWriter, r *http.Request) {
 		s.writeAppStoreError(w, r, err)
 		return
 	}
+	if app.Kind == "service" && !serviceByAdmin(w, r) {
+		return
+	}
 	if app.PreviewOf != nil {
 		req.Previews = false // previews have no previews of their own
 	}
@@ -394,6 +471,9 @@ func (s *Server) handleUpdateApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !customerAppRules(w, pkg, app.Kind, set, tpl) {
+		return
+	}
+	if app.Kind == "service" && !s.serviceFits(w, r, app.ServerID, app.ID, app.OwnerID, set) {
 		return
 	}
 	app, err = s.store.UpdateApp(r.Context(), app.ID, set)
@@ -436,6 +516,13 @@ func (s *Server) handleDeleteApp(w http.ResponseWriter, r *http.Request) {
 		s.writeAppStoreError(w, r, err)
 		return
 	}
+	if _, err := s.store.OpenAppMove(r.Context(), app.ID); err == nil {
+		writeError(w, http.StatusConflict, "move_open", "this app is being moved, or its old copy is still on the other server; finish the move first")
+		return
+	} else if !errors.Is(err, store.ErrNotFound) {
+		s.internalError(w, r, err)
+		return
+	}
 	deleteData := r.URL.Query().Get("data") == "delete"
 	app, err = s.store.MarkAppDeleting(r.Context(), app.ID, deleteData)
 	if err != nil {
@@ -449,6 +536,9 @@ func (s *Server) handleDeleteApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, p := range previews {
+		if p.State == "deleting" {
+			continue // already going (its pull request was closed)
+		}
 		if _, err := s.store.MarkAppDeleting(r.Context(), p.ID, true); err != nil {
 			s.internalError(w, r, err)
 			return
@@ -520,6 +610,10 @@ func (s *Server) handleUpdateAppImages(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "git_app_update", "a Git app is updated by deploying it")
 		return
 	}
+	if app.Kind == "service" {
+		writeError(w, http.StatusConflict, "service_app_update", "a service app has no images; upload its new files and build it")
+		return
+	}
 	if app.AppliedGeneration == 0 {
 		writeError(w, http.StatusConflict, "app_not_ready", "the app has not been set up on its server yet")
 		return
@@ -532,4 +626,92 @@ func (s *Server) handleUpdateAppImages(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, "app.update_started", app.Name, map[string]any{"app_id": app.ID, "task_id": t.ID})
 	writeJSON(w, http.StatusAccepted, t)
+}
+
+// serviceFits checks a service app's website and port: the website is on the app's server,
+// belongs to the app's owner and is not being removed; a port the program insists on is
+// not another app's.
+func (s *Server) serviceFits(w http.ResponseWriter, r *http.Request, serverID, appID string, ownerID *string, set store.AppSettings) bool {
+	site, err := s.store.GetSite(r.Context(), *set.SiteID)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		writeError(w, http.StatusBadRequest, "site_not_found", "choose a website on the app's server")
+		return false
+	case err != nil:
+		s.internalError(w, r, err)
+		return false
+	case site.ServerID != serverID || site.State == "deleting":
+		writeError(w, http.StatusBadRequest, "site_not_found", "choose a website on the app's server")
+		return false
+	case !sameOwner(site.OwnerID, ownerID):
+		writeError(w, http.StatusBadRequest, "site_other_owner", "the website must belong to the app's owner")
+		return false
+	}
+	if set.ContainerPort != nil && *set.ContainerPort > 0 {
+		used, err := s.store.PortUsedByApp(r.Context(), serverID, appID, *set.ContainerPort)
+		if err != nil {
+			s.internalError(w, r, err)
+			return false
+		}
+		if used {
+			writeError(w, http.StatusConflict, "port_taken", "another app on this server uses this port")
+			return false
+		}
+	}
+	return true
+}
+
+// handleBuildApp runs a service app's build command, then restarts the app.
+func (s *Server) handleBuildApp(w http.ResponseWriter, r *http.Request) {
+	app, err := s.getApp(r, appID(r))
+	if err != nil {
+		s.writeAppStoreError(w, r, err)
+		return
+	}
+	if app.Kind != "service" || app.BuildCommand == nil {
+		writeError(w, http.StatusBadRequest, "no_build_command", "the app has no build command")
+		return
+	}
+	started, err := s.store.StartAppBuild(r.Context(), app.ID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if !started {
+		writeError(w, http.StatusConflict, "build_running", "a build is already running")
+		return
+	}
+	u := currentUser(r)
+	task, err := s.opts.Tasks.QueueAppBuild(r.Context(), app, &u.ID)
+	if err != nil {
+		s.store.FinishAppBuild(r.Context(), app.ID, false, "The build could not start.\n")
+		s.internalError(w, r, err)
+		return
+	}
+	s.audit(r, "app.built", app.Name, map[string]any{"app_id": app.ID})
+	writeJSON(w, http.StatusAccepted, task)
+}
+
+// noServiceApps refuses to move or delete a website that service apps run from.
+func (s *Server) noServiceApps(w http.ResponseWriter, r *http.Request, siteID string) bool {
+	n, err := s.store.ServiceAppsOfSite(r.Context(), siteID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return false
+	}
+	if n > 0 {
+		writeError(w, http.StatusConflict, "site_has_service_apps", "service apps run from this website's folder; delete them or choose another website for them first")
+		return false
+	}
+	return true
+}
+
+// serviceByAdmin refuses anyone but an administrator setting up or changing a service app:
+// its command runs on the server as a website's account.
+func serviceByAdmin(w http.ResponseWriter, r *http.Request) bool {
+	if !isAdmin(r) {
+		writeError(w, http.StatusForbidden, "service_not_allowed", "administrators set up service apps")
+		return false
+	}
+	return true
 }

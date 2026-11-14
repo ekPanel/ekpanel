@@ -91,7 +91,7 @@ type CronFilter struct {
 func (s *Store) ListCronJobs(ctx context.Context, f CronFilter) ([]CronJob, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+cronColumns+cronFrom+`
 		WHERE ($1 = '' OR c.server_id::text = $1) AND ($2 = '' OR c.site_id::text = $2) AND ($3 = '' OR c.app_id::text = $3)
-		  AND ($4 = '' OR COALESCE(st.owner_id, ap.owner_id)::text = $4)
+		  AND ($4 = '' OR `+ownedBy("COALESCE(st.owner_id, ap.owner_id)", "$4")+`)
 		ORDER BY c.name, c.created_at`, f.ServerID, f.SiteID, f.AppID, f.OwnerID)
 	if err != nil {
 		return nil, err

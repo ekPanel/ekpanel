@@ -500,7 +500,10 @@ func TestPreviews(t *testing.T) {
 	}
 
 	// Deleting the app deletes its previews.
-	admin.do("DELETE", "/api/v1/apps/"+app.ID, nil, nil)
+	var de errBody
+	if st := admin.do("DELETE", "/api/v1/apps/"+app.ID, nil, &de); st != http.StatusAccepted {
+		t.Fatalf("delete the app: %d %s", st, de.Code)
+	}
 	for _, p := range previews() {
 		if p.State != "deleting" {
 			t.Errorf("preview %s left behind: %s", p.Name, p.State)

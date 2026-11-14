@@ -1,4 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useMe } from "../lib/session";
+import { MoveCard } from "../components/SiteMove";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -275,6 +277,7 @@ export function DatabasesPage() {
 export function DatabaseDetailPage() {
   const { id = "" } = useParams();
   const { t, i18n } = useTranslation();
+  const me = useMe();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const q = useQuery({
@@ -383,6 +386,9 @@ export function DatabaseDetailPage() {
             </Card>
           </div>
         </div>
+        {me.data?.role === "admin" && d.state !== "deleting" && (
+          <MoveCard thing={{ kind: "database", id: d.id, name: d.name, server_id: d.server_id, server_name: d.server_name, state: d.state, owner_id: d.owner_id }} />
+        )}
       </div>
       <DeleteDatabaseDialog open={confirmDelete} db={d} onClose={() => setConfirmDelete(false)} />
     </>

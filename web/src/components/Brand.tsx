@@ -1,3 +1,6 @@
+import type { Branding } from "../lib/api";
+import { cx } from "./ui";
+
 // The ekPanel logo (brand sheet, draft 5): a terminal-black tile with "ek" and a green
 // cursor, and "Panel" beside it. Letters are outlined, so no font is needed. Rules: "ek"
 // lives only inside the tile, the cursor stays green, the icon is at least 16 px and the
@@ -35,5 +38,21 @@ export function Logo({ className }: { className?: string }) {
       <Tile />
       <path transform="translate(74.10 51.00) skewX(-12.0)" d={PANEL} fill="currentColor" />
     </svg>
+  );
+}
+
+/** The panel's logo as the visitor sees it: ekPanel's, or a white-label name and logo. */
+export function BrandMark({ brand, className }: { brand: Branding; className?: string }) {
+  if (!brand.custom) return <Logo className={className} />;
+  if (brand.logo_url) {
+    return <img src={brand.logo_url} alt={brand.name} className={cx("h-8 w-auto max-w-[180px] object-contain object-left rtl:object-right", className)} />;
+  }
+  return (
+    <span className={cx("flex min-w-0 items-center gap-2.5", className)}>
+      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent text-sm font-bold text-accent-ink" aria-hidden>
+        {[...brand.name][0]?.toUpperCase()}
+      </span>
+      <span className="truncate text-lg font-bold tracking-tight text-ink">{brand.name}</span>
+    </span>
   );
 }

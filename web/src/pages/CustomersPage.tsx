@@ -2,12 +2,13 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, LogIn, Package as PackageIcon, Pencil, Plus, Trash2, Users } from "lucide-react";
-import { api, errorMessage, type Customer, type Package, type Server, type Usage, type User } from "../lib/api";
+import { ArrowRightLeft, Ban, CircleCheck, KeyRound, LogIn, Package as PackageIcon, Pencil, Plus, ShieldOff, Trash2, UserRoundCog, Users } from "lucide-react";
+import { api, ApiError, errorMessage, type App, type Customer, type Database, type MailDomain, type Package, type Reseller, type Server, type Site, type Usage, type User } from "../lib/api";
+import type { HostedZone } from "../components/HostedDNS";
 import { formatBytes, formatNumber } from "../lib/format";
 import { meKey, useMe } from "../lib/session";
 import { PageHeader } from "../components/AppShell";
-import { Button, Card, CopyButton, Dialog, ErrorAlert, Field, Meter, Spinner } from "../components/ui";
+import { Badge, Button, Card, CopyButton, Dialog, ErrorAlert, Field, Meter, Spinner } from "../components/ui";
 import { EmptyState } from "./ServerParts";
 import { usePHPVersions } from "./SitesPage";
 
@@ -21,18 +22,29 @@ export function usePackages(enabled = true) {
   return useQuery({ queryKey: ["packages"], queryFn: () => api.get<Package[]>("/packages"), enabled });
 }
 
-/** For administrators: who a new website, database or app is for. Customers own what they create. */
+export function useResellers(enabled = true) {
+  return useQuery({ queryKey: ["resellers"], queryFn: () => api.get<Reseller[]>("/resellers"), enabled });
+}
+
+/** Who a new website, database or app is for. Administrators may keep it for themselves;
+ * a reseller picks one of their customers; customers own what they create. */
 export function OwnerField({ value, onChange }: { value: string; onChange: (id: string) => void }) {
   const { t } = useTranslation();
   const me = useMe();
   const isAdmin = me.data?.role === "admin";
-  const customers = useCustomers(isAdmin);
-  if (!isAdmin || !customers.data?.length) return null;
+  const isReseller = me.data?.role === "reseller";
+  const customers = useCustomers(isAdmin || isReseller);
+  const first = customers.data?.[0]?.id;
+  useEffect(() => {
+    if (isReseller && !value && first) onChange(first);
+  }, [isReseller, value, first, onChange]);
+  if (isReseller && customers.data?.length === 0) return <ErrorAlert>{t("customers.reseller_needs_customer")}</ErrorAlert>;
+  if (!(isAdmin || isReseller) || !customers.data?.length) return null;
   return (
     <label className="grid gap-1.5">
       <span className="text-sm font-medium">{t("customers.owner")}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className={select}>
-        <option value="">{t("customers.owner_admins")}</option>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className={select} required={isReseller}>
+        {isAdmin && <option value="">{t("customers.owner_admins")}</option>}
         {customers.data.map((c) => (
           <option key={c.id} value={c.id}>
             {c.name} · {c.package_name}
@@ -58,12 +70,16 @@ function UsageLine({ label, have, limit, text }: { label: string; have: number; 
   );
 }
 
-export function UsageList({ usage, pkg }: { usage: Usage; pkg: Package }) {
+/** The limits a usage list compares with: a package's, or a reseller's totals. */
+type UsageLimits = Pick<Package, "max_sites" | "max_databases" | "max_apps" | "max_cron_jobs" | "max_mail_domains" | "max_mailboxes" | "disk_mb" | "bandwidth_gb">;
+
+export function UsageList({ usage, pkg, bandwidth }: { usage: Usage; pkg: UsageLimits; bandwidth?: number }) {
   const { t, i18n } = useTranslation();
   const lng = i18n.language;
   const n = (x: number) => formatNumber(x, lng);
   const count = (have: number, limit: number) => t("customers.of", { have: n(have), limit: n(limit) });
   const diskLimit = pkg.disk_mb === null ? null : pkg.disk_mb * 1024 * 1024;
+  const bandwidthLimit = pkg.bandwidth_gb === null ? null : pkg.bandwidth_gb * 1024 ** 3;
   return (
     <div className="grid gap-4">
       <UsageLine label={t("nav.sites")} have={usage.sites} limit={pkg.max_sites} text={count(usage.sites, pkg.max_sites)} />
@@ -88,20 +104,63 @@ export function UsageList({ usage, pkg }: { usage: Usage; pkg: Package }) {
             : t("customers.of", { have: formatBytes(usage.disk_bytes, lng), limit: formatBytes(diskLimit, lng) })
         }
       />
+      {bandwidth !== undefined && (
+        <UsageLine
+          label={t("customers.bandwidth")}
+          have={bandwidth}
+          limit={bandwidthLimit}
+          text={
+            bandwidthLimit === null
+              ? t("customers.used_no_limit", { used: formatBytes(bandwidth, lng) })
+              : t("customers.of", { have: formatBytes(bandwidth, lng), limit: formatBytes(bandwidthLimit, lng) })
+          }
+        />
+      )}
     </div>
   );
 }
 
-/** A customer's own package and what they use of it, on their dashboard. */
+/** A reseller's limits and what all their customers have, on cards and their dashboard. */
+export function ResellerUsage({ reseller }: { reseller: Reseller }) {
+  const { t, i18n } = useTranslation();
+  const n = (x: number) => formatNumber(x, i18n.language);
+  const l = reseller.limits;
+  return (
+    <div className="grid gap-4">
+      <UsageLine
+        label={t("nav.customers")}
+        have={reseller.customers}
+        limit={l.max_customers}
+        text={t("customers.of", { have: n(reseller.customers), limit: n(l.max_customers) })}
+      />
+      <UsageList usage={reseller.usage} pkg={l} bandwidth={reseller.bandwidth_month} />
+    </div>
+  );
+}
+
+/** A customer's own package and what they use of it, or a reseller's limits, on their dashboard. */
 export function MyUsageCard() {
   const { t, i18n } = useTranslation();
   const q = useQuery({
     queryKey: ["me", "usage"],
-    queryFn: () => api.get<{ package: Package | null; usage: Usage; bandwidth_month: number }>("/me/usage"),
+    queryFn: () => api.get<{ package: Package | null; reseller?: Reseller; usage: Usage; bandwidth_month: number }>("/me/usage"),
     refetchInterval: 60000,
   });
   if (q.isPending) return <Spinner />;
   if (q.error) return <ErrorAlert>{errorMessage(t, q.error)}</ErrorAlert>;
+  if (q.data.reseller) {
+    const l = q.data.reseller.limits;
+    return (
+      <Card className="grid gap-5 p-6">
+        <div className="grid gap-1">
+          <h2 className="text-lg font-semibold">{t("resellers.your_account")}</h2>
+          <p className="text-sm text-muted">{t("resellers.your_account_hint")}</p>
+        </div>
+        <ResellerUsage reseller={q.data.reseller} />
+        {l.bandwidth_gb !== null && <p className="-mt-2 text-sm text-muted">{t(l.bandwidth_stop ? "resellers.bandwidth_stop_hint" : "customers.bandwidth_hint")}</p>}
+      </Card>
+    );
+  }
   const pkg = q.data.package;
   if (!pkg) return null;
   const limits = [
@@ -114,8 +173,8 @@ export function MyUsageCard() {
         <h2 className="text-lg font-semibold">{t("customers.your_package", { name: pkg.name })}</h2>
         {limits.length > 0 && <p className="text-sm text-muted">{limits.join(" · ")}</p>}
       </div>
-      <UsageList usage={q.data.usage} pkg={pkg} />
-      <p className="text-sm text-muted">{t("customers.bandwidth_month", { size: formatBytes(q.data.bandwidth_month, i18n.language) })}</p>
+      <UsageList usage={q.data.usage} pkg={pkg} bandwidth={q.data.bandwidth_month} />
+      {pkg.bandwidth_gb !== null && <p className="-mt-2 text-sm text-muted">{t(pkg.bandwidth_stop ? "customers.bandwidth_stop_hint" : "customers.bandwidth_hint")}</p>}
     </Card>
   );
 }
@@ -138,10 +197,10 @@ export function ImpersonationBanner({ user }: { user: User }) {
         onClick={async () => {
           setBusy(true);
           try {
-            const admin = await api.post<User>("/auth/impersonation/end");
+            const back = await api.post<User>("/auth/impersonation/end");
             qc.clear();
-            qc.setQueryData(meKey, admin);
-            navigate("/customers");
+            qc.setQueryData(meKey, back);
+            navigate(user.role === "reseller" ? "/resellers" : "/customers");
           } catch {
             qc.setQueryData(meKey, null);
             navigate("/login");
@@ -158,7 +217,7 @@ export function ImpersonationBanner({ user }: { user: User }) {
 
 // ---- Customers (administrators) ----
 
-function OneTimePassword({ email, password }: { email: string; password: string }) {
+export function OneTimePassword({ email, password }: { email: string; password: string }) {
   const { t } = useTranslation();
   return (
     <div className="grid gap-2 rounded-lg bg-warn-soft p-4 text-warn">
@@ -178,13 +237,19 @@ function OneTimePassword({ email, password }: { email: string; password: string 
   );
 }
 
-function CustomerDialog({ open, customer, onClose }: { open: boolean; customer: Customer | null; onClose: () => void }) {
+function CustomerDialog({ open, customer, reseller: initialReseller, onClose }: { open: boolean; customer: Customer | null; reseller: string; onClose: () => void }) {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
-  const packages = usePackages(open);
+  const me = useMe();
+  const isAdmin = me.data?.role === "admin";
+  const allPackages = usePackages(open);
+  const resellers = useResellers(open && isAdmin);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [packageId, setPackageId] = useState("");
+  const [reseller, setReseller] = useState("");
+  // A customer's package is one of their reseller's (or the administrators', for theirs).
+  const packages = { ...allPackages, data: allPackages.data?.filter((p) => !isAdmin || (p.reseller_id ?? "") === reseller) };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
@@ -193,19 +258,21 @@ function CustomerDialog({ open, customer, onClose }: { open: boolean; customer: 
     setName(customer?.name ?? "");
     setEmail(customer?.email ?? "");
     setPackageId(customer?.package_id ?? "");
+    setReseller(customer ? (customer.reseller_id ?? "") : initialReseller);
     setError("");
     setCreated(null);
-  }, [open, customer]);
+  }, [open, customer, initialReseller]);
+  const choices = packages.data;
   useEffect(() => {
-    if (!packageId && packages.data?.length) setPackageId(packages.data[0].id);
-  }, [packages.data, packageId]);
+    if (choices && !choices.some((p) => p.id === packageId)) setPackageId(choices[0]?.id ?? "");
+  }, [choices, packageId]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError("");
     try {
-      const body = { name, email, package_id: packageId, locale: i18n.language };
+      const body = { name, email, package_id: packageId, locale: i18n.language, ...(isAdmin ? { reseller_id: reseller } : {}) };
       if (customer) {
         await api.put(`/customers/${customer.id}`, body);
         onClose();
@@ -240,6 +307,20 @@ function CustomerDialog({ open, customer, onClose }: { open: boolean; customer: 
           {packages.data?.length === 0 && <ErrorAlert>{t("customers.needs_package")}</ErrorAlert>}
           <Field label={t("packages.name")} value={name} onChange={(e) => setName(e.target.value)} maxLength={100} required />
           <Field label={t("account.email")} type="email" value={email} onChange={(e) => setEmail(e.target.value)} dir="ltr" required />
+          {isAdmin && !!resellers.data?.length && (
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium">{t("customers.reseller")}</span>
+              <select value={reseller} onChange={(e) => setReseller(e.target.value)} className={select}>
+                <option value="">{t("customers.reseller_none")}</option>
+                {resellers.data.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+              <span className="text-sm text-muted">{t("customers.reseller_hint")}</span>
+            </label>
+          )}
           <label className="grid gap-1.5">
             <span className="text-sm font-medium">{t("customers.package")}</span>
             <select value={packageId} onChange={(e) => setPackageId(e.target.value)} className={select} required>
@@ -269,13 +350,26 @@ export function CustomersPage() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const customers = useCustomers();
+  const me = useMe();
+  const isAdmin = me.data?.role === "admin";
+  const allCustomers = useCustomers();
   const packages = usePackages();
+  const resellers = useResellers(isAdmin);
   const [params, setParams] = useSearchParams();
+  // Administrators can look at one reseller's customers (or only their own: "admins").
+  const resellerFilter = isAdmin ? (params.get("reseller") ?? "") : "";
+  const customers = {
+    ...allCustomers,
+    data: allCustomers.data?.filter((c) => !resellerFilter || (resellerFilter === "admins" ? !c.reseller_id : c.reseller_id === resellerFilter)),
+  };
+  const setFilter = (v: string) => setParams(v ? { reseller: v } : {}, { replace: true });
   const [editing, setEditing] = useState<Customer | null>(null);
   const adding = params.get("add") === "1";
   const [deleting, setDeleting] = useState<Customer | null>(null);
   const [reset, setReset] = useState<{ email: string; password: string } | null>(null);
+  const [moving, setMoving] = useState<Customer | null>(null);
+  const [suspending, setSuspending] = useState<Customer | null>(null);
+  const [giving, setGiving] = useState<{ from: string } | null>(null);
   const [error, setError] = useState("");
 
   const act = async (run: () => Promise<unknown>) => {
@@ -287,18 +381,47 @@ export function CustomersPage() {
     }
   };
   const addButton = (
-    <Button variant="primary" onClick={() => setParams({ add: "1" }, { replace: true })}>
+    <Button variant="primary" onClick={() => setParams({ ...(resellerFilter ? { reseller: resellerFilter } : {}), add: "1" }, { replace: true })}>
       <Plus className="size-4" aria-hidden />
       {t("customers.add")}
     </Button>
   );
   const pkgOf = (c: Customer) => packages.data?.find((p) => p.id === c.package_id);
+  const closeDialog = () => (setEditing(null), setParams(resellerFilter ? { reseller: resellerFilter } : {}, { replace: true }));
 
   return (
     <>
-      <PageHeader title={t("nav.customers")} description={t("customers.intro")} actions={customers.data?.length ? addButton : undefined} />
+      <PageHeader
+        title={t("nav.customers")}
+        description={t("customers.intro")}
+        actions={
+          allCustomers.data?.length ? (
+            <>
+              <Button onClick={() => setGiving({ from: isAdmin ? "" : (customers.data?.[0]?.id ?? "") })}>
+                <UserRoundCog className="size-4" aria-hidden />
+                {t("owner.button")}
+              </Button>
+              {addButton}
+            </>
+          ) : undefined
+        }
+      />
       <div className="grid gap-4">
         <ErrorAlert>{error}</ErrorAlert>
+        {isAdmin && !!resellers.data?.length && (
+          <label className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="font-medium">{t("customers.show")}</span>
+            <select value={resellerFilter} onChange={(e) => setFilter(e.target.value)} className={select}>
+              <option value="">{t("customers.show_all")}</option>
+              <option value="admins">{t("customers.show_admins")}</option>
+              {resellers.data.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {t("customers.show_reseller", { name: r.name })}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {customers.isPending && <Spinner />}
         {customers.error && <ErrorAlert>{errorMessage(t, customers.error)}</ErrorAlert>}
         {customers.data?.length === 0 && <EmptyState icon={<Users />} title={t("customers.empty.title")} body={t("customers.empty.body")} action={addButton} />}
@@ -314,9 +437,22 @@ export function CustomersPage() {
                       {c.email}
                     </p>
                   </div>
-                  <span className="rounded bg-sunk px-2 py-0.5 text-xs text-muted">{c.package_name}</span>
+                  <span className="grid justify-items-end gap-1">
+                    <span className="rounded bg-sunk px-2 py-0.5 text-xs text-muted">{c.package_name}</span>
+                    {isAdmin && c.reseller_name && <span className="text-xs text-muted">{t("customers.of_reseller", { name: c.reseller_name })}</span>}
+                  </span>
                 </div>
-                {pkg && <UsageList usage={c.usage} pkg={pkg} />}
+                {(c.suspended_at || c.bandwidth_blocked || c.reseller_bandwidth_blocked) && (
+                  <div className="grid gap-1.5">
+                    <div className="flex flex-wrap gap-2">
+                      {c.suspended_at && <Badge tone="crit">{t("customers.suspended_badge", { date: new Date(c.suspended_at).toLocaleDateString(i18n.language) })}</Badge>}
+                      {c.bandwidth_blocked && <Badge tone="warn">{t("customers.bandwidth_blocked")}</Badge>}
+                      {c.reseller_bandwidth_blocked && <Badge tone="warn">{t("customers.reseller_bandwidth_blocked")}</Badge>}
+                    </div>
+                    {c.suspended_at && c.suspend_reason && <p className="text-sm text-muted">{t("customers.suspend_reason_is", { reason: c.suspend_reason })}</p>}
+                  </div>
+                )}
+                {pkg && <UsageList usage={c.usage} pkg={pkg} bandwidth={c.bandwidth_month} />}
                 <div className="flex flex-wrap gap-2">
                   <Button
                     size="sm"
@@ -350,6 +486,50 @@ export function CustomersPage() {
                     <KeyRound className="size-4" aria-hidden />
                     {t("customers.reset_password")}
                   </Button>
+                  {c.totp_enabled && (
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        window.confirm(t("customers.reset_2fa_confirm", { name: c.name })) &&
+                        act(async () => {
+                          await api.post(`/customers/${c.id}/2fa/reset`);
+                          qc.invalidateQueries({ queryKey: ["customers"] });
+                        })
+                      }
+                    >
+                      <ShieldOff className="size-4" aria-hidden />
+                      {t("customers.reset_2fa")}
+                    </Button>
+                  )}
+                  {isAdmin && (
+                    <Button size="sm" onClick={() => setMoving(c)}>
+                      <ArrowRightLeft className="size-4" aria-hidden />
+                      {t("customers.move.button")}
+                    </Button>
+                  )}
+                  <Button size="sm" onClick={() => setGiving({ from: c.id })}>
+                    <UserRoundCog className="size-4" aria-hidden />
+                    {t("owner.button")}
+                  </Button>
+                  {c.suspended_at ? (
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        act(async () => {
+                          await api.post(`/customers/${c.id}/unsuspend`);
+                          qc.invalidateQueries({ queryKey: ["customers"] });
+                        })
+                      }
+                    >
+                      <CircleCheck className="size-4" aria-hidden />
+                      {t("customers.unsuspend")}
+                    </Button>
+                  ) : (
+                    <Button size="sm" onClick={() => setSuspending(c)}>
+                      <Ban className="size-4" aria-hidden />
+                      {t("customers.suspend")}
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" onClick={() => setDeleting(c)} aria-label={t("customers.delete")}>
                     <Trash2 className="size-4" aria-hidden />
                   </Button>
@@ -359,7 +539,15 @@ export function CustomersPage() {
           })}
         </div>
       </div>
-      <CustomerDialog open={adding || editing !== null} customer={editing} onClose={() => (setEditing(null), setParams({}, { replace: true }))} />
+      <CustomerDialog
+        open={adding || editing !== null}
+        customer={editing}
+        reseller={resellerFilter === "admins" ? "" : resellerFilter}
+        onClose={closeDialog}
+      />
+      {moving && <MoveCustomerDialog customer={moving} onClose={() => setMoving(null)} />}
+      {suspending && <SuspendDialog customer={suspending} onClose={() => setSuspending(null)} />}
+      {giving && <OwnerChangeDialog from={giving.from} customers={allCustomers.data ?? []} onClose={() => setGiving(null)} />}
       <Dialog open={reset !== null} onClose={() => setReset(null)} title={t("customers.reset_password")}>
         {reset && <OneTimePassword {...reset} />}
         <div className="flex justify-end">
@@ -423,6 +611,8 @@ interface PackageForm {
   max_mail_domains: string;
   max_mailboxes: string;
   mailbox_gb: string;
+  bandwidth_gb: string;
+  bandwidth_stop: boolean;
 }
 
 const newPackage: PackageForm = {
@@ -443,6 +633,8 @@ const newPackage: PackageForm = {
   max_mail_domains: "1",
   max_mailboxes: "10",
   mailbox_gb: "1",
+  bandwidth_gb: "",
+  bandwidth_stop: false,
 };
 
 function formFromPackage(p: Package): PackageForm {
@@ -464,10 +656,12 @@ function formFromPackage(p: Package): PackageForm {
     max_mail_domains: String(p.max_mail_domains),
     max_mailboxes: String(p.max_mailboxes),
     mailbox_gb: p.mailbox_quota_mb === null ? "" : String(Math.round((p.mailbox_quota_mb / 1024) * 100) / 100),
+    bandwidth_gb: p.bandwidth_gb === null ? "" : String(p.bandwidth_gb),
+    bandwidth_stop: p.bandwidth_stop,
   };
 }
 
-function Checks({
+export function Checks({
   label,
   hint,
   options,
@@ -547,6 +741,8 @@ function PackageDialog({ open, pkg, onClose }: { open: boolean; pkg: Package | n
       max_mail_domains: Number(f.max_mail_domains || 0),
       max_mailboxes: Number(f.max_mailboxes || 0),
       mailbox_quota_mb: opt(f.mailbox_gb, 1024),
+      bandwidth_gb: opt(f.bandwidth_gb),
+      bandwidth_stop: f.bandwidth_stop,
     };
     try {
       if (pkg) await api.put(`/packages/${pkg.id}`, body);
@@ -555,6 +751,30 @@ function PackageDialog({ open, pkg, onClose }: { open: boolean; pkg: Package | n
       qc.invalidateQueries({ queryKey: ["customers"] });
       onClose();
     } catch (err) {
+      if (err instanceof ApiError && err.code === "package_over_reseller") {
+        // Name the part of the form that gives more than the reseller has.
+        const labels: Record<string, string> = {
+          max_sites: t("nav.sites"),
+          max_databases: t("nav.databases"),
+          max_apps: t("nav.apps"),
+          max_cron_jobs: t("cron.title"),
+          max_mail_domains: t("packages.mail_domains"),
+          max_mailboxes: t("packages.mailboxes"),
+          disk_mb: t("packages.disk"),
+          bandwidth_gb: t("packages.bandwidth"),
+          memory_mb: t("packages.memory"),
+          cpu_percent: t("packages.cpu"),
+          mailbox_quota_mb: t("packages.mailbox_size"),
+          php_versions: t("packages.php"),
+          server_ids: t("packages.servers"),
+          app_images: t("packages.images"),
+          sftp: t("packages.sftp"),
+          ftp: t("packages.ftp"),
+          git_apps: t("packages.git_apps"),
+        };
+        setError(t("errors.package_over_reseller", { field: labels[String(err.data.field)] ?? String(err.data.field) }));
+        return;
+      }
       setError(errorMessage(t, err));
     } finally {
       setBusy(false);
@@ -606,6 +826,27 @@ function PackageDialog({ open, pkg, onClose }: { open: boolean; pkg: Package | n
           />
         </div>
         <p className="-mt-3 text-sm text-muted">{t("packages.limits_hint")}</p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field
+            label={t("packages.bandwidth")}
+            value={f.bandwidth_gb}
+            onChange={digits("bandwidth_gb")}
+            inputMode="numeric"
+            dir="ltr"
+            placeholder={t("apps.no_limit")}
+          />
+          <label className="flex items-start gap-2 text-sm sm:col-span-2 sm:mt-7">
+            <input
+              type="checkbox"
+              checked={f.bandwidth_stop}
+              disabled={!f.bandwidth_gb.trim()}
+              onChange={(e) => set("bandwidth_stop", e.target.checked)}
+              className="mt-1 accent-[var(--accent)]"
+            />
+            <span>{t("packages.bandwidth_stop")}</span>
+          </label>
+        </div>
+        <p className="-mt-3 text-sm text-muted">{t("packages.bandwidth_hint")}</p>
         <Checks
           label={t("packages.php")}
           hint={t("packages.php_hint")}
@@ -665,7 +906,12 @@ function PackageDialog({ open, pkg, onClose }: { open: boolean; pkg: Package | n
 export function PackagesPage() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
+  const me = useMe();
+  const isAdmin = me.data?.role === "admin";
   const packages = usePackages();
+  const resellers = useResellers(isAdmin);
+  const ownerOf = (p: Package) => (p.reseller_id ? (resellers.data?.find((r) => r.id === p.reseller_id)?.name ?? "") : t("packages.whose_yours"));
+  const showOwner = isAdmin && !!packages.data?.some((p) => p.reseller_id);
   const [params, setParams] = useSearchParams();
   const [editing, setEditing] = useState<Package | null>(null);
   const [error, setError] = useState("");
@@ -693,6 +939,7 @@ export function PackagesPage() {
               <thead>
                 <tr className="border-b border-line bg-sunk text-xs tracking-wider text-muted uppercase">
                   <th className="px-4 py-3 text-start font-semibold">{t("packages.name")}</th>
+                  {showOwner && <th className="px-4 py-3 text-start font-semibold">{t("packages.whose")}</th>}
                   <th className="px-4 py-3 text-start font-semibold">{t("packages.includes")}</th>
                   <th className="px-4 py-3 text-start font-semibold">{t("packages.resources")}</th>
                   <th className="px-4 py-3 text-start font-semibold">{t("nav.customers")}</th>
@@ -703,6 +950,7 @@ export function PackagesPage() {
                 {packages.data.map((p) => (
                   <tr key={p.id} className="border-b border-line last:border-0 hover:bg-sunk/60">
                     <td className="px-4 py-3 font-semibold">{p.name}</td>
+                    {showOwner && <td className="px-4 py-3 text-muted">{ownerOf(p)}</td>}
                     <td className="px-4 py-3 text-muted">
                       {t("packages.includes_text", { sites: n(p.max_sites), databases: n(p.max_databases), apps: n(p.max_apps), cron: n(p.max_cron_jobs) })}
                     </td>
@@ -711,6 +959,7 @@ export function PackagesPage() {
                         p.disk_mb === null ? t("packages.disk_unlimited") : formatBytes(p.disk_mb * 1024 * 1024, lng),
                         p.memory_mb && t("customers.limit_memory", { size: formatBytes(p.memory_mb * 1024 * 1024, lng) }),
                         p.cpu_percent && t("customers.limit_cpu", { count: p.cpu_percent / 100, cores: formatNumber(p.cpu_percent / 100, lng, 2) }),
+                        p.bandwidth_gb !== null && t("packages.bandwidth_month", { size: formatBytes(p.bandwidth_gb * 1024 ** 3, lng) }),
                       ]
                         .filter(Boolean)
                         .join(" · ")}
@@ -746,5 +995,270 @@ export function PackagesPage() {
       </div>
       <PackageDialog open={adding || editing !== null} pkg={editing} onClose={() => (setEditing(null), setParams({}, { replace: true }))} />
     </>
+  );
+}
+
+/** Moves everything a customer has on one server to another. */
+function MoveCustomerDialog({ customer, onClose }: { customer: Customer; onClose: () => void }) {
+  const { t } = useTranslation();
+  const servers = useQuery({ queryKey: ["servers"], queryFn: () => api.get<Server[]>("/servers") });
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [started, setStarted] = useState(false);
+  const list = (servers.data ?? []).filter((s) => s.enrolled_at);
+  const select = "h-10 rounded-lg border border-line bg-surface px-3 text-ink";
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api.post(`/customers/${customer.id}/move`, { from_server_id: from, server_id: to });
+      setStarted(true);
+    } catch (err) {
+      setError(errorMessage(t, err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onClose={onClose} title={t("customers.move.title", { name: customer.name })}>
+      {started ? (
+        <div className="grid gap-4">
+          <p className="text-sm">{t("customers.move.started")}</p>
+          <Button variant="primary" onClick={onClose} className="justify-self-end">
+            {t("common.close", { defaultValue: "OK" })}
+          </Button>
+        </div>
+      ) : (
+        <form onSubmit={submit} className="grid gap-4">
+          {error && <ErrorAlert>{error}</ErrorAlert>}
+          <p className="text-sm text-muted">{t("customers.move.intro")}</p>
+          <label className="grid gap-1.5 text-sm">
+            <span className="font-medium">{t("customers.move.from")}</span>
+            <select className={select} value={from} onChange={(e) => setFrom(e.target.value)} required>
+              <option value="">{t("move.choose_server")}</option>
+              {list.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1.5 text-sm">
+            <span className="font-medium">{t("move.target")}</span>
+            <select className={select} value={to} onChange={(e) => setTo(e.target.value)} required>
+              <option value="">{t("move.choose_server")}</option>
+              {list
+                .filter((s) => s.id !== from)
+                .map((s) => (
+                  <option key={s.id} value={s.id} disabled={!s.online}>
+                    {s.name}
+                    {!s.online ? ` (${t("servers.state.offline")})` : ""}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <p className="rounded-lg bg-warn-soft px-3 py-2 text-sm text-warn">{t("customers.move.warning")}</p>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onClose}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="submit" variant="primary" loading={busy} disabled={!from || !to}>
+              <ArrowRightLeft className="size-4" aria-hidden /> {t("move.confirm")}
+            </Button>
+          </div>
+        </form>
+      )}
+    </Dialog>
+  );
+}
+
+/** Suspends a customer (or, for administrators, a reseller with all their customers), with
+ * a reason the account does not see. */
+export function SuspendDialog({ customer, kind = "customers", onClose }: { customer: { id: string; name: string }; kind?: "customers" | "resellers"; onClose: () => void }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api.post(`/${kind}/${customer.id}/suspend`, { reason });
+      qc.invalidateQueries({ queryKey: [kind] });
+      onClose();
+    } catch (err) {
+      setError(errorMessage(t, err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog open onClose={onClose} title={t("customers.suspend_title", { name: customer.name })}>
+      <form onSubmit={submit} className="grid gap-4">
+        <ErrorAlert>{error}</ErrorAlert>
+        <p className="text-sm text-muted">{t(kind === "resellers" ? "resellers.suspend_body" : "customers.suspend_body")}</p>
+        <label className="grid gap-1.5">
+          <span className="text-sm font-medium">{t("customers.suspend_reason")}</span>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            maxLength={500}
+            rows={3}
+            className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
+          />
+          <span className="text-sm text-muted">{t("customers.suspend_reason_hint")}</span>
+        </label>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button type="submit" variant="danger" loading={busy}>
+            <Ban className="size-4" aria-hidden />
+            {t("customers.suspend")}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+type OwnerKind = "sites" | "databases" | "apps" | "mail_domains" | "zones";
+
+/** Gives websites, databases, apps, email domains and DNS zones to another owner. */
+function OwnerChangeDialog({ from: initialFrom, customers, onClose }: { from: string; customers: Customer[]; onClose: () => void }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const me = useMe();
+  // A reseller moves things only between their own customers.
+  const isAdmin = me.data?.role === "admin";
+  const [from, setFrom] = useState(initialFrom);
+  const [to, setTo] = useState(isAdmin ? "" : (customers.find((c) => c.id !== initialFrom)?.id ?? ""));
+  const [chosen, setChosen] = useState<Record<OwnerKind, string[]>>({ sites: [], databases: [], apps: [], mail_domains: [], zones: [] });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(0);
+  const sites = useQuery({ queryKey: ["sites"], queryFn: () => api.get<Site[]>("/sites") });
+  const dbs = useQuery({ queryKey: ["databases"], queryFn: () => api.get<Database[]>("/databases") });
+  const apps = useQuery({ queryKey: ["apps"], queryFn: () => api.get<App[]>("/apps") });
+  const mail = useQuery({ queryKey: ["mail", "domains"], queryFn: () => api.get<MailDomain[]>("/mail/domains") });
+  const zones = useQuery({ queryKey: ["dns", "hosted"], queryFn: () => api.get<HostedZone[]>("/dns/hosted") });
+  const owned = (o: { owner_id: string | null }) => (o.owner_id ?? "") === from;
+  const groups: { kind: OwnerKind; label: string; items: { id: string; name: string }[] }[] = [
+    { kind: "sites", label: t("nav.sites"), items: (sites.data ?? []).filter((x) => owned(x) && x.state !== "deleting").map((x) => ({ id: x.id, name: x.domain })) },
+    { kind: "databases", label: t("nav.databases"), items: (dbs.data ?? []).filter((x) => owned(x) && x.state !== "deleting").map((x) => ({ id: x.id, name: x.name })) },
+    { kind: "apps", label: t("nav.apps"), items: (apps.data ?? []).filter((x) => owned(x) && x.state !== "deleting").map((x) => ({ id: x.id, name: x.name })) },
+    { kind: "mail_domains", label: t("owner.mail_domains"), items: (mail.data ?? []).filter((x) => owned(x) && x.state !== "deleting").map((x) => ({ id: x.id, name: x.domain })) },
+    { kind: "zones", label: t("owner.zones"), items: (zones.data ?? []).filter(owned).map((x) => ({ id: x.id, name: x.name })) },
+  ];
+  const loading = [sites, dbs, apps, mail, zones].some((q) => q.isPending);
+  const count = Object.values(chosen).reduce((n, l) => n + l.length, 0);
+  const toggle = (kind: OwnerKind, id: string, on: boolean) =>
+    setChosen((c) => ({ ...c, [kind]: on ? [...c[kind], id] : c[kind].filter((x) => x !== id) }));
+  const ownerName = (id: string) => (id ? (customers.find((c) => c.id === id)?.name ?? "") : t("customers.owner_admins"));
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const r = await api.post<{ moved: number }>("/owner-changes", { to, ...chosen });
+      setDone(r.moved);
+      for (const key of [["customers"], ["sites"], ["databases"], ["apps"], ["mail"], ["dns"], ["cron"]]) qc.invalidateQueries({ queryKey: key });
+    } catch (err) {
+      setError(errorMessage(t, err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onClose={onClose} title={t("owner.title")} wide>
+      {done > 0 ? (
+        <div className="grid gap-4">
+          <p className="text-sm">{t("owner.done", { count: done, name: ownerName(to) })}</p>
+          <Button variant="primary" onClick={onClose} className="justify-self-end">
+            {t("common.close", { defaultValue: "OK" })}
+          </Button>
+        </div>
+      ) : (
+        <form onSubmit={submit} className="grid gap-4">
+          <ErrorAlert>{error}</ErrorAlert>
+          <p className="text-sm text-muted">{t("owner.intro")}</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium">{t("owner.from")}</span>
+              <select
+                value={from}
+                onChange={(e) => (setFrom(e.target.value), setChosen({ sites: [], databases: [], apps: [], mail_domains: [], zones: [] }))}
+                className={select}
+              >
+                {isAdmin && <option value="">{t("customers.owner_admins")}</option>}
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium">{t("owner.to")}</span>
+              <select value={to} onChange={(e) => setTo(e.target.value)} className={select}>
+                {isAdmin && <option value="">{t("customers.owner_admins")}</option>}
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} · {c.package_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {loading ? (
+            <Spinner />
+          ) : groups.every((g) => g.items.length === 0) ? (
+            <p className="rounded-lg bg-sunk p-3 text-sm text-muted">{t("owner.nothing", { name: ownerName(from) })}</p>
+          ) : (
+            <div className="grid max-h-80 gap-4 overflow-y-auto rounded-lg border border-line p-4">
+              {groups
+                .filter((g) => g.items.length > 0)
+                .map((g) => (
+                  <fieldset key={g.kind} className="grid gap-1.5">
+                    <legend className="mb-1 text-sm font-medium">{g.label}</legend>
+                    {g.items.map((it) => (
+                      <label key={it.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={chosen[g.kind].includes(it.id)}
+                          onChange={(e) => toggle(g.kind, it.id, e.target.checked)}
+                          className="accent-[var(--accent)]"
+                        />
+                        <span className="truncate" dir="ltr">
+                          {it.name}
+                        </span>
+                      </label>
+                    ))}
+                  </fieldset>
+                ))}
+            </div>
+          )}
+          <p className="text-sm text-muted">{t("owner.hint")}</p>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onClose}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="submit" variant="primary" loading={busy} disabled={count === 0 || from === to}>
+              <UserRoundCog className="size-4" aria-hidden />
+              {t("owner.confirm", { count })}
+            </Button>
+          </div>
+        </form>
+      )}
+    </Dialog>
   );
 }

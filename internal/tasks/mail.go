@@ -31,6 +31,10 @@ func (r *Runner) mailSpec(ctx context.Context, serverID string, params *agentpro
 	if err != nil {
 		return nil, err
 	}
+	suspended, err := r.store.SuspendedCustomers(ctx)
+	if err != nil {
+		return nil, err
+	}
 	spec := &agentproto.MailSpec{Hostname: ms.Hostname, TLS: ms.TLS, Domains: make([]agentproto.MailDomainSpec, 0, len(domains))}
 	for _, d := range domains {
 		ds := agentproto.MailDomainSpec{ID: d.ID, Generation: d.Generation, Domain: d.Domain, Deleted: d.State == "deleting",
@@ -41,7 +45,8 @@ func (r *Runner) mailSpec(ctx context.Context, serverID string, params *agentpro
 		for _, mb := range mailboxes {
 			if mb.DomainID == d.ID {
 				ds.Mailboxes = append(ds.Mailboxes, agentproto.MailboxSpec{ID: mb.ID, Name: mb.LocalPart, PasswordHash: mb.PasswordHash,
-					QuotaMB: mb.QuotaMB, ForwardTo: mb.ForwardTo, KeepCopy: mb.KeepCopy, AutoReply: mb.AutoReply})
+					QuotaMB: mb.QuotaMB, ForwardTo: mb.ForwardTo, KeepCopy: mb.KeepCopy, AutoReply: mb.AutoReply,
+					Locked: d.OwnerID != nil && suspended[*d.OwnerID]})
 			}
 		}
 		for _, f := range forwarders {

@@ -47,9 +47,11 @@ func appCaddyPath(id string) string { return caddySitesDir + "/app-" + id + ".ca
 
 // appState is what the agent keeps about an app between runs.
 type appState struct {
-	ID      string              `json:"id"`
-	Stopped bool                `json:"stopped"`
-	Env     []agentproto.EnvVar `json:"env"`
+	ID         string              `json:"id"`
+	Kind       string              `json:"kind,omitempty"` // "service" for service apps; Docker apps leave it out
+	Stopped    bool                `json:"stopped"`
+	Env        []agentproto.EnvVar `json:"env,omitempty"`
+	Generation int64               `json:"generation,omitempty"`
 }
 
 func validateApp(ap agentproto.AppSpec) error {
@@ -61,6 +63,9 @@ func validateApp(ap agentproto.AppSpec) error {
 	}
 	if ap.Owner != "" && !uuidRE.MatchString(ap.Owner) {
 		return errors.New("invalid owner")
+	}
+	if !validBlocked(ap.Blocked) {
+		return fmt.Errorf("unknown block %q", ap.Blocked)
 	}
 	if ap.Deleted {
 		return nil
@@ -106,10 +111,18 @@ func validateApp(ap agentproto.AppSpec) error {
 		if len(ap.Volumes) > 20 {
 			return errors.New("too many volumes")
 		}
+	case "service":
+		if err := validateService(ap); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("unknown app kind %q", ap.Kind)
 	}
-	if ap.ContainerPort != 0 {
+	if ap.Kind == "service" {
+		if ap.HostPort == 0 && ap.Domain != "" {
+			return errors.New("a domain needs the port the app listens on")
+		}
+	} else if ap.ContainerPort != 0 {
 		if ap.ContainerPort < 1 || ap.ContainerPort > 65535 || ap.HostPort < 20000 || ap.HostPort > 29999 || !serviceRE.MatchString(ap.Service) {
 			return errors.New("invalid port settings")
 		}
@@ -396,6 +409,9 @@ func checkComposeConfig(raw []byte, ap agentproto.AppSpec) error {
 // ---- Apply ----
 
 func (a *applier) ensureApp(ctx context.Context, ap agentproto.AppSpec) error {
+	if ap.Kind == "service" {
+		return a.ensureService(ctx, ap)
+	}
 	if a.dockerReady == nil {
 		err := ensureDocker(ctx, a.sys)
 		a.dockerReady = &err
@@ -498,12 +514,15 @@ func (a *applier) ensureApp(ctx context.Context, ap agentproto.AppSpec) error {
 	return a.writeAppCaddy(ap, ports)
 }
 
-var appCaddyTemplate = template.Must(template.New("app").Parse(
+var appCaddyTemplate = template.Must(template.New("app").Parse(blockedTemplate +
 	`# Managed by ekPanel (app {{.ID}}). Changes here are overwritten.
 {{.Domain}} {
 {{- if .Internal}}
 	tls internal
 {{- end}}
+{{- if .Blocked}}
+{{- template "blocked" .}}
+{{- else}}
 	encode zstd gzip
 	reverse_proxy{{range .Ports}} 127.0.0.1:{{.}}{{end}}
 {{- if gt (len .Ports) 1}} {
@@ -513,6 +532,7 @@ var appCaddyTemplate = template.Must(template.New("app").Parse(
 		lb_try_interval 20ms
 		fail_duration 30s
 	}
+{{- end}}
 {{- end}}
 	log {
 		output file /var/log/caddy/app-{{.ID}}.log {
@@ -535,7 +555,8 @@ func (a *applier) writeAppCaddy(ap agentproto.AppSpec, ports []int) error {
 	if ports == nil {
 		ports = []int{ap.HostPort}
 	}
-	appCaddyTemplate.Execute(&buf, map[string]any{"ID": ap.ID, "Domain": ap.Domain, "Internal": ap.TLS == "internal", "Ports": ports})
+	appCaddyTemplate.Execute(&buf, map[string]any{"ID": ap.ID, "Domain": ap.Domain, "Internal": ap.TLS == "internal", "Ports": ports,
+		"Blocked": ap.Blocked != "", "BlockedPage": blockedPages[ap.Blocked]})
 	changed, prev, err := a.writeIfChanged(path, buf.Bytes())
 	if err != nil {
 		return err
@@ -570,6 +591,9 @@ func (a *applier) removeApp(ctx context.Context, ap agentproto.AppSpec) error {
 	if st.ID != ap.ID {
 		return nil // the folder is another app's; this one is already gone
 	}
+	if st.Kind == "service" || ap.Kind == "service" {
+		return a.removeService(ctx, ap.Name)
+	}
 	if _, err := a.sys.run(ctx, "docker", "version"); err != nil {
 		return err
 	}
@@ -579,7 +603,11 @@ func (a *applier) removeApp(ctx context.Context, ap agentproto.AppSpec) error {
 	}
 	if _, err := os.Stat(a.sys.path(appDir(ap.Name) + "/" + appComposeFile)); err == nil {
 		if _, err := compose(ctx, a.sys, ap.Name, st.Env, args...); err != nil {
-			return err
+			// A Compose file Compose no longer accepts must not keep the app from going:
+			// its containers and networks carry the project's label.
+			if err := a.removeProject(ctx, ap.Name); err != nil {
+				return err
+			}
 		}
 	}
 	if ap.Kind == "git" {
@@ -606,6 +634,27 @@ func (a *applier) removeApp(ctx context.Context, ap agentproto.AppSpec) error {
 	}
 	// Keep the data, but mark the folder so a new app with this name does not take it over.
 	return os.Rename(a.sys.path(appDir(ap.Name)+"/"+appStateFile), a.sys.path(appDir(ap.Name)+"/"+appStateFile+".deleted"))
+}
+
+// removeProject removes an app's containers and networks by the Compose project label,
+// without its Compose file.
+func (a *applier) removeProject(ctx context.Context, name string) error {
+	label := "label=com.docker.compose.project=" + appProject(name)
+	out, err := a.sys.run(ctx, "docker", "ps", "--all", "--quiet", "--filter", label)
+	if err != nil {
+		return err
+	}
+	if ids := strings.Fields(string(out)); len(ids) > 0 {
+		if _, err := a.sys.run(ctx, "docker", append([]string{"rm", "--force"}, ids...)...); err != nil {
+			return err
+		}
+	}
+	if out, err := a.sys.run(ctx, "docker", "network", "ls", "--quiet", "--filter", label); err == nil {
+		if ids := strings.Fields(string(out)); len(ids) > 0 {
+			a.sys.run(ctx, "docker", append([]string{"network", "rm"}, ids...)...)
+		}
+	}
+	return nil
 }
 
 // removeAppOrphans drops the web configuration of apps the panel no longer knows.
@@ -670,6 +719,9 @@ func appStatus(ctx context.Context, sys *system, p agentproto.AppParams) (*agent
 	if opErr != nil {
 		return nil, opErr
 	}
+	if st.Kind == "service" {
+		return serviceStatus(ctx, sys, p.Name)
+	}
 	out, err := compose(ctx, sys, p.Name, st.Env, "ps", "--all", "--format", "json")
 	if err != nil {
 		return nil, opError(agentproto.ErrFailed, "%v", err)
@@ -716,6 +768,9 @@ func appLogs(ctx context.Context, sys *system, p agentproto.AppParams) (*agentpr
 	if tail <= 0 || tail > 5000 {
 		tail = 200
 	}
+	if st.Kind == "service" {
+		return serviceLogs(ctx, sys, p.Name, tail)
+	}
 	args := []string{"logs", "--no-color", "--timestamps", "--tail", strconv.Itoa(tail)}
 	if p.Service != "" {
 		args = append(args, "--", p.Service)
@@ -744,6 +799,9 @@ func appRestart(ctx context.Context, sys *system, p agentproto.AppParams) (any, 
 	if st.Stopped {
 		return nil, opError(agentproto.ErrNotAllowed, "the app is stopped; start it first")
 	}
+	if st.Kind == "service" {
+		return serviceRestart(ctx, sys, p.Name)
+	}
 	if _, err := compose(ctx, sys, p.Name, st.Env, "restart"); err != nil {
 		return nil, opError(agentproto.ErrFailed, "%v", err)
 	}
@@ -757,6 +815,9 @@ func appPull(ctx context.Context, sys *system, p agentproto.AppParams) (any, *ag
 	st, opErr := loadApp(sys, p)
 	if opErr != nil {
 		return nil, opErr
+	}
+	if st.Kind == "service" {
+		return nil, opError(agentproto.ErrNotAllowed, "a service app has no images")
 	}
 	if _, err := compose(ctx, sys, p.Name, st.Env, "pull", "--quiet"); err != nil {
 		return nil, opError(agentproto.ErrFailed, "%v", err)

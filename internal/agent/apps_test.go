@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -261,5 +262,29 @@ func TestDiskUsage(t *testing.T) {
 	}
 	if _, opErr := diskUsage(context.Background(), f.system, agentproto.DiskUsageParams{Sites: []agentproto.DiskUsageSite{{ID: siteID, User: "root"}}}); opErr == nil {
 		t.Fatal("measured root's home")
+	}
+}
+
+// An app whose Compose file Compose no longer accepts can still be deleted: its containers
+// go by the project's label.
+func TestDeleteAppWithBrokenCompose(t *testing.T) {
+	f := newFakeSystem(t)
+	fakeDocker(f)
+	ap := imageApp()
+	stateApply(context.Background(), f.system, agentproto.StateApplyParams{Apps: []agentproto.AppSpec{ap}})
+	f.exec = func(_ context.Context, c command) ([]byte, error) {
+		if slices.Contains(c.args, "down") {
+			return nil, errors.New(`service "app" refers to undefined volume data: invalid compose project`)
+		}
+		return nil, nil
+	}
+	f.calls = nil
+	ap.Deleted, ap.Generation = true, 2
+	res, opErr := stateApply(context.Background(), f.system, agentproto.StateApplyParams{Apps: []agentproto.AppSpec{ap}})
+	if opErr != nil || len(res.Apps) != 1 || !res.Apps[0].OK {
+		t.Fatalf("delete: %v %+v", opErr, res.Apps)
+	}
+	if !slices.Contains(f.calls, "docker ps --all --quiet --filter label=com.docker.compose.project=ekpanel-uptime") {
+		t.Fatalf("containers not looked for by label: %q", f.calls)
 	}
 }

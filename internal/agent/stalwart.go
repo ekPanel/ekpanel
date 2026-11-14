@@ -20,7 +20,7 @@ type jmapClient struct {
 	http                 *http.Client
 }
 
-var jmapUsing = []string{"urn:ietf:params:jmap:core", "urn:stalwart:jmap", "urn:ietf:params:jmap:sieve"}
+var jmapUsing = []string{"urn:ietf:params:jmap:core", "urn:stalwart:jmap", "urn:ietf:params:jmap:sieve", "urn:ietf:params:jmap:mail"}
 
 // jmapError is a method-level error, or an object that could not be created, changed or
 // destroyed.

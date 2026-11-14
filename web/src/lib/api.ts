@@ -13,6 +13,10 @@ export interface User {
   impersonator_id?: string;
   /** Until when this session may open terminals without the password again. */
   confirmed_until?: string;
+  /** Set while the account is suspended, or the reseller whose customer it is. */
+  suspended_at?: string;
+  /** The reseller whose customer this is. */
+  reseller_id?: string;
 }
 
 export interface Package {
@@ -35,6 +39,12 @@ export interface Package {
   /** Largest size of one mailbox; null means no limit. */
   mailbox_quota_mb: number | null;
   ftp: boolean;
+  /** Bandwidth per calendar month (UTC); null means no limit. */
+  bandwidth_gb: number | null;
+  /** Stop websites and apps when the bandwidth is used up. */
+  bandwidth_stop: boolean;
+  /** The reseller whose package this is; null for the administrators'. */
+  reseller_id: string | null;
   customers: number;
   created_at: string;
 }
@@ -52,6 +62,79 @@ export interface Usage {
 export interface Customer extends User {
   package_name: string;
   usage: Usage;
+  /** Why the customer is suspended; only administrators see it. */
+  suspend_reason: string | null;
+  /** Websites and apps are stopped for using up this month's bandwidth. */
+  bandwidth_blocked: boolean;
+  /** Bytes served this month (UTC). */
+  bandwidth_month: number;
+  /** The reseller's name, for administrators. */
+  reseller_name?: string;
+  /** The reseller's bandwidth is used up, so this customer's websites are stopped too. */
+  reseller_bandwidth_blocked: boolean;
+}
+
+/** What an administrator gives a reseller: totals over all their customers, the most one
+ * package may give, and what packages may offer. */
+export interface ResellerLimits {
+  max_customers: number;
+  max_sites: number;
+  max_databases: number;
+  max_apps: number;
+  max_cron_jobs: number;
+  max_mail_domains: number;
+  max_mailboxes: number;
+  disk_mb: number | null;
+  bandwidth_gb: number | null;
+  bandwidth_stop: boolean;
+  memory_mb: number | null;
+  cpu_percent: number | null;
+  mailbox_quota_mb: number | null;
+  php_versions: string[];
+  app_images: string[];
+  server_ids: string[];
+  sftp: boolean;
+  ftp: boolean;
+  git_apps: boolean;
+  /** The reseller may give their panel their own name, logo, color and domain. */
+  white_label: boolean;
+}
+
+export interface Reseller extends User {
+  limits: ResellerLimits;
+  /** What all the reseller's customers have together. */
+  usage: Usage;
+  customers: number;
+  packages: number;
+  bandwidth_month: number;
+  bandwidth_blocked: boolean;
+  suspend_reason: string | null;
+}
+
+/** How the panel looks for this visitor: ekPanel's own, the panel's brand or a reseller's. */
+export interface Branding {
+  name: string;
+  /** "#rrggbb", or "" for ekPanel's colors. */
+  color: string;
+  logo_url: string | null;
+  /** False while the panel looks like ekPanel. */
+  custom: boolean;
+  url: string | null;
+  source_url: string;
+}
+
+/** White-label settings: the panel's (administrators) or a reseller's own. */
+export interface BrandSettings {
+  name: string;
+  color: string;
+  domain: string | null;
+  logo_url: string | null;
+  allowed: boolean;
+  domain_state: "" | "active" | "pending" | "failed" | "no_server";
+  domain_error?: string;
+  addresses: string[];
+  /** The panel's brand, which a reseller's color and missing settings fall back to. */
+  panel?: Branding;
 }
 
 /** Who owns a website, database or app; null means the administrators. */
@@ -382,7 +465,14 @@ export interface MailCheck {
     hostname: string;
     hostname_addresses: string[];
     port25: "open" | "blocked";
-    addresses: { address: string; ptr: string[]; ptr_ok: boolean; listed: string[]; unknown: string[]; checked: string[] }[];
+    addresses: {
+      address: string;
+      ptr: string[];
+      ptr_ok: boolean;
+      listed: string[];
+      unknown: string[];
+      checked: string[];
+    }[];
   };
   public_addresses: string[];
 }
@@ -446,7 +536,7 @@ export interface App extends Owned {
   server_id: string;
   server_name: string;
   name: string;
-  kind: "image" | "compose" | "git";
+  kind: "image" | "compose" | "git" | "service";
   image: string | null;
   compose: string | null;
   service: string | null;
@@ -478,9 +568,24 @@ export interface App extends Owned {
   preview_domain: string | null;
   preview_of: string | null;
   preview_number: number | null;
+  /** Service apps: the website whose folder and account they run with. */
+  site_id: string | null;
+  site_domain: string | null;
+  site_user: string | null;
+  directory: string | null;
+  command: string | null;
+  build_command: string | null;
+  runtime: "" | "node";
+  runtime_version: string | null;
+  build_state: "" | "running" | "ok" | "failed";
+  build_log?: string | null;
+  built_at: string | null;
   created_at: string;
   updated_at: string;
 }
+
+/** Node.js major versions a service app can use (as the agent offers them). */
+export const nodeVersions = ["26", "24", "22"] as const;
 
 /** One build and release of a Git app, or a rollback to an earlier build. */
 export interface Deployment {
@@ -622,7 +727,12 @@ export interface FirewallRule {
 
 export interface Firewall {
   mode: "unmanaged" | "on" | "off";
-  status: { active: boolean; ssh_ports: number[]; error?: string; at: string } | null;
+  status: {
+    active: boolean;
+    ssh_ports: number[];
+    error?: string;
+    at: string;
+  } | null;
   rules: FirewallRule[];
 }
 
@@ -638,6 +748,27 @@ export interface AuditEntry {
 }
 
 /** An error response from the panel. `code` is stable; translate it with errorMessage. */
+// ---- Moving websites ----
+
+export interface SiteMove {
+  id: string;
+  site_id: string | null;
+  from_server: string;
+  to_server: string;
+  from_server_name: string;
+  to_server_name: string;
+  database_ids: string[];
+  databases: { id: string; engine: string; name: string; username: string }[];
+  phase: "copying" | "switching" | "moved" | "cleaning" | "done" | "failed";
+  error: string | null;
+  bytes: number;
+  check_status: number | null;
+  target_cleanup: boolean;
+  created_at: string;
+  moved_at: string | null;
+  finished_at: string | null;
+}
+
 // ---- API tokens ----
 
 export interface APIToken {
@@ -693,7 +824,13 @@ export interface UpdatesInfo {
   current: string;
   /** False for a panel built from source ("dev"). */
   release: boolean;
-  latest: { version?: string; published_at?: string; notes_url?: string; checked_at?: string; error?: string };
+  latest: {
+    version?: string;
+    published_at?: string;
+    notes_url?: string;
+    checked_at?: string;
+    error?: string;
+  };
   update_available: boolean;
   check_enabled: boolean;
   /** The agent on the panel's own server is connected. */
@@ -752,7 +889,7 @@ export const api = {
 /** Turns any thrown error into a sentence in the user's language. */
 export function errorMessage(t: TFunction, err: unknown): string {
   if (err instanceof ApiError) {
-    return t(`errors.${err.code}`, { defaultValue: err.message });
+    return t(`errors.${err.code}`, { ...err.data, defaultValue: err.message });
   }
   return t("errors.internal");
 }

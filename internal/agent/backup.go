@@ -396,6 +396,12 @@ func backupRestore(ctx context.Context, sys *system, p agentproto.BackupRestoreP
 			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
 		}
 		home := "/home/" + s.User
+		if p.Mode == "home" {
+			if err := restoreWholeHome(ctx, sys, p.RepoID, cfg, p.SnapshotID, s.User, stamp); err != nil {
+				return nil, opError(agentproto.ErrFailed, "%v", err)
+			}
+			return &agentproto.BackupRestoreResult{}, nil
+		}
 		var target string
 		switch p.Mode {
 		case "folder":
@@ -481,4 +487,36 @@ func backupRemove(sys *system, p agentproto.BackupRemoveParams) (*agentproto.Bac
 	os.Remove(cfgPath)
 	os.Remove(passPath)
 	return &agentproto.BackupRestoreResult{}, nil
+}
+
+// restoreWholeHome puts a site's whole home folder back from a snapshot (a website rebuilt
+// on a new server from its backup): everything in the snapshot replaces what the fresh
+// account has, and is given to the account here (numbers differ between servers).
+func restoreWholeHome(ctx context.Context, sys *system, repoID string, cfg *repoConfig, snapshot, user, stamp string) error {
+	home := "/home/" + user
+	tmp := "/home/.ekpanel-restore-" + user + "-" + stamp
+	defer os.RemoveAll(sys.path(tmp))
+	if _, err := restic(ctx, sys, repoID, cfg, command{args: []string{"restore", snapshot + ":" + sys.path(home), "--target", sys.path(tmp)}}); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(sys.path(tmp))
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		dst := sys.path(home + "/" + e.Name())
+		os.RemoveAll(dst)
+		if err := os.Rename(sys.path(tmp+"/"+e.Name()), dst); err != nil {
+			return err
+		}
+		if _, err := sys.run(ctx, "chown", "-R", user+":"+user, dst); err != nil {
+			return err
+		}
+	}
+	live := home + "/public_html"
+	os.Chmod(sys.path(live), 0o750)
+	if _, err := sys.run(ctx, "setfacl", "-R", "-m", "u:caddy:rX,d:u:caddy:rX", live); err != nil {
+		return err
+	}
+	return nil
 }

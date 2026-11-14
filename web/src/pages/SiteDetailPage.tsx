@@ -1,3 +1,4 @@
+import { SiteMoveCard } from "../components/SiteMove";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -162,6 +163,7 @@ export function SiteDetailPage() {
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           <div className="grid content-start gap-6">
+          {!deleting && me.data?.role === "admin" && <SiteMoveCard site={s} />}
           {!deleting && <SiteMalwareCard site={s} admin={me.data?.role === "admin"} />}
           {!deleting && <WordPressCard site={s} />}
           {!deleting && <PHPAppCard site={s} />}
