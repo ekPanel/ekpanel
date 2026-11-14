@@ -358,7 +358,8 @@
         "rolled_back": "Rolled back",
         "preview_created": "Preview created",
         "preview_removed": "Preview removed",
-        "move_started": "App move started"
+        "move_started": "App move started",
+        "built": "App build started"
       },
       "package": {
         "created": "Package created",
@@ -780,7 +781,21 @@
     "invalid_logo": "Upload a PNG, JPEG, GIF or WebP picture of at least 16×16 pixels.",
     "logo_too_large": "The logo can be up to 2 MB.",
     "brand_name_first": "Save your panel's name first.",
-    "domain_taken": "A website, an app or another panel already uses this domain."
+    "domain_taken": "A website, an app or another panel already uses this domain.",
+    "service_not_allowed": "Only administrators set up and change service apps.",
+    "site_required": "Choose the website whose folder the app runs from.",
+    "invalid_directory": "Enter a folder inside the website, such as app or apps/api.",
+    "invalid_runtime": "Choose a Node.js version, or no runtime.",
+    "site_other_owner": "The website must belong to the app's owner.",
+    "port_taken": "Another app on this server uses this port.",
+    "no_build_command": "The app has no build command.",
+    "build_running": "A build is already running.",
+    "service_app_update": "A service app has no images; upload its new files and build it.",
+    "service_app_terminal": "A service app has no container; use its website's files.",
+    "service_app_move": "Service apps run from their website's folder and cannot move to another server yet.",
+    "service_app_cron": "A service app has no cron jobs of its own. Add them to its website, starting with cd into the app's folder.",
+    "site_has_service_apps": "Service apps run from this website's folder. Delete them, or choose another website for them, first.",
+    "service_app_owner": "A service app belongs to its website's owner; change the website's owner instead."
   },
   "not_found": {
     "title": "Page not found",
@@ -837,7 +852,8 @@
       "system_update_agents": "Update the agents",
       "site_rebuild": "Rebuild a website from a backup",
       "import_cpanel": "Import cPanel account {{cp_user}}",
-      "import_site": "Import a website archive"
+      "import_site": "Import a website archive",
+      "app_service_build": "Build {{name}}"
     }
   },
   "sites": {
@@ -1675,12 +1691,14 @@
     "kind": {
       "image": "Docker image",
       "compose": "Compose file",
-      "git": "Git repository"
+      "git": "Git repository",
+      "service": "Service"
     },
     "kind_hint": {
       "image": "One container from an image, with variables and kept folders.",
       "compose": "Several services described in a docker-compose.yml.",
-      "git": "Built from a branch with its Dockerfile, released without downtime."
+      "git": "Built from a branch with its Dockerfile, released without downtime.",
+      "service": "A command from a website's folder: Node.js, Go and other programs, or a worker."
     },
     "name": "Name",
     "name_hint": "Lowercase letters, digits and dashes. Used for the folder and containers.",
@@ -1740,6 +1758,41 @@
       "with_data": "Also delete all its data",
       "with_data_hint": "Removes the volumes and /srv/ekpanel/apps/{{name}}. This cannot be undone."
     }
+  },
+  "service_apps": {
+    "site": "Website",
+    "choose_site": "Choose a website",
+    "site_hint": "The app runs from this website's folder, as its account. Upload its files there with the file manager, SFTP or FTP.",
+    "no_sites": "This server has no website of this owner yet. Add one first; it holds the app's files.",
+    "directory": "Folder",
+    "directory_hint": "Inside the website: {{path}}",
+    "runtime": "Runtime",
+    "runtime_none": "None (a program or script)",
+    "runtime_node_hint": "ekPanel installs this Node.js with npm, pnpm and Yarn the first time.",
+    "runtime_none_hint": "For Go and other programs, and PHP or Python scripts: the server's own programs are on the PATH.",
+    "command": "Start command",
+    "command_hint": "Runs with the shell in the folder, such as pnpm start, node server.js or ./api. It keeps running; ekPanel restarts it if it stops.",
+    "build_command": "Build command",
+    "build_command_hint": "Optional. Runs when you press Build, such as pnpm install && pnpm build; then the app restarts.",
+    "listens": "Listens on a port",
+    "listens_hint": "For apps with a web address. Leave it off for workers, such as queue runners.",
+    "port": "Port",
+    "port_hint": "Leave it empty and ekPanel picks a port, passed to the app as PORT. Enter one only if the program insists on its own (1024 or above).",
+    "port_auto": "Chosen by ekPanel",
+    "env_hint": "KEY=value lines, given to the app and its build. Its owner and administrators can see them.",
+    "first_run": "The first start of a Node.js version downloads it, which takes a minute.",
+    "runs_as": "Runs as",
+    "process": "Process",
+    "build": "Build",
+    "build_title": "Build",
+    "build_hint": "Runs as the app runs, in its folder:",
+    "build_state": {
+      "none": "Not built yet",
+      "running": "Building…",
+      "ok": "Built",
+      "failed": "Failed"
+    },
+    "delete_keeps": "The app stops and its unit, variables and domain are removed. Its files stay in the website {{site}}."
   },
   "catalog": {
     "title": "App catalogue",

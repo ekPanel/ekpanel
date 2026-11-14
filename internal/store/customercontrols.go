@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -76,6 +77,9 @@ type OwnerChange struct {
 	Zones       []string
 }
 
+// ErrServiceAppOwner means a service app would belong to someone other than its website's owner.
+var ErrServiceAppOwner = errors.New("a service app belongs to its website's owner; change the website's owner instead")
+
 // ChangeOwner applies an owner change in one transaction and returns the servers whose
 // state changed. Things being deleted are left alone; if any listed item is missing (or
 // being deleted), nothing changes and ErrNotFound is returned.
@@ -108,6 +112,23 @@ func (s *Store) ChangeOwner(ctx context.Context, c OwnerChange) ([]string, error
 		for _, id := range got {
 			servers[id] = true
 		}
+	}
+	// Service apps run as their website's account, so they follow their website, and move
+	// on their own only to their website's owner.
+	if len(c.Sites) > 0 {
+		if _, err := tx.Exec(ctx, `UPDATE apps SET owner_id = $2 WHERE site_id = ANY($1::uuid[]) AND state <> 'deleting'`, c.Sites, c.To); err != nil {
+			return nil, err
+		}
+	}
+	var mismatch bool
+	err = tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM apps a JOIN sites st ON st.id = a.site_id
+		WHERE a.owner_id IS DISTINCT FROM st.owner_id AND (a.id = ANY($1::uuid[]) OR a.site_id = ANY($2::uuid[])))`,
+		c.Apps, c.Sites).Scan(&mismatch)
+	if err != nil {
+		return nil, err
+	}
+	if mismatch {
+		return nil, ErrServiceAppOwner
 	}
 	if len(c.Zones) > 0 {
 		tag, err := tx.Exec(ctx, `UPDATE hosted_zones SET owner_id = $2 WHERE id = ANY($1::uuid[])`, c.Zones, c.To)

@@ -75,6 +75,13 @@ All notable changes to ekPanel are listed here. The format follows
   panel's server with its own certificate, and shows its brand before signing in. A link to
   the source code stays, as the AGPL asks (4e)
 
+- Service apps (Apps → Add app → Service): a command run by systemd from a website's folder,
+  as the website's account: Node.js 26, 24 or 22 (installed by the panel, with pnpm and Yarn),
+  Go and other programs, and workers such as queue runners. The panel picks a port (as PORT) or
+  keeps the one the program insists on; a build command runs on request; the app sees only its
+  website's home folder, has no privileges and runs in its owner's limits. Administrators set
+  them up (4h)
+
 ### Changed
 - PHP websites serve a folder's `index.html` when it has no `index.php`, as Apache does (4d)
 - Collecting a server's traffic by hand also checks bandwidth limits (4e)

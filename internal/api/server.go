@@ -202,6 +202,7 @@ func (s *Server) router() chi.Router {
 			r.Post("/apps/{id}/stop", s.handleStopApp)
 			r.Post("/apps/{id}/restart", s.handleRestartApp)
 			r.Post("/apps/{id}/update", s.handleUpdateAppImages)
+			r.Post("/apps/{id}/build", s.handleBuildApp)
 			r.Get("/apps/{id}/status", s.handleAppStatus)
 			r.Get("/apps/{id}/logs", s.handleAppLogs)
 			r.Get("/apps/{id}/access-log", s.handleAppAccessLog)

@@ -828,6 +828,8 @@ Agreed (2026-11-09):
   wait until the hosting side is released and in use.
 - **Order:** 4a → 4b → 4c → 4d → 4e → 4f → 4g, each tested in the VM like phase 3. Billing
   comes last: it builds on the API tokens (4b) and resellers (4e).
+- **Changed 2026-11-14:** 4h (taking over an aaPanel server in place) comes before 4e-5, 4f
+  and 4g, because the owner's own server moves to ekPanel once ekPanel can run all of it.
 
 **4a. Releases and updates**
 - [x] Release builds in CI (linux amd64 and arm64) with checksums and an Ed25519 signature,
@@ -1235,27 +1237,69 @@ everything on it; the move itself comes after. Read-only inventory taken 2026-11
   restarts of Go projects, aaPanel backups to Google Drive, ufw rules incl. UDP and LAN-only
   sources, Let's Encrypt and Cloudflare origin certificates
 
-What ekPanel needs (each tested in the VM, a Lima VM with aaPanel installed for the takeover):
-- [ ] **Service apps**: a command run as a systemd service from a folder (Node with a chosen
+Order: **4h-1 service apps**, **4h-2 proxy sites, wildcard domains and firewall rules**,
+**4h-3 adopting running database servers, Compose projects and Redis**, **4h-4 backups to
+Google Drive**, **4h-5 the aaPanel takeover**. What ekPanel needs (each tested in the VM, a Lima
+VM with aaPanel installed for the takeover):
+- [x] **Service apps** (4h-1): a command run as a systemd service from a folder (Node with a chosen
       version and package manager, Go and other binaries, PHP workers), with its own user,
       environment, memory and CPU limits, restart, logs, a port, domains and cron; also without a
       domain (workers)
-- [ ] **Proxy sites**: domains to a local port or URL, several paths to several upstreams,
+- [ ] **Proxy sites** (4h-2): domains to a local port or URL, several paths to several upstreams,
       websockets, headers
-- [ ] **Wildcard domains** with DNS-01 certificates (Cloudflare and the built-in DNS), and
+- [ ] **Wildcard domains** (4h-2) with DNS-01 certificates (Cloudflare and the built-in DNS), and
       uploaded origin certificates on them
-- [ ] **Adopting what runs**: an existing MariaDB/MySQL or PostgreSQL server (by its root
+- [ ] **Adopting what runs** (4h-3): an existing MariaDB/MySQL or PostgreSQL server (by its root
       credentials, any port or socket) as the server's database engine, existing databases and
       users kept; existing Compose projects and containers by their folder and name, with build
       contexts, without recreating them; Redis as a managed service
-- [ ] **Firewall rules** with protocol, port ranges and source addresses
-- [ ] **Backups to Google Drive** (restic through rclone), if wanted instead of S3
-- [ ] **aaPanel takeover**: reads aaPanel's own data (sites, domains, projects, databases,
+- [ ] **Firewall rules** (4h-2) with protocol, port ranges and source addresses
+- [ ] **Backups to Google Drive** (4h-4) (restic through rclone), if wanted instead of S3
+- [ ] **aaPanel takeover** (4h-5): reads aaPanel's own data (sites, domains, projects, databases,
       cron jobs, certificates, Docker) on the same server, shows what it will do, then moves
       folders by renaming (no copy, the disk has room for little more), switches nginx to Caddy
       site by site, keeps ports that other things use (25, 53, 5672), stops aaPanel's services
       and leaves its files until removed by hand; a dry run first, and a way back to aaPanel
       until it is removed
+
+How 4h-1 works:
+- **A new app kind, "service":** a command that systemd runs from a folder of one of the owner's
+  websites, as that website's Linux account (the website holds the code, so its file manager,
+  SFTP, FTP and backups cover it). Several apps may run from one folder (a monorepo's admin,
+  portal and storefront). Unit `ekpanel-app-<name>.service`; the variables are in a root-only
+  file in `/srv/ekpanel/apps/<name>`.
+- **Sandbox:** no privileges or capabilities, the system read-only, only its own home folder
+  visible (`ProtectHome=tmpfs` with the home bound back), private /tmp and devices, in the
+  owner's slice with the app's own memory and CPU limits. `Restart=always`.
+- **Node.js:** 26, 24 or 22, the newest release of that line from nodejs.org, checked against
+  its SHASUMS256, with pnpm and Yarn (Corepack is gone since Node.js 25), in
+  `/usr/local/lib/ekpanel/node/<major>`, installed when an app first needs it. Without a
+  runtime, the server's own programs are on the PATH (Go binaries, `php8.4 artisan …`).
+- **Ports:** the panel picks one (20000–29999) and passes it as PORT, or the program keeps the
+  one it insists on (1024–65535, unique among the server's apps); workers have none. The domain
+  is proxied by Caddy like other apps.
+- **Build:** an optional build command (such as `pnpm install && pnpm build`) runs once on
+  request, as the app runs (account, folder, runtime, variables, limits, sandbox) in a
+  transient unit stopped after 30 minutes; its output is kept on the app, and the app restarts
+  after a good build.
+- **Who:** only administrators set up or change service apps (for themselves or a customer, from
+  that customer's website); customers see theirs and can start, stop, restart and build them.
+- **Not yet:** moving them between servers (a website they run from cannot move or be deleted
+  under them), their own cron jobs (the website's cron jobs run in the same folder), a terminal,
+  Git deploys into the folder. A service app follows its website to a new owner.
+- **Tried in the VM** (Lima, Ubuntu 24.04, installer from a local build): a Node.js app from a
+  website folder downloaded Node.js 24.22 with pnpm, answered at its domain with its PORT, got
+  variables with quotes, `$` and `%` exactly, saw only its own home folder and could not write
+  outside it; `pnpm install && pnpm run build` ran as the website's account and restarted it; a
+  killed process came back; stop, start and restart worked. A Go binary served on the port it
+  insists on, and a worker without a port wrote its files as the website's account. A
+  customer's app ran in their slice with its own memory limit, stopped when they were suspended
+  and started again after; their website could not be deleted under it. Deleting an app removed
+  its unit and domain and left the files. Browser: the add dialog, the app page with its build
+  output, process and settings, in both themes and Bangla.
+- Noted for later: a program that exits at once still shows the app as working; its process
+  card says "restarting" with the count, and the logs say why. The takeover (4h-5) must also
+  check fixed ports against the panel's own (8080 on the panel's server).
 
 **Smaller things left from earlier phases** (taken along where they fit)
 - [ ] Database browser and import/export (4b or 4c)

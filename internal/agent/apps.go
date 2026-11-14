@@ -47,9 +47,11 @@ func appCaddyPath(id string) string { return caddySitesDir + "/app-" + id + ".ca
 
 // appState is what the agent keeps about an app between runs.
 type appState struct {
-	ID      string              `json:"id"`
-	Stopped bool                `json:"stopped"`
-	Env     []agentproto.EnvVar `json:"env"`
+	ID         string              `json:"id"`
+	Kind       string              `json:"kind,omitempty"` // "service" for service apps; Docker apps leave it out
+	Stopped    bool                `json:"stopped"`
+	Env        []agentproto.EnvVar `json:"env,omitempty"`
+	Generation int64               `json:"generation,omitempty"`
 }
 
 func validateApp(ap agentproto.AppSpec) error {
@@ -109,10 +111,18 @@ func validateApp(ap agentproto.AppSpec) error {
 		if len(ap.Volumes) > 20 {
 			return errors.New("too many volumes")
 		}
+	case "service":
+		if err := validateService(ap); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("unknown app kind %q", ap.Kind)
 	}
-	if ap.ContainerPort != 0 {
+	if ap.Kind == "service" {
+		if ap.HostPort == 0 && ap.Domain != "" {
+			return errors.New("a domain needs the port the app listens on")
+		}
+	} else if ap.ContainerPort != 0 {
 		if ap.ContainerPort < 1 || ap.ContainerPort > 65535 || ap.HostPort < 20000 || ap.HostPort > 29999 || !serviceRE.MatchString(ap.Service) {
 			return errors.New("invalid port settings")
 		}
@@ -399,6 +409,9 @@ func checkComposeConfig(raw []byte, ap agentproto.AppSpec) error {
 // ---- Apply ----
 
 func (a *applier) ensureApp(ctx context.Context, ap agentproto.AppSpec) error {
+	if ap.Kind == "service" {
+		return a.ensureService(ctx, ap)
+	}
 	if a.dockerReady == nil {
 		err := ensureDocker(ctx, a.sys)
 		a.dockerReady = &err
@@ -578,6 +591,9 @@ func (a *applier) removeApp(ctx context.Context, ap agentproto.AppSpec) error {
 	if st.ID != ap.ID {
 		return nil // the folder is another app's; this one is already gone
 	}
+	if st.Kind == "service" || ap.Kind == "service" {
+		return a.removeService(ctx, ap.Name)
+	}
 	if _, err := a.sys.run(ctx, "docker", "version"); err != nil {
 		return err
 	}
@@ -703,6 +719,9 @@ func appStatus(ctx context.Context, sys *system, p agentproto.AppParams) (*agent
 	if opErr != nil {
 		return nil, opErr
 	}
+	if st.Kind == "service" {
+		return serviceStatus(ctx, sys, p.Name)
+	}
 	out, err := compose(ctx, sys, p.Name, st.Env, "ps", "--all", "--format", "json")
 	if err != nil {
 		return nil, opError(agentproto.ErrFailed, "%v", err)
@@ -749,6 +768,9 @@ func appLogs(ctx context.Context, sys *system, p agentproto.AppParams) (*agentpr
 	if tail <= 0 || tail > 5000 {
 		tail = 200
 	}
+	if st.Kind == "service" {
+		return serviceLogs(ctx, sys, p.Name, tail)
+	}
 	args := []string{"logs", "--no-color", "--timestamps", "--tail", strconv.Itoa(tail)}
 	if p.Service != "" {
 		args = append(args, "--", p.Service)
@@ -777,6 +799,9 @@ func appRestart(ctx context.Context, sys *system, p agentproto.AppParams) (any, 
 	if st.Stopped {
 		return nil, opError(agentproto.ErrNotAllowed, "the app is stopped; start it first")
 	}
+	if st.Kind == "service" {
+		return serviceRestart(ctx, sys, p.Name)
+	}
 	if _, err := compose(ctx, sys, p.Name, st.Env, "restart"); err != nil {
 		return nil, opError(agentproto.ErrFailed, "%v", err)
 	}
@@ -790,6 +815,9 @@ func appPull(ctx context.Context, sys *system, p agentproto.AppParams) (any, *ag
 	st, opErr := loadApp(sys, p)
 	if opErr != nil {
 		return nil, opErr
+	}
+	if st.Kind == "service" {
+		return nil, opError(agentproto.ErrNotAllowed, "a service app has no images")
 	}
 	if _, err := compose(ctx, sys, p.Name, st.Env, "pull", "--quiet"); err != nil {
 		return nil, opError(agentproto.ErrFailed, "%v", err)

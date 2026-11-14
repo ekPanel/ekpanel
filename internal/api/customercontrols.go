@@ -333,6 +333,10 @@ func (s *Server) handleChangeOwner(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	servers, err := s.store.ChangeOwner(ctx, change)
+	if errors.Is(err, store.ErrServiceAppOwner) {
+		writeError(w, http.StatusConflict, "service_app_owner", err.Error())
+		return
+	}
 	if errors.Is(err, store.ErrNotFound) {
 		notFound("not_found")
 		return

@@ -322,6 +322,9 @@ func (s *Server) handleDeleteSite(w http.ResponseWriter, r *http.Request) {
 		s.writeSiteStoreError(w, r, err)
 		return
 	}
+	if !s.noServiceApps(w, r, site.ID) {
+		return
+	}
 	// A moved site's old copy would stay behind on the other server.
 	if _, err := s.store.OpenMove(r.Context(), site.ID); err == nil {
 		writeError(w, http.StatusConflict, "move_open", "this website is being moved, or its old copy is still on the other server; finish the move first")

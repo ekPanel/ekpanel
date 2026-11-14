@@ -155,6 +155,10 @@ func (s *Server) handleCreateCron(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusConflict, "app_not_ready", "this app is being deleted")
 			return
 		}
+		if app.Kind == "service" {
+			writeError(w, http.StatusBadRequest, "service_app_cron", "a service app has no cron jobs of its own; add them to its website, with cd into the app's folder")
+			return
+		}
 		n.ServerID, n.AppID, ownerID = app.ServerID, &app.ID, app.OwnerID
 	default:
 		writeError(w, http.StatusBadRequest, "invalid_cron_target", "a job belongs to a website or an app")

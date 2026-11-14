@@ -112,6 +112,10 @@ func (s *Server) handleAppTerminal(w http.ResponseWriter, r *http.Request) {
 	if !s.terminalAllowed(w, r) {
 		return
 	}
+	if app.Kind == "service" {
+		writeError(w, http.StatusBadRequest, "service_app_terminal", "a service app has no container; open its website's files instead")
+		return
+	}
 	service := r.URL.Query().Get("service")
 	if service == "" {
 		service = agentproto.AppServiceName

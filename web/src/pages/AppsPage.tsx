@@ -10,6 +10,7 @@ import {
   EyeOff,
   SquareTerminal,
   ExternalLink,
+  Hammer,
   LayoutGrid,
   Lock,
   Play,
@@ -19,7 +20,7 @@ import {
   Square,
   Trash2,
 } from "lucide-react";
-import { api, ApiError, errorMessage, type App, type AppContainer, type Package, type Server, type Task } from "../lib/api";
+import { api, ApiError, errorMessage, nodeVersions, type App, type AppContainer, type Package, type Server, type Site, type Task } from "../lib/api";
 import { PageHeader } from "../components/AppShell";
 import { Badge, Button, Card, CopyButton, Dialog, ErrorAlert, Field, Spinner, cx, type Tone } from "../components/ui";
 import { EmptyState } from "./ServerParts";
@@ -57,6 +58,14 @@ interface AppForm {
   builder: App["builder"];
   previews: boolean;
   previewDomain: string;
+  // Service apps.
+  siteId: string;
+  directory: string;
+  command: string;
+  buildCommand: string;
+  runtime: App["runtime"];
+  runtimeVersion: string;
+  listens: boolean;
 }
 
 const emptyForm: AppForm = {
@@ -79,14 +88,24 @@ const emptyForm: AppForm = {
   builder: "auto",
   previews: false,
   previewDomain: "",
+  siteId: "",
+  directory: "",
+  command: "",
+  buildCommand: "",
+  runtime: "node",
+  runtimeVersion: nodeVersions[1],
+  listens: true,
 };
+
+/** A port in the panel's own range was chosen by the panel, not asked for. */
+const panelPort = (p: number | null) => p !== null && p >= 20000 && p <= 29999;
 
 function formFromApp(a: App): AppForm {
   return {
     image: a.image ?? "",
     compose: a.compose ?? "",
     service: a.service ?? "",
-    port: a.container_port ? String(a.container_port) : "",
+    port: a.container_port && !(a.kind === "service" && panelPort(a.container_port)) ? String(a.container_port) : "",
     domain: a.domain_display || "",
     tls: a.tls,
     env: a.env.map((e) => `${e.key}=${e.value}`).join("\n"),
@@ -102,6 +121,13 @@ function formFromApp(a: App): AppForm {
     builder: a.builder,
     previews: a.previews,
     previewDomain: a.preview_domain ?? "",
+    siteId: a.site_id ?? "",
+    directory: a.directory ?? "",
+    command: a.command ?? "",
+    buildCommand: a.build_command ?? "",
+    runtime: a.runtime,
+    runtimeVersion: a.runtime_version ?? nodeVersions[1],
+    listens: a.host_port !== null,
   };
 }
 
@@ -145,6 +171,18 @@ function requestBody(kind: App["kind"], f: AppForm) {
     builder: f.builder,
     previews: f.previews,
     preview_domain: f.previewDomain,
+    ...(kind === "service" && {
+      site_id: f.siteId,
+      directory: f.directory,
+      command: f.command,
+      build_command: f.buildCommand,
+      runtime: f.runtime,
+      runtime_version: f.runtime ? f.runtimeVersion : "",
+      listens: f.listens,
+      container_port: f.listens ? num(f.port) : null,
+      domain: f.listens ? f.domain : "",
+      volumes: [],
+    }),
   };
 }
 
@@ -155,12 +193,17 @@ function AppFields({
   onChange,
   fromTemplate,
   preview,
+  serverId,
+  ownerId,
 }: {
   kind: App["kind"];
   value: AppForm;
   onChange: (v: AppForm) => void;
   fromTemplate?: boolean;
   preview?: boolean;
+  /** Service apps: the server and owner whose websites the app may run from. */
+  serverId?: string;
+  ownerId?: string | null;
 }) {
   const { t } = useTranslation();
   const set = <K extends keyof AppForm>(k: K, v: AppForm[K]) => onChange({ ...value, [k]: v });
@@ -168,6 +211,8 @@ function AppFields({
     <div className="grid gap-4">
       {fromTemplate ? (
         <p className="rounded-lg bg-sunk px-3 py-2 text-sm text-muted">{t("catalog.compose_fixed")}</p>
+      ) : kind === "service" ? (
+        <ServiceFields value={value} set={set} serverId={serverId ?? ""} ownerId={ownerId ?? null} />
       ) : kind === "git" ? (
         <div className="grid gap-4">
           <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
@@ -235,7 +280,9 @@ function AppFields({
               {value.previews && (
                 <Field
                   label={t("previews.domain")}
-                  hint={t("previews.domain_hint", { domain: value.previewDomain || "preview.example.com" })}
+                  hint={t("previews.domain_hint", {
+                    domain: value.previewDomain || "preview.example.com",
+                  })}
                   value={value.previewDomain}
                   onChange={(e) => set("previewDomain", e.target.value.trim())}
                   dir="ltr"
@@ -272,7 +319,7 @@ function AppFields({
           <span className="text-sm text-muted">{t("apps.compose_hint")}</span>
         </label>
       )}
-      {!fromTemplate && (
+      {!fromTemplate && kind !== "service" && (
         <div className={cx("grid gap-4", kind === "compose" ? "sm:grid-cols-2" : "")}>
           {kind === "compose" && (
             <Field label={t("apps.service")} hint={t("apps.service_hint")} value={value.service} onChange={(e) => set("service", e.target.value)} dir="ltr" />
@@ -297,7 +344,7 @@ function AppFields({
           onChange={(e) => set("domain", e.target.value)}
           dir="ltr"
           placeholder="app.example.com"
-          disabled={!value.port}
+          disabled={kind === "service" ? !value.listens : !value.port}
         />
         <label className="grid content-start gap-1.5">
           <span className="text-sm font-medium">{t("sites.tls.label")}</span>
@@ -319,10 +366,16 @@ function AppFields({
           placeholder={"TZ=Asia/Dhaka\nAPP_SECRET=…"}
         />
         <span className="text-sm text-muted">
-          {kind === "git" ? t("deploys.env_hint") : kind === "image" ? t("apps.env_hint_image") : t("apps.env_hint_compose")}
+          {kind === "git"
+            ? t("deploys.env_hint")
+            : kind === "image"
+              ? t("apps.env_hint_image")
+              : kind === "service"
+                ? t("service_apps.env_hint")
+                : t("apps.env_hint_compose")}
         </span>
       </label>
-      {kind !== "compose" && (
+      {kind !== "compose" && kind !== "service" && (
         <label className="grid gap-1.5">
           <span className="text-sm font-medium">{t("apps.volumes")}</span>
           <textarea
@@ -378,6 +431,122 @@ function AppFields({
   );
 }
 
+/** Where a service app runs from and how it starts. */
+function ServiceFields({
+  value,
+  set,
+  serverId,
+  ownerId,
+}: {
+  value: AppForm;
+  set: <K extends keyof AppForm>(k: K, v: AppForm[K]) => void;
+  serverId: string;
+  ownerId: string | null;
+}) {
+  const { t } = useTranslation();
+  const sites = useQuery({
+    queryKey: ["sites"],
+    queryFn: () => api.get<Site[]>("/sites"),
+  });
+  // The app runs as its website's account, so the website is on its server and its owner's.
+  const choices = (sites.data ?? []).filter((s) => s.server_id === serverId && (s.owner_id ?? null) === ownerId && s.state !== "deleting");
+  const site = choices.find((s) => s.id === value.siteId);
+  useEffect(() => {
+    if (sites.data && !site && choices.length && !value.siteId) set("siteId", choices[0].id);
+  }, [sites.data, site, choices, value.siteId, set]);
+  const home = site ? `/home/${site.linux_user}` : "/home/…";
+  return (
+    <div className="grid gap-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="grid content-start gap-1.5">
+          <span className="text-sm font-medium">{t("service_apps.site")}</span>
+          <select value={value.siteId} onChange={(e) => set("siteId", e.target.value)} className={select} required>
+            {!site && <option value="">{t("service_apps.choose_site")}</option>}
+            {choices.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.domain_display}
+              </option>
+            ))}
+          </select>
+          <span className="text-sm text-muted">{choices.length || sites.isPending ? t("service_apps.site_hint") : t("service_apps.no_sites")}</span>
+        </label>
+        <Field
+          label={t("service_apps.directory")}
+          hint={t("service_apps.directory_hint", {
+            path: `${home}/${value.directory.replace(/^\/+/, "")}`,
+          })}
+          value={value.directory}
+          onChange={(e) => set("directory", e.target.value)}
+          dir="ltr"
+          className="[&_input]:font-mono"
+          placeholder="app"
+        />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-[1fr_2fr]">
+        <label className="grid content-start gap-1.5">
+          <span className="text-sm font-medium">{t("service_apps.runtime")}</span>
+          <select
+            value={value.runtime ? `node-${value.runtimeVersion}` : ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              set("runtime", v ? "node" : "");
+              if (v) set("runtimeVersion", v.slice(5));
+            }}
+            className={select}
+          >
+            {nodeVersions.map((v) => (
+              <option key={v} value={`node-${v}`}>
+                Node.js {v}
+              </option>
+            ))}
+            <option value="">{t("service_apps.runtime_none")}</option>
+          </select>
+          <span className="text-sm text-muted">{value.runtime ? t("service_apps.runtime_node_hint") : t("service_apps.runtime_none_hint")}</span>
+        </label>
+        <Field
+          label={t("service_apps.command")}
+          hint={t("service_apps.command_hint")}
+          value={value.command}
+          onChange={(e) => set("command", e.target.value)}
+          dir="ltr"
+          className="[&_input]:font-mono"
+          placeholder={value.runtime ? "pnpm start" : "./server"}
+          required
+        />
+      </div>
+      <Field
+        label={t("service_apps.build_command")}
+        hint={t("service_apps.build_command_hint")}
+        value={value.buildCommand}
+        onChange={(e) => set("buildCommand", e.target.value)}
+        dir="ltr"
+        className="[&_input]:font-mono"
+        placeholder={value.runtime ? "pnpm install --frozen-lockfile && pnpm build" : ""}
+      />
+      <div className="grid gap-3 rounded-lg border border-line p-3">
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" checked={value.listens} onChange={(e) => set("listens", e.target.checked)} className="mt-1 accent-[var(--accent)]" />
+          <span>
+            <span className="font-medium">{t("service_apps.listens")}</span>
+            <span className="block text-muted">{t("service_apps.listens_hint")}</span>
+          </span>
+        </label>
+        {value.listens && (
+          <Field
+            label={t("service_apps.port")}
+            hint={t("service_apps.port_hint")}
+            value={value.port}
+            onChange={(e) => set("port", e.target.value.replace(/\D/g, ""))}
+            inputMode="numeric"
+            dir="ltr"
+            placeholder={t("service_apps.port_auto")}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function AppStateBadge({ app }: { app: App }) {
   const { t } = useTranslation();
   if (app.state === "active" && app.stopped) return <Badge>{t("apps.stopped")}</Badge>;
@@ -390,7 +559,11 @@ function AddAppDialog({ open, onClose }: { open: boolean; onClose: () => void })
   const { t } = useTranslation();
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const servers = useQuery({ queryKey: ["servers"], queryFn: () => api.get<Server[]>("/servers"), enabled: open });
+  const servers = useQuery({
+    queryKey: ["servers"],
+    queryFn: () => api.get<Server[]>("/servers"),
+    enabled: open,
+  });
   // Connected servers first, so the default choice is one that can act now.
   const ready = (servers.data ?? []).filter((s) => s.enrolled_at).sort((a, b) => Number(b.online) - Number(a.online));
   const [server, setServer] = useState("");
@@ -406,12 +579,15 @@ function AddAppDialog({ open, onClose }: { open: boolean; onClose: () => void })
   // Compose files can do anything Docker can, so only administrators run them, and only for
   // themselves. Git apps are for administrators, and for customers whose package allows them
   // (the panel checks the package of the customer an administrator picks).
+  // Service apps run a command on the server as a website's account: administrators only.
   const kinds: App["kind"][] =
     isAdmin && owner === ""
-      ? ["image", "compose", "git"]
-      : isAdmin || me.data?.role === "reseller" || myPackage.data?.package?.git_apps
-        ? ["image", "git"]
-        : ["image"];
+      ? ["image", "compose", "git", "service"]
+      : isAdmin
+        ? ["image", "git", "service"]
+        : me.data?.role === "reseller" || myPackage.data?.package?.git_apps
+          ? ["image", "git"]
+          : ["image"];
   useEffect(() => {
     if (!kinds.includes(kind)) setKind("image");
   }, [kinds, kind]);
@@ -431,7 +607,13 @@ function AddAppDialog({ open, onClose }: { open: boolean; onClose: () => void })
     setBusy(true);
     setError("");
     try {
-      const app = await api.post<App>("/apps", { server_id: server, name, kind, owner_id: owner, ...requestBody(kind, form) });
+      const app = await api.post<App>("/apps", {
+        server_id: server,
+        name,
+        kind,
+        owner_id: owner,
+        ...requestBody(kind, form),
+      });
       qc.invalidateQueries({ queryKey: ["apps"] });
       onClose();
       setForm(emptyForm);
@@ -449,7 +631,7 @@ function AddAppDialog({ open, onClose }: { open: boolean; onClose: () => void })
       <form onSubmit={submit} className="grid gap-5">
         <ErrorAlert>{error}</ErrorAlert>
         <div
-          className={cx("grid gap-2", kinds.length === 3 ? "sm:grid-cols-3" : kinds.length === 2 && "sm:grid-cols-2")}
+          className={cx("grid gap-2", kinds.length === 3 ? "sm:grid-cols-3" : kinds.length % 2 === 0 && kinds.length > 0 && "sm:grid-cols-2")}
           role="radiogroup"
           aria-label={t("apps.kind_label")}
         >
@@ -496,8 +678,8 @@ function AddAppDialog({ open, onClose }: { open: boolean; onClose: () => void })
           )}
         </div>
         <OwnerField value={owner} onChange={setOwner} />
-        <AppFields kind={kind} value={form} onChange={setForm} />
-        <p className="text-sm text-muted">{t("apps.first_run")}</p>
+        <AppFields kind={kind} value={form} onChange={setForm} serverId={server} ownerId={owner || null} />
+        <p className="text-sm text-muted">{kind === "service" ? t("service_apps.first_run") : t("apps.first_run")}</p>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>
             {t("common.cancel")}
@@ -612,7 +794,7 @@ function Containers({ app }: { app: App }) {
   });
   return (
     <Card className="overflow-hidden">
-      <h2 className="border-b border-line px-4 py-3 font-semibold">{t("apps.containers")}</h2>
+      <h2 className="border-b border-line px-4 py-3 font-semibold">{app.kind === "service" ? t("service_apps.process") : t("apps.containers")}</h2>
       {app.applied_generation === 0 && <p className="px-4 py-6 text-center text-sm text-muted">{t("apps.not_ready")}</p>}
       {q.isFetching && !q.data && app.applied_generation > 0 && <Spinner />}
       {q.error && (
@@ -682,6 +864,34 @@ function Logs({ app }: { app: App }) {
   );
 }
 
+/** A service app's last build: its state and what it printed. */
+function BuildCard({ app }: { app: App }) {
+  const { t, i18n } = useTranslation();
+  const tone: Record<App["build_state"], Tone> = {
+    "": "neutral",
+    running: "warn",
+    ok: "ok",
+    failed: "crit",
+  };
+  return (
+    <Card className="grid gap-3 p-5">
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="font-semibold">{t("service_apps.build_title")}</h2>
+        <Badge tone={tone[app.build_state]}>{t(`service_apps.build_state.${app.build_state || "none"}`)}</Badge>
+        {app.built_at && app.build_state !== "running" && <span className="text-sm text-muted">{new Date(app.built_at).toLocaleString(i18n.language)}</span>}
+      </div>
+      <p className="text-sm text-muted">
+        {t("service_apps.build_hint")} <code dir="ltr">{app.build_command}</code>
+      </p>
+      {app.build_log && (
+        <pre dir="ltr" className="max-h-96 overflow-auto rounded-lg bg-sunk p-3 font-mono text-xs whitespace-pre-wrap">
+          {app.build_log}
+        </pre>
+      )}
+    </Card>
+  );
+}
+
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="contents">
@@ -743,7 +953,15 @@ export function AppDetailPage() {
       <PageHeader
         title={app.name}
         description={
-          app.kind === "image" ? (app.image ?? "") : app.kind === "git" ? (app.git_url ?? "") : app.template ? t("catalog.from") : t("apps.kind.compose")
+          app.kind === "image"
+            ? (app.image ?? "")
+            : app.kind === "git"
+              ? (app.git_url ?? "")
+              : app.kind === "service"
+                ? (app.command ?? "")
+                : app.template
+                  ? t("catalog.from")
+                  : t("apps.kind.compose")
         }
         actions={
           <>
@@ -793,6 +1011,18 @@ export function AppDetailPage() {
             )}
             {app.kind === "git" ? (
               <DeployButton app={app} onError={setError} />
+            ) : app.kind === "service" ? (
+              app.build_command && (
+                <Button
+                  size="sm"
+                  disabled={!ready || !!busy || app.build_state === "running"}
+                  loading={busy === "build" || app.build_state === "running"}
+                  onClick={() => act("build", () => api.post(`/apps/${id}/build`))}
+                >
+                  <Hammer className="size-4" aria-hidden />
+                  {t("service_apps.build")}
+                </Button>
+              )
             ) : (
               <Button
                 size="sm"
@@ -804,7 +1034,7 @@ export function AppDetailPage() {
                 {t("apps.pull")}
               </Button>
             )}
-            {ready && !app.stopped && (app.kind !== "git" || app.image) && (
+            {ready && !app.stopped && app.kind !== "service" && (app.kind !== "git" || app.image) && (
               <Link to={`/apps/${id}/terminal`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-sm hover:bg-sunk">
                 <SquareTerminal className="size-4" aria-hidden />
                 {t("terminal.shell")}
@@ -827,18 +1057,50 @@ export function AppDetailPage() {
                 <bdi>{app.domain_display}</bdi>
               </Fact>
             )}
-            {app.container_port && (
-              <Fact label={t("apps.listens")}>
-                <span dir="ltr" className="font-mono">
-                  {app.service}:{app.container_port} → 127.0.0.1:{app.host_port}
-                </span>
-              </Fact>
+            {app.kind === "service" ? (
+              <>
+                <Fact label={t("service_apps.site")}>
+                  <Link to={`/sites/${app.site_id}`} className="text-accent hover:underline">
+                    <bdi>{app.site_domain}</bdi>
+                  </Link>
+                </Fact>
+                <Fact label={t("apps.folder")}>
+                  <span dir="ltr" className="font-mono break-all">
+                    /home/{app.site_user}
+                    {app.directory ? `/${app.directory}` : ""}
+                  </span>
+                </Fact>
+                <Fact label={t("service_apps.runs_as")}>
+                  <span dir="ltr" className="font-mono">
+                    {app.site_user} · ekpanel-app-{app.name}.service
+                  </span>
+                </Fact>
+                <Fact label={t("service_apps.runtime")}>{app.runtime ? `Node.js ${app.runtime_version}` : t("service_apps.runtime_none")}</Fact>
+                {app.host_port && (
+                  <Fact label={t("apps.listens")}>
+                    <span dir="ltr" className="font-mono">
+                      127.0.0.1:{app.host_port} (PORT)
+                    </span>
+                  </Fact>
+                )}
+              </>
+            ) : (
+              <>
+                {app.container_port && (
+                  <Fact label={t("apps.listens")}>
+                    <span dir="ltr" className="font-mono">
+                      {app.service}:{app.container_port} → 127.0.0.1:
+                      {app.host_port}
+                    </span>
+                  </Fact>
+                )}
+                <Fact label={t("apps.folder")}>
+                  <span dir="ltr" className="font-mono">
+                    /srv/ekpanel/apps/{app.name}
+                  </span>
+                </Fact>
+              </>
             )}
-            <Fact label={t("apps.folder")}>
-              <span dir="ltr" className="font-mono">
-                /srv/ekpanel/apps/{app.name}
-              </span>
-            </Fact>
           </dl>
         </Card>
 
@@ -851,16 +1113,17 @@ export function AppDetailPage() {
             {app.previews && <PreviewsCard app={app} />}
           </>
         )}
+        {app.kind === "service" && app.build_command && <BuildCard app={app} />}
         <div className="grid gap-6 xl:grid-cols-[2fr_3fr]">
           <Containers app={app} />
           <Logs app={app} />
         </div>
-        {app.state !== "deleting" && me.data?.role === "admin" && !app.preview_of && (
+        {app.state !== "deleting" && me.data?.role === "admin" && !app.preview_of && app.kind !== "service" && (
           <MoveCard
             thing={{ kind: "app", id: app.id, name: app.name, server_id: app.server_id, server_name: app.server_name, state: app.state, owner_id: app.owner_id }}
           />
         )}
-        {app.state !== "deleting" && <CronCard appId={app.id} />}
+        {app.state !== "deleting" && app.kind !== "service" && <CronCard appId={app.id} />}
         {app.state !== "deleting" && app.domain && (
           <div className="grid gap-6 xl:grid-cols-[2fr_3fr]">
             <TrafficCard base={`/apps/${app.id}`} />
@@ -868,7 +1131,7 @@ export function AppDetailPage() {
           </div>
         )}
 
-        {form && (
+        {form && (app.kind !== "service" || me.data?.role === "admin") && (
           <Card className="p-6">
             <form
               className="grid gap-5"
@@ -878,7 +1141,15 @@ export function AppDetailPage() {
               }}
             >
               <h2 className="text-lg font-semibold">{t("apps.settings")}</h2>
-              <AppFields kind={app.kind} value={form} onChange={setForm} fromTemplate={!!app.template} preview={!!app.preview_of} />
+              <AppFields
+                kind={app.kind}
+                value={form}
+                onChange={setForm}
+                fromTemplate={!!app.template}
+                preview={!!app.preview_of}
+                serverId={app.server_id}
+                ownerId={app.owner_id}
+              />
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="ghost" onClick={() => setForm(formFromApp(app))}>
                   {t("apps.reset")}
@@ -914,8 +1185,17 @@ function TemplateCard({ app }: { app: App }) {
   const [shown, setShown] = useState(false);
   const tpl = catalog.data?.find((c) => c.id === app.template);
   if (!tpl) return null;
-  const logins = tpl.vars.filter((v) => v.login).map((v) => ({ key: v.name, value: app.env.find((e) => e.key === v.name)?.value ?? "" }));
-  const notes = t(`catalog.apps.${tpl.id}.notes`, { defaultValue: "", port: app.host_port ?? "", domain: app.domain_display });
+  const logins = tpl.vars
+    .filter((v) => v.login)
+    .map((v) => ({
+      key: v.name,
+      value: app.env.find((e) => e.key === v.name)?.value ?? "",
+    }));
+  const notes = t(`catalog.apps.${tpl.id}.notes`, {
+    defaultValue: "",
+    port: app.host_port ?? "",
+    domain: app.domain_display,
+  });
   return (
     <Card className="grid gap-4 p-5">
       <div className="flex items-center gap-3">
@@ -986,14 +1266,16 @@ function DeleteAppDialog({ open, app, onClose }: { open: boolean; app: App; onCl
         }}
       >
         <ErrorAlert>{error}</ErrorAlert>
-        <p className="text-muted">{t("apps.delete.keeps")}</p>
-        <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" checked={withData} onChange={(e) => setWithData(e.target.checked)} className="mt-1 accent-[var(--accent)]" />
-          <span>
-            <span className="font-medium">{t("apps.delete.with_data")}</span>
-            <span className="block text-muted">{t("apps.delete.with_data_hint", { name: app.name })}</span>
-          </span>
-        </label>
+        <p className="text-muted">{app.kind === "service" ? t("service_apps.delete_keeps", { site: app.site_domain ?? "" }) : t("apps.delete.keeps")}</p>
+        {app.kind !== "service" && (
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" checked={withData} onChange={(e) => setWithData(e.target.checked)} className="mt-1 accent-[var(--accent)]" />
+            <span>
+              <span className="font-medium">{t("apps.delete.with_data")}</span>
+              <span className="block text-muted">{t("apps.delete.with_data_hint", { name: app.name })}</span>
+            </span>
+          </label>
+        )}
         <Field
           label={t("databases.delete.confirm", { name: app.name })}
           value={typed}

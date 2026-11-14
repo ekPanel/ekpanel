@@ -35,6 +35,9 @@ func (s *Server) handleMoveSite(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "site_not_active", "the website must be working before it can move; see its status first")
 		return
 	}
+	if !s.noServiceApps(w, r, site.ID) {
+		return
+	}
 	if req.ServerID == site.ServerID {
 		writeError(w, http.StatusBadRequest, "same_server", "the website is already on this server")
 		return
@@ -208,6 +211,9 @@ func (s *Server) handleMoveApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
+	case app.Kind == "service":
+		writeError(w, http.StatusConflict, "service_app_move", "a service app runs from its website's folder and cannot move on its own yet")
+		return
 	case app.State != "active":
 		writeError(w, http.StatusConflict, "app_not_active", "the app must be working before it can move; see its status first")
 		return
@@ -411,6 +417,12 @@ func (s *Server) handleMoveCustomer(w http.ResponseWriter, r *http.Request) {
 	count := 0
 	blocked := func(code, msg string) {
 		writeError(w, http.StatusConflict, code, msg)
+	}
+	for _, a := range apps {
+		if mine(a.OwnerID) && a.Kind == "service" {
+			blocked("service_app_move", "the service app "+a.Name+" runs from its website's folder and cannot move yet")
+			return
+		}
 	}
 	for _, x := range sites {
 		if !mine(x.OwnerID) || x.State == "deleting" {

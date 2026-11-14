@@ -465,7 +465,14 @@ export interface MailCheck {
     hostname: string;
     hostname_addresses: string[];
     port25: "open" | "blocked";
-    addresses: { address: string; ptr: string[]; ptr_ok: boolean; listed: string[]; unknown: string[]; checked: string[] }[];
+    addresses: {
+      address: string;
+      ptr: string[];
+      ptr_ok: boolean;
+      listed: string[];
+      unknown: string[];
+      checked: string[];
+    }[];
   };
   public_addresses: string[];
 }
@@ -529,7 +536,7 @@ export interface App extends Owned {
   server_id: string;
   server_name: string;
   name: string;
-  kind: "image" | "compose" | "git";
+  kind: "image" | "compose" | "git" | "service";
   image: string | null;
   compose: string | null;
   service: string | null;
@@ -561,9 +568,24 @@ export interface App extends Owned {
   preview_domain: string | null;
   preview_of: string | null;
   preview_number: number | null;
+  /** Service apps: the website whose folder and account they run with. */
+  site_id: string | null;
+  site_domain: string | null;
+  site_user: string | null;
+  directory: string | null;
+  command: string | null;
+  build_command: string | null;
+  runtime: "" | "node";
+  runtime_version: string | null;
+  build_state: "" | "running" | "ok" | "failed";
+  build_log?: string | null;
+  built_at: string | null;
   created_at: string;
   updated_at: string;
 }
+
+/** Node.js major versions a service app can use (as the agent offers them). */
+export const nodeVersions = ["26", "24", "22"] as const;
 
 /** One build and release of a Git app, or a rollback to an earlier build. */
 export interface Deployment {
@@ -705,7 +727,12 @@ export interface FirewallRule {
 
 export interface Firewall {
   mode: "unmanaged" | "on" | "off";
-  status: { active: boolean; ssh_ports: number[]; error?: string; at: string } | null;
+  status: {
+    active: boolean;
+    ssh_ports: number[];
+    error?: string;
+    at: string;
+  } | null;
   rules: FirewallRule[];
 }
 
@@ -797,7 +824,13 @@ export interface UpdatesInfo {
   current: string;
   /** False for a panel built from source ("dev"). */
   release: boolean;
-  latest: { version?: string; published_at?: string; notes_url?: string; checked_at?: string; error?: string };
+  latest: {
+    version?: string;
+    published_at?: string;
+    notes_url?: string;
+    checked_at?: string;
+    error?: string;
+  };
   update_available: boolean;
   check_enabled: boolean;
   /** The agent on the panel's own server is connected. */

@@ -247,6 +247,51 @@
         "x-ekpanel-scope": "read or apps"
       }
     },
+    "/api/v1/apps/{id}/build": {
+      "post": {
+        "operationId": "postAppsIdBuild",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "Success (JSON, or no content)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Build app",
+        "tags": [
+          "apps"
+        ],
+        "x-ekpanel-scope": "apps"
+      }
+    },
     "/api/v1/apps/{id}/deploy": {
       "post": {
         "operationId": "postAppsIdDeploy",

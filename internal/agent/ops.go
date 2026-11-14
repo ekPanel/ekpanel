@@ -166,6 +166,12 @@ func Dispatch(ctx context.Context, op string, params json.RawMessage) (any, *age
 		default:
 			return appPull(ctx, realSystem, p)
 		}
+	case agentproto.OpServiceBuild:
+		var p agentproto.AppBuildParams
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, opError(agentproto.ErrInvalidParams, "%v", err)
+		}
+		return appBuild(ctx, realSystem, p)
 	case agentproto.OpCronRun, agentproto.OpCronStatus:
 		var p agentproto.CronParams
 		if err := json.Unmarshal(params, &p); err != nil {

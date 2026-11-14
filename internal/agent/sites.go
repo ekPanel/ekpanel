@@ -321,6 +321,7 @@ type applier struct {
 	caddySites   map[string]string // site file path -> site ID
 	sshdReady    *error            // result of installing the SFTP rules, once per run
 	dockerReady  *error            // result of installing Docker, once per run
+	nodeReady    map[string]error  // result of installing each Node.js version, once per run
 }
 
 func (a *applier) fail(id string, err error) {

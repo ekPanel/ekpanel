@@ -118,6 +118,7 @@ func New(st *store.Store, h *hub.Hub, log *slog.Logger) *Runner {
 	r.handlers[KindBackupRun] = r.runBackup
 	r.handlers[KindBackupRestore] = r.restoreBackup
 	r.handlers[KindAppUpdate] = r.appUpdate
+	r.handlers[KindAppBuild] = r.appBuild
 	r.handlers[KindAppDeploy] = r.appDeploy
 	r.handlers[KindPHPExtension] = r.phpExtension
 	r.handlers[KindDNSSync] = r.dnsSync
